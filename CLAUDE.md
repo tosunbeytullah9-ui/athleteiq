@@ -219,7 +219,8 @@ AthleteIQ/
 │   │   ├── 024_revert_signup_self_serve_rls.sql
 │   │   ├── 025_team_scoped_training_rls.sql
 │   │   ├── 026_team_scoped_program_rpc.sql
-│   │   └── 027_drop_calculate_acwr.sql
+│   │   ├── 027_drop_calculate_acwr.sql
+│   │   └── 028_platform_exercises_admin_rls.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -928,7 +929,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-05
+Son otomatik senkron: 2026-08-07
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -969,6 +970,7 @@ Son otomatik senkron: 2026-08-05
 - 025_team_scoped_training_rls.sql
 - 026_team_scoped_program_rpc.sql
 - 027_drop_calculate_acwr.sql
+- 028_platform_exercises_admin_rls.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE

@@ -39,9 +39,14 @@ export default async function SuperAdminPage() {
             Platformdaki tüm tenant&apos;lar
           </p>
         </div>
-        <Button asChild>
-          <Link href="/admin/organizations/new">Yeni Organizasyon</Link>
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href="/admin/exercises">Egzersiz Kütüphanesi</Link>
+          </Button>
+          <Button asChild>
+            <Link href="/admin/organizations/new">Yeni Organizasyon</Link>
+          </Button>
+        </div>
       </div>
 
       <div className="rounded-md border">

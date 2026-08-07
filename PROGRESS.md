@@ -1,6 +1,50 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-05 (**Parti 6 — ACWR Konsolidasyonu** — DB'de duran, hiçbir yerden
+> Son güncelleme: 2026-08-07 (**Parti 9 — Egzersiz kütüphanesi: super-admin platform yönetim
+> ekranı** — `platform_exercises` (135 satır) şimdiye kadar tamamen salt-okunurdu
+> (`005_exercises.sql`'in tek politikası `platform_read_all`, SELECT `using(true)`) — düzeltme
+> yalnızca elle SQL ile mümkündü. Yeni migration `028_platform_exercises_admin_rls.sql`,
+> `is_super_admin()` ile gate'li INSERT/UPDATE politikaları ekledi (DELETE YOK — hard delete
+> yerine var olan `is_active` toggle deseni DB katmanında da zorlanıyor). Yeni route
+> `apps/web/app/admin/exercises/` (Parti 5.B'nin middleware-only `/admin/*` gating convention'ını
+> aynen kullanıyor, sayfa seviyesinde ek auth kodu YOK) — arama/filtreli bir tablo (135 satır,
+> `@/components/ui/table`, `admin/page.tsx`'teki organizasyon tablosuyla aynı desen) + Demo
+> var/yok rozeti + tıklanabilir `is_active` rozeti + Düzenle butonu. **Keşif sonucu (görevin DUR
+> koşulu tetiklenmedi):** `platform_exercises` kolonları `org_exercises`'ın kesin bir alt kümesi
+> (yalnızca `org_id`/`created_by`/`updated_by`/`forked_from_platform`/`custom_category_id`/
+> `coach_notes`/`updated_at` fazladan) — mevcut org-egzersizi formu (`exercise-form-fields.tsx`)
+> yeni bir `scope?: "org"|"platform"` prop'uyla genelleştirildi (default `"org"`, iki eski modal
+> DEĞİŞMEDEN çalışmaya devam ediyor), yeni `create-platform-exercise-modal.tsx`/
+> `edit-platform-exercise-modal.tsx` bu genelleştirilmiş formu kullanıyor — talimatın "aynı form
+> bileşenini kullan, yeni form icat etme" kuralına uyularak org modallarının RHF/Zod DIŞI
+> (`useState`+elle validasyon) deseni bilinçli olarak korundu, `/admin/organizations/new`'in daha
+> idiomatik RHF+Zod deseni burada tercih edilmedi. `packages/db/queries/exercises.ts`'e
+> `createPlatformExercise`/`updatePlatformExercise`/`getPlatformExercisesAdmin` (is_active
+> filtresiz — admin pasif satırları da görüp geri açabilmeli) eklendi. **Migration geçmişi
+> engeli:** `supabase db push` önce `LegacyDbPushMissingLocalError` ile durdu — cloud'daki
+> migration takip tablosu 023-027 için 5 farklı timestamp-prefixli kayıt tutuyordu (local
+> numaralı dosyalarla eşleşmiyordu), BUGS.md'nin "PARTİ 3" bölümünde belgelenen AYNI sınıf
+> sürüklenme; şema seviyesinde 023-027'nin zaten canlı olduğu doğrulandıktan sonra (`calculate_acwr`
+> yok, team-scoped RPC'ler/politikalar mevcut) kullanıcı onayıyla `supabase migration repair`
+> (5 timestamp kaydı `reverted`, local 023-027 `applied`) çalıştırılıp 028 push edildi. **DOĞRULAMA
+> (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh` + gerçek `next dev`, Playwright/`chromium-cli`
+> ile — bu oturumda `@playwright/test` zaten kurulu bulundu, önceki partilerin curl+elle-cookie
+> yöntemine göre bir ilk):** gerçek super_admin girişiyle `/admin/exercises`'a gidildi, "Back
+> Squat"a gerçek bir YouTube linki eklenip kaydedildi, satırın "Var" rozetine döndüğü ekran
+> görüntüsüyle doğrulandı (konsol hatası yok); `forkPlatformExercise`'ın `demo_url`'i zaten
+> birebir kopyaladığı kod okumasıyla teyit edildi (fork akışına dokunulmadı). Geçici bir coach
+> hesabıyla (Admin API, TGF/ACE, Parti 4.E/8.B'nin deseni) `/admin/exercises`'a gidildiğinde
+> middleware `/dashboard`'a (sonra role guard'ıyla `/athletes`'e) yönlendirdi; AYNI coach'un
+> anon-key client'tan doğrudan `platform_exercises` UPDATE denemesi RLS tarafından sessizce 0
+> satır, INSERT denemesi açık `42501` hatasıyla reddedildi (Back Squat'ın `instructions`'ı
+> saldırı denemesi sonrası `null` kaldığı doğrulandı). Aynı coach'un kendi `/exercises`
+> (org_exercises) sayfası ve "Yeni Egzersiz" modalı (Org Kategorisi + Koç Notları alanları hâlâ
+> orada) regresyonsuz çalıştı — `scope` prop'unun varsayılanı doğrulandı. `pnpm turbo run
+> type-check` (5/5 paket) + `pnpm --filter web build` (yeni `/admin/exercises` route'u dahil, 0
+> hata) temiz. Geçici coach hesabı+membership'i silindi, `leftover_memberships=0`/
+> `leftover_auth_user=false` doğrulandı. `pnpm docs:sync` çalıştırıldı (CLAUDE.md migration
+> listesine 028 eklendi, 27 migration). Detay: § Parti 9)
+> Önceki: 2026-08-05 (**Parti 6 — ACWR Konsolidasyonu** — DB'de duran, hiçbir yerden
 > çağrılmayan `calculate_acwr()` SQL fonksiyonu (`003_functions.sql`/`009_security_fixes.sql`)
 > canlı ACWR hesaplamasından (`acwr-client.tsx`) metodolojik olarak farklıydı — fonksiyon
 > DEĞİŞKEN bölen (yalnızca loglanan günlerin `avg()`'i), canlı formül SABİT bölen (7/28 takvim
@@ -60,6 +104,32 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 9 — Egzersiz kütüphanesi: super-admin platform yönetim ekranı ✅ (2026-08-07)
+
+**Kapsam:** `platform_exercises`'a (135 satır, 16 hareket paterni) super_admin için tam CRUD (soft-delete: `is_active` toggle) — yeni migration, yeni query fonksiyonları, genelleştirilmiş form bileşeni, yeni `/admin/exercises` route.
+
+**0. Keşif:** İki paralel Explore agent'ı ile (a) `apps/web/components/features/exercises/`'teki org-egzersizi create/edit modallarının TAM yapısı (`exercise-form-fields.tsx` + `create-exercise-modal.tsx`/`edit-exercise-modal.tsx`) ve (b) `apps/web/app/admin/` route convention'ı (`organizations/new/` örneği) + PROGRESS.md/BUGS.md ilgili geçmişi çıkarıldı. **Kritik bulgu #1:** `platform_exercises` kolonları `org_exercises`'ın kesin bir alt kümesi (`005_exercises.sql`) — fazladan olan tek şey `org_id`/`created_by`/`updated_by`/`forked_from_platform`/`custom_category_id`/`coach_notes`/`updated_at`, yani mevcut formu uyarlamak talimatın DUR şartını ("beklenenden karmaşıksa") tetiklemedi. **Kritik bulgu #2:** org-egzersizi modalları CLAUDE.md'nin genel "React Hook Form + Zod" kuralını takip ETMİYOR (düz `useState`+elle validasyon+`(supabase as any)` cast) — talimat açıkça "aynı form bileşenini kullan, yeni form icat etme" dediği için bu Parti'de bu desen bilinçli olarak korundu, `/admin/organizations/new`'in kullandığı daha idiomatik RHF+Zod deseni burada TERCİH EDİLMEDİ (iki ayrı konvansiyonun bir arada var olduğu, kayıt altına alınan bir tutarsızlık). **Kritik bulgu #3:** `platform_exercises`'ın o güne dek YALNIZCA `platform_read_all` (SELECT, `using(true)`) politikası vardı — INSERT/UPDATE/DELETE hiç yoktu, `025_team_scoped_training_rls.sql` bunu bilinçli kapsam-dışı olarak belgelemişti.
+
+**Düzeltme:**
+- **Migration `supabase/migrations/028_platform_exercises_admin_rls.sql`:** `is_super_admin()` ile gate'li `platform_exercises_insert`/`platform_exercises_update` politikaları (organizations tablosundaki `orgs_insert`/`orgs_update` ile aynı desen). **DELETE politikası bilinçli olarak eklenmedi** — UI zaten silme sunmuyor (`is_active` toggle var), RLS de izin vermesin diye.
+- **`packages/db/queries/exercises.ts`:** `createPlatformExercise`/`updatePlatformExercise` (mevcut ama modallarca kullanılmayan `createOrgExercise`/`updateOrgExercise` ile aynı imza/stil) + yeni `getPlatformExercisesAdmin` (mevcut `getPlatformExercises`'ten farklı olarak `is_active` filtresi YOK — admin pasif satırları da görüp geri açabilmeli; coach-facing `getPlatformExercises` değişmedi).
+- **`exercise-form-fields.tsx`:** `MOVEMENT_PATTERNS` export edildi (admin tablosunda Türkçe etiket göstermek için), `Props`'a opsiyonel `scope?: "org"|"platform"` eklendi (default `"org"` — iki eski modalın çağrı yeri DEĞİŞMEDEN çalışıyor). `scope==="platform"` iken "Org Kategorisi" select'i ve "Koç Notları" textarea'sı render edilmiyor, hareket paterni tek başına tam genişlik + `*` ile zorunlu işaretleniyor (org'daki "OR kategori" kaçış yolu platform'da yok, DB'de `not null`).
+- **Yeni modallar** `create-platform-exercise-modal.tsx`/`edit-platform-exercise-modal.tsx`: org modalların yapısal ikizi, farklar — org-only alanlar payload'dan çıkarıldı, zorunlu alan kontrolü sadece `name`+`movement_pattern`, yeni tipli query helper'ları çağırıyor (org modallarının aksine `(supabase as any).from(...)` yerine — düşük riskli, tutarlılığı artıran bir iyileştirme).
+- **Yeni route `apps/web/app/admin/exercises/`** (`page.tsx` Server Component + `exercises-client.tsx` Client Component): middleware guard'ı zaten kapsıyor (Parti 5.B convention'ı — sayfa seviyesinde EK auth kodu YOK). Arama/hareket-paterni filtreli tablo (`@/components/ui/table`, `admin/page.tsx`'teki organizasyon tablosuyla aynı desen — 135 satırlık yoğun liste için kart-grid değil tablo tercih edildi), Demo var/yok rozeti, tıklanabilir `is_active` rozeti (yeni bir `Switch` primitive'i EKLENMEDİ, mevcut `Badge`/`Button` yeterli), Düzenle butonu. `admin/page.tsx`'e "Egzersiz Kütüphanesi" giriş linki eklendi ("Yeni Organizasyon" butonunun yanına — `/admin` altında başka hub sayfası olmadığı için).
+
+**Migration geçmişi engeli (implementasyon sırasında):** `supabase db push` `LegacyDbPushMissingLocalError` ile durdu — `supabase migration list` cloud'da 023-027 local dosyalarıyla eşleşmeyen 5 timestamp-prefixli kayıt (`20260729091519` vb.) gösterdi, BUGS.md'nin "PARTİ 3" bölümünde belgelenen AYNI sınıf local/cloud sürüklenme. `supabase db query` ile şema seviyesinde 023-027'nin zaten canlı olduğu doğrulandı (`calculate_acwr` fonksiyonu yok/027, `create_program_with_weeks`+`insert_sessions_tree` fonksiyonları var/018-019, `athletes_insert`/`athletes_update` takım-bazlı politikaları var/025) — yalnızca takip tablosu senkron değildi, şema kaybı riski yoktu. **Kullanıcı onayıyla** (hard-to-reverse, paylaşılan cloud altyapısı) `supabase migration repair --status reverted 20260729091519 20260729120606 20260801193702 20260801202658 20260805195742` + `supabase migration repair --status applied 023 024 025 026 027` çalıştırıldı, `migration list` Local=Remote'a döndü, sonra `supabase db push` ile yalnızca 028 uygulandı.
+
+**DOĞRULAMA (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh` + gerçek `next dev`, Playwright/`@playwright/test` ile — bu ortamda paket zaten kuruluydu, `run` skill'inin `chromium-cli` fallback'i izlendi, önceki partilerin curl+elle-cookie yöntemine göre bir ilk):**
+- Gerçek super_admin (`tosunbeytullah9@gmail.com`) girişiyle `/admin/exercises`'a gidildi (135 egzersiz listelendi), "Back Squat" arandı, edit modalı açıldı (Org Kategorisi/Koç Notları alanları YOK, hareket paterni `*` ile zorunlu — genelleştirme doğrulandı), gerçek bir YouTube linki eklenip kaydedildi, satırın "Var" rozetine döndüğü ekran görüntüsüyle doğrulandı, konsol hatası yok.
+- `forkPlatformExercise`'ın (`packages/db/queries/exercises.ts`, dokunulmadı) `demo_url: platform.demo_url` satırıyla zaten birebir kopyaladığı kod okumasıyla teyit edildi.
+- Geçici bir coach hesabıyla (Admin API `auth.admin.createUser`, TGF org/ACE takım/`role:coach`, Parti 4.E/8.B'nin deseni) `/admin/exercises`'a gidildiğinde middleware `/dashboard`'a (sonra `/dashboard`'un kendi admin-only guard'ıyla `/athletes`'e) yönlendirdi.
+- AYNI coach'un anon-key client'tan (gerçek `signInWithPassword` sonrası JWT) doğrudan `platform_exercises` UPDATE denemesi RLS tarafından sessizce 0 satır etkiledi, INSERT denemesi açık `42501: new row violates row-level security policy` hatasıyla reddedildi; Back Squat'ın `instructions` alanının saldırı denemesi sonrası `null` (dokunulmamış) kaldığı service-role client'la doğrulandı.
+- Aynı coach'un kendi `/exercises` (org_exercises) sayfası ve "Yeni Egzersiz" modalı (Org Kategorisi + Koç Notları alanları hâlâ orada, `count()>0` ile doğrulandı) regresyonsuz çalıştı — `scope` prop'unun `"org"` varsayılanı doğrulandı.
+- `pnpm turbo run type-check` (5/5 paket, `@athleteiq/db`/`@athleteiq/web` dahil) + `pnpm --filter web build` (yeni `/admin/exercises` route'u derleme çıktısında görünüyor, 0 hata — yalnızca projede zaten var olan `@typescript-eslint/no-explicit-any` uyarıları, org modallarının deseniyle tutarlı).
+- Geçici coach hesabı+membership'i service-role ile silindi, `leftover_memberships=0`/`leftover_auth_user=false` iki ayrı sorguyla doğrulandı.
+- `packages/db/types.ts` `supabase gen types typescript --linked` ile regenerate edildi (CLAUDE.md §4.2) — diff boş çıktı (beklenen: RLS politikası kolon/tablo şemasını değiştirmiyor).
+- `pnpm docs:sync` çalıştırıldı (CLAUDE.md migration listesine `028_platform_exercises_admin_rls.sql` eklendi, 27 migration, senkron tarihi güncellendi).
 
 ### Parti 6 — ACWR Konsolidasyonu ✅ (2026-08-05)
 
@@ -1213,6 +1283,7 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 - [x] `005_exercises.sql` + `006_exercise_seed.sql` — Egzersiz kütüphanesi ✅ (2026-06-26)
 - [x] Program builder — süperset sistemi (A/B/C... grup renkleri, max 10 egzersiz/grup) ✅ (2026-06-26)
 - [x] Egzersiz kütüphanesi web UI — platform + org katmanı, tam CRUD ✅ (2026-06-26)
+- [x] Egzersiz kütüphanesi — super-admin platform yönetim ekranı (`/admin/exercises`, `platform_exercises` artık yazılabilir) ✅ (2026-08-07, Parti 9)
 - [x] Exercise picker modal — program builder'da kütüphaneden egzersiz seçme ✅ (2026-06-26)
 - [x] 1RM takibi — `/tests` sayfasında "1RM Kayıtları" bölümü + program builder "Son max" rozeti ✅ (2026-07-20, Parti 2.2.E)
 - [x] Tonaj özet metriği — program detay sayfasında seans/program bazlı toplam tonaj + 1RM eksikliği uyarısı ✅ (2026-07-21, Parti 2.2.F — **Parti 2 tamamen kapandı**)

@@ -108,6 +108,48 @@ export async function getPlatformExercises(
   return data ?? [];
 }
 
+export async function getPlatformExercisesAdmin(
+  client: DbClient
+): Promise<PlatformExercise[]> {
+  const { data, error } = await (client as any)
+    .from("platform_exercises")
+    .select("*")
+    .order("name");
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function createPlatformExercise(
+  client: DbClient,
+  data: Omit<PlatformExercise, "id" | "created_at">
+): Promise<PlatformExercise> {
+  const { data: result, error } = await (client as any)
+    .from("platform_exercises")
+    .insert(data)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result;
+}
+
+export async function updatePlatformExercise(
+  client: DbClient,
+  id: string,
+  data: Partial<Omit<PlatformExercise, "id" | "created_at">>
+): Promise<PlatformExercise> {
+  const { data: result, error } = await (client as any)
+    .from("platform_exercises")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result;
+}
+
 export async function getOrgExercises(
   client: DbClient,
   orgId: string,

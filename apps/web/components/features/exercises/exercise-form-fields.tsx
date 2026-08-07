@@ -4,7 +4,7 @@ import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import type { OrgExerciseCategory } from "@athleteiq/db/queries/exercises";
 
-const MOVEMENT_PATTERNS = [
+export const MOVEMENT_PATTERNS = [
   { value: "horizontal_push", label: "Horizontal Push" },
   { value: "vertical_push", label: "Vertical Push" },
   { value: "horizontal_pull", label: "Horizontal Pull" },
@@ -59,9 +59,10 @@ interface Props {
   data: ExerciseFormData;
   onChange: (updates: Partial<ExerciseFormData>) => void;
   categories: OrgExerciseCategory[];
+  scope?: "org" | "platform";
 }
 
-export function ExerciseFormFields({ data, onChange, categories }: Props) {
+export function ExerciseFormFields({ data, onChange, categories, scope = "org" }: Props) {
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
@@ -83,9 +84,9 @@ export function ExerciseFormFields({ data, onChange, categories }: Props) {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className={scope === "platform" ? "grid grid-cols-1" : "grid grid-cols-2 gap-3"}>
         <div className="space-y-1.5">
-          <Label>Hareket Paterni</Label>
+          <Label>Hareket Paterni{scope === "platform" ? " *" : ""}</Label>
           <select
             value={data.movement_pattern}
             onChange={(e) => onChange({ movement_pattern: e.target.value })}
@@ -97,19 +98,21 @@ export function ExerciseFormFields({ data, onChange, categories }: Props) {
             ))}
           </select>
         </div>
-        <div className="space-y-1.5">
-          <Label>Org Kategorisi</Label>
-          <select
-            value={data.custom_category_id}
-            onChange={(e) => onChange({ custom_category_id: e.target.value })}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-          >
-            <option value="">Seçin</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name_tr ?? c.name}</option>
-            ))}
-          </select>
-        </div>
+        {scope === "org" && (
+          <div className="space-y-1.5">
+            <Label>Org Kategorisi</Label>
+            <select
+              value={data.custom_category_id}
+              onChange={(e) => onChange({ custom_category_id: e.target.value })}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">Seçin</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name_tr ?? c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -207,16 +210,18 @@ export function ExerciseFormFields({ data, onChange, categories }: Props) {
         />
       </div>
 
-      <div className="space-y-1.5">
-        <Label>Koç Notları</Label>
-        <textarea
-          value={data.coach_notes}
-          onChange={(e) => onChange({ coach_notes: e.target.value })}
-          rows={2}
-          className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
-          placeholder="Özel notlar..."
-        />
-      </div>
+      {scope === "org" && (
+        <div className="space-y-1.5">
+          <Label>Koç Notları</Label>
+          <textarea
+            value={data.coach_notes}
+            onChange={(e) => onChange({ coach_notes: e.target.value })}
+            rows={2}
+            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring resize-none"
+            placeholder="Özel notlar..."
+          />
+        </div>
+      )}
     </div>
   );
 }
