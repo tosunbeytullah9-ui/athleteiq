@@ -105,6 +105,23 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 7 — Mobil: set-bazlı egzersiz görüntüleme, exercise_sets join'i ✅ (2026-08-08)
+
+**Kapsam:** Mobil `ExerciseCard.tsx`'in Parti 2.2.D'den beri açık olan deprecated-kolon bug'ını kapatmak (BUGS.md § Orta) — `exercise_sets` tablosunu program sorgularına join etmek, set-bazlı reps/yük/RPE render etmek, %1RM'den mutlak kg çözümlemesini paylaşılan bir helper'a çıkarmak. Dokunulan dosyalar: `apps/mobile/components/ExerciseCard.tsx`, `apps/mobile/app/(tabs)/program/[day].tsx`, `apps/mobile/app/(tabs)/my-athletes/[athleteId]/program/[day].tsx`, `packages/db/queries/programs.ts`, `packages/db/queries/exercises.ts`, `apps/web/lib/tonnage.ts`.
+
+**Düzeltme:**
+- `packages/db/queries/programs.ts`'e `getActiveProgramId`/`getDaySessions` eklendi — mobilin iki `[day].tsx` ekranında (sporcunun kendi görünümü + koçun salt-okunur "sporcularım" görünümü, Parti 8.D) birebir aynı şekilde iki kez inline yazılmış olan "aktif yayınlanmış programı bul → günün seanslarını çek" sorgusu tek bir yere çıkarıldı. `getDaySessions` artık `exercises(*, exercise_sets(*))` seçiyor (önceden yalnızca `exercises(*)`).
+- `packages/db/queries/exercises.ts`'e `buildMaxLookup` taşındı (önceden `apps/web/lib/tonnage.ts`'in kendi yerel kopyasıydı — aynı fonksiyon iki kez yazılıydı; `tonnage.ts` artık import edip geriye dönük uyumluluk için re-export ediyor) ve yeni `resolveOneRepMaxKg` eklendi (`tonnage.ts`'te inline yazılı olan `%1RM → kg` hesabını — `reps * (percent_1rm/100) * oneRm` — bir fonksiyona çıkarıyor).
+- `ExerciseCard.tsx`: eski `formatLoad`/`formatVolume` (deprecated `exercises.load_kg`/`load_percent`/`unit`/`sets`/`reps`/`duration_sec` okuyordu) kaldırıldı. Artık `exercise.exercise_sets`'i `set_number`'a göre sıralayıp her seti ayrı satır olarak render ediyor; `formatSetReps`/`formatSetLoad` set bazlı `reps`/`duration_sec`/`load_kg`/`percent_1rm`/`band_resistance`/`is_bodyweight` okuyor. `resolveOneRepMaxKg` sayesinde mobil ilk kez %1RM'li setler için mutlak kg gösterebiliyor (öncesinde yalnızca "%X 1RM" etiketi vardı, hesap yapılmıyordu).
+- **Mimari kazanım:** `getActiveProgramId`/`getDaySessions`/`buildMaxLookup`/`resolveOneRepMaxKg` artık `packages/db`'de tek kaynak — mobil ve web aynı sorgu/hesap mantığını paylaşıyor, üçüncü bir kopyanın (bir sonraki ekranın bu mantığı yeniden yazması) önü kesildi.
+- **Keşif notu (Parti 8.F'ye düzeltme):** `ExerciseCard.tsx`'teki mavi `w-8 h-8 rounded-full` rozetin (`index + 1` gösteren) bir tamamlama toggle'ı değil, salt-okunur sıra numarası rozeti olduğu doğrulandı — `onPress`/state yok. Parti 8.F'nin salt-okunur ekran testi bu elemanı yanlışlıkla toggle sanmıştı; test SONUCU (mobilin bu ekranda hiç yazma yapmadığı) doğruydu, yalnızca gerekçe yanlış anlaşılmıştı. BUGS.md'de not düşüldü.
+
+**DOĞRULAMA:** Fiziksel cihazda, hem sporcu (İbrahim) hem coach hesabıyla doğrulandı — set satırları, yük formatı, RPE doğru görünüyor; web'den (`new`/`edit` program builder) yapılan bir değişiklik mobilde anında yansıyor (koçun görünümü dahil, Parti 8.D'nin salt-okunur klonu üzerinden). `pnpm turbo run type-check` temiz.
+
+**BUGS.md:** Orta-kategori "mobil `ExerciseCard` deprecated kolon okuyor" maddesi ✅ FIXED olarak kapatıldı ("sessizce bozuk" niteliği not düşüldü — 13 egzersizin 12'sinde deprecated kolonlar zaten NULL'dı, ekran yalnızca Parti 2.1 backfill'inden kalan tek satır sayesinde çalışıyor gibi görünüyordu). İki yeni AÇIK kayıt eklendi: `exercises.completed_at` ölü kolonu (planlı, Parti 10) ve Realtime'ın `exercise_sets` değişikliklerini yalnızca `training_programs.updated_at` üzerinden dolaylı tetiklemesi (düşük öncelik, kırılgan). Özet tabloları ve TOPLAM güncellendi: 32 bulgunun 25'i ✅ FIXED.
+
+**MOBILE_STATUS.md:** güncellendi — set-bazlı görüntüleme artık doğru çalışıyor, deprecated kolon bağımlılığı kalmadı.
+
 ### Parti 9 — Egzersiz kütüphanesi: super-admin platform yönetim ekranı ✅ (2026-08-07)
 
 **Kapsam:** `platform_exercises`'a (135 satır, 16 hareket paterni) super_admin için tam CRUD (soft-delete: `is_active` toggle) — yeni migration, yeni query fonksiyonları, genelleştirilmiş form bileşeni, yeni `/admin/exercises` route.

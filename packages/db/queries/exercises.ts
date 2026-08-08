@@ -378,3 +378,25 @@ export async function create1RMRecord(
   if (error) throw error;
   return result;
 }
+
+/** Her egzersiz adı için en güncel 1RM kaydına hızlı erişim. */
+export function buildMaxLookup(athleteMaxes: Athlete1RMRecord[]): Map<string, number> {
+  const lookup = new Map<string, number>();
+  for (const record of athleteMaxes) {
+    if (!lookup.has(record.exercise_name)) {
+      lookup.set(record.exercise_name, record.weight_kg);
+    }
+  }
+  return lookup;
+}
+
+/** %1RM -> gerçek kg. 1RM kaydı yoksa null (hata değil). */
+export function resolveOneRepMaxKg(
+  exerciseName: string,
+  percent1rm: number,
+  maxLookup: Map<string, number>
+): number | null {
+  const oneRm = maxLookup.get(exerciseName);
+  if (oneRm == null) return null;
+  return (percent1rm / 100) * oneRm;
+}

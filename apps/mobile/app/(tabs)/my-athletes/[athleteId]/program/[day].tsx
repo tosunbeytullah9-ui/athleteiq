@@ -11,12 +11,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import { ExerciseCard } from "@/components/ExerciseCard";
-import type { Database } from "@athleteiq/db/types";
+import { getActiveProgramId, getDaySessions } from "@athleteiq/db/queries/programs";
+import { getAthleteMaxes, buildMaxLookup } from "@athleteiq/db/queries/exercises";
+import type { Tables } from "@athleteiq/db/types";
 
-type TrainingSession = Database["public"]["Tables"]["training_sessions"]["Row"];
-type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
-
-type SessionWithExercises = TrainingSession & { exercises: Exercise[] };
+type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: Tables<"exercise_sets">[] };
+type SessionWithExercises = Tables<"training_sessions"> & { exercises: ExerciseWithSets[] };
 
 const DAY_LABELS: Record<number, string> = {
   1: "Pazartesi",
@@ -41,6 +41,7 @@ export default function CoachProgramDayScreen() {
   const router = useRouter();
   const { athlete, loading: athleteLoading, notFound } = useCoachAthlete(athleteId);
   const [sessions, setSessions] = useState<SessionWithExercises[]>([]);
+  const [maxLookup, setMaxLookup] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const dayNum = parseInt(day ?? "1", 10);
 
@@ -48,39 +49,31 @@ export default function CoachProgramDayScreen() {
     if (!athlete) return;
 
     async function fetchDaySessions() {
-      // Sporcunun en güncel yayınlanmış programını bul
-      const { data: programs } = await supabase
-        .from("training_programs")
-        .select("id")
-        .or(`athlete_id.eq.${athlete!.id},team_id.eq.${athlete!.team_id}`)
-        .eq("is_published", true)
-        .order("start_date", { ascending: false })
-        .limit(1);
+      try {
+        // Sporcunun en güncel yayınlanmış programını bul
+        const programId = await getActiveProgramId(supabase, {
+          athleteId: athlete!.id,
+          teamId: athlete!.team_id,
+        });
 
-      if (!programs || programs.length === 0) {
-        setLoading(false);
-        return;
-      }
+        if (!programId) return;
 
-      const programId = programs[0].id;
+        const [data, athleteMaxes] = await Promise.all([
+          getDaySessions(supabase, programId, dayNum),
+          getAthleteMaxes(supabase, athlete!.id),
+        ]);
 
-      const { data } = await supabase
-        .from("training_sessions")
-        .select(`*, exercises ( * )`)
-        .eq("program_id", programId)
-        .eq("day_of_week", dayNum)
-        .order("order_index", { ascending: true });
-
-      if (data) {
-        const withSortedExercises = data.map((s) => ({
+        const withSortedExercises = (data as SessionWithExercises[]).map((s) => ({
           ...s,
-          exercises: ((s as SessionWithExercises).exercises ?? []).sort(
+          exercises: (s.exercises ?? []).sort(
             (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
           ),
         }));
-        setSessions(withSortedExercises as SessionWithExercises[]);
+        setSessions(withSortedExercises);
+        setMaxLookup(buildMaxLookup(athleteMaxes));
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     fetchDaySessions();
@@ -208,6 +201,7 @@ export default function CoachProgramDayScreen() {
                     key={exercise.id}
                     exercise={exercise}
                     index={idx}
+                    maxLookup={maxLookup}
                   />
                 ))
               )}

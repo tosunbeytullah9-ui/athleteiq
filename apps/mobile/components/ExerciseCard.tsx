@@ -1,35 +1,48 @@
 import { View, Text } from "react-native";
-import type { Database } from "@athleteiq/db/types";
+import type { Tables } from "@athleteiq/db/types";
+import { resolveOneRepMaxKg } from "@athleteiq/db/queries/exercises";
 
-type Exercise = Database["public"]["Tables"]["exercises"]["Row"];
+type ExerciseSetRow = Tables<"exercise_sets">;
+type Exercise = Tables<"exercises"> & { exercise_sets: ExerciseSetRow[] };
 
 interface ExerciseCardProps {
   exercise: Exercise;
   index: number;
+  maxLookup: Map<string, number>;
 }
 
-function formatLoad(exercise: Exercise): string {
-  if (exercise.load_kg) return `${exercise.load_kg} kg`;
-  if (exercise.load_percent) return `%${exercise.load_percent} 1RM`;
-  if (exercise.unit === "bodyweight") return "vücut ağırlığı";
-  return "";
+const BAND_LABELS: Record<string, string> = {
+  soft: "Yumuşak",
+  medium: "Orta",
+  hard: "Sert",
+};
+
+function formatSetReps(set: ExerciseSetRow): string {
+  if (set.duration_sec != null) return `${set.duration_sec} sn`;
+  if (set.reps != null) return `${set.reps} tekrar`;
+  return "—";
 }
 
-function formatVolume(exercise: Exercise): string {
-  const sets = exercise.sets ?? 1;
-  if (exercise.duration_sec) {
-    const mins = Math.floor(exercise.duration_sec / 60);
-    const secs = exercise.duration_sec % 60;
-    const dur = mins > 0 ? `${mins}dk ${secs}sn` : `${secs}sn`;
-    return `${sets} × ${dur}`;
+function formatSetLoad(
+  set: ExerciseSetRow,
+  exerciseName: string,
+  maxLookup: Map<string, number>
+): string {
+  if (set.band_resistance) return `${BAND_LABELS[set.band_resistance] ?? set.band_resistance} bant`;
+  if (set.is_bodyweight) return "Vücut ağırlığı";
+  if (set.percent_1rm != null) {
+    const resolvedKg = resolveOneRepMaxKg(exerciseName, set.percent_1rm, maxLookup);
+    if (resolvedKg != null) {
+      return `%${set.percent_1rm} (${resolvedKg.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} kg)`;
+    }
+    return `%${set.percent_1rm}`;
   }
-  if (exercise.reps) return `${sets} × ${exercise.reps}`;
-  return `${sets} set`;
+  if (set.load_kg != null) return `${set.load_kg} kg`;
+  return "—";
 }
 
-export function ExerciseCard({ exercise, index }: ExerciseCardProps) {
-  const load = formatLoad(exercise);
-  const volume = formatVolume(exercise);
+export function ExerciseCard({ exercise, index, maxLookup }: ExerciseCardProps) {
+  const sets = (exercise.exercise_sets ?? []).slice().sort((a, b) => a.set_number - b.set_number);
 
   return (
     <View className="bg-white rounded-2xl p-4 mb-3 shadow-sm">
@@ -40,36 +53,49 @@ export function ExerciseCard({ exercise, index }: ExerciseCardProps) {
         </View>
 
         <View className="flex-1">
-          {/* Egzersiz adı */}
-          <Text className="text-gray-900 font-semibold text-base leading-tight">
-            {exercise.name}
-          </Text>
-
-          {/* Volume + Load */}
-          <View className="flex-row items-center mt-1.5 flex-wrap gap-2">
-            <View className="bg-gray-100 px-2.5 py-1 rounded-lg">
-              <Text className="text-gray-700 text-sm font-medium">{volume}</Text>
-            </View>
-            {load ? (
-              <View className="bg-blue-50 px-2.5 py-1 rounded-lg">
-                <Text className="text-blue-700 text-sm font-medium">{load}</Text>
-              </View>
-            ) : null}
+          <View className="flex-row items-start justify-between gap-2">
+            {/* Egzersiz adı */}
+            <Text className="text-gray-900 font-semibold text-base leading-tight flex-1">
+              {exercise.name}
+            </Text>
             {exercise.rest_sec ? (
-              <View className="bg-orange-50 px-2.5 py-1 rounded-lg">
-                <Text className="text-orange-600 text-sm">
-                  Dinlenme: {exercise.rest_sec}sn
-                </Text>
+              <View className="bg-orange-50 px-2.5 py-1 rounded-lg shrink-0">
+                <Text className="text-orange-600 text-xs">Dinlenme {exercise.rest_sec}sn</Text>
               </View>
             ) : null}
           </View>
 
           {/* Notlar */}
           {exercise.notes ? (
-            <Text className="text-gray-400 text-sm mt-2 italic">
-              {exercise.notes}
-            </Text>
+            <Text className="text-gray-400 text-sm mt-1 italic">{exercise.notes}</Text>
           ) : null}
+
+          {/* Setler */}
+          {sets.length === 0 ? (
+            <Text className="text-gray-400 text-sm mt-2">
+              Bu egzersiz için set tanımlanmamış.
+            </Text>
+          ) : (
+            <View className="mt-2">
+              {sets.map((set, i) => (
+                <View
+                  key={set.id}
+                  className={`flex-row items-center py-1 ${
+                    i < sets.length - 1 ? "border-b border-gray-100" : ""
+                  }`}
+                >
+                  <Text className="text-gray-400 text-xs w-6">{set.set_number}</Text>
+                  <Text className="text-gray-700 text-sm flex-1">{formatSetReps(set)}</Text>
+                  <Text className="text-blue-700 text-sm font-medium flex-1">
+                    {formatSetLoad(set, exercise.name, maxLookup)}
+                  </Text>
+                  <Text className="text-gray-500 text-xs w-14 text-right">
+                    {set.rpe != null ? `RPE ${set.rpe}` : "—"}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </View>
     </View>

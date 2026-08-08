@@ -66,3 +66,33 @@ export async function updateProgram(
   if (error) throw error;
   return data;
 }
+
+/** Sporcunun/takımının en güncel yayınlanmış programının id'si — mobil program/[day] akışlarının paylaşılan ilk aşaması. */
+export async function getActiveProgramId(
+  client: DbClient,
+  params: { athleteId: string; teamId: string }
+): Promise<string | null> {
+  const { data, error } = await client
+    .from("training_programs")
+    .select("id")
+    .or(`athlete_id.eq.${params.athleteId},team_id.eq.${params.teamId}`)
+    .eq("is_published", true)
+    .order("start_date", { ascending: false })
+    .limit(1);
+
+  if (error) throw error;
+  return data?.[0]?.id ?? null;
+}
+
+/** Bir programın belirli bir haftanın gününe düşen seanslarını, egzersizlerini ve setlerini çeker. */
+export async function getDaySessions(client: DbClient, programId: string, dayOfWeek: number) {
+  const { data, error } = await client
+    .from("training_sessions")
+    .select(`*, exercises(*, exercise_sets(*))`)
+    .eq("program_id", programId)
+    .eq("day_of_week", dayOfWeek)
+    .order("order_index", { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}

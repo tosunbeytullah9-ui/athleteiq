@@ -1,5 +1,7 @@
 import type { Tables } from "@athleteiq/db/types";
-import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
+import { buildMaxLookup, resolveOneRepMaxKg } from "@athleteiq/db/queries/exercises";
+
+export { buildMaxLookup };
 
 type ExerciseSetRow = Tables<"exercise_sets">;
 type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: ExerciseSetRow[] };
@@ -24,17 +26,6 @@ function sumTonnage(a: TonnageSummary, b: TonnageSummary): TonnageSummary {
   };
 }
 
-/** Her egzersiz adı için en güncel 1RM kaydına hızlı erişim. */
-export function buildMaxLookup(athleteMaxes: Athlete1RMRecord[]): Map<string, number> {
-  const lookup = new Map<string, number>();
-  for (const record of athleteMaxes) {
-    if (!lookup.has(record.exercise_name)) {
-      lookup.set(record.exercise_name, record.weight_kg);
-    }
-  }
-  return lookup;
-}
-
 function calculateSetTonnage(
   set: ExerciseSetRow,
   exerciseName: string,
@@ -49,11 +40,11 @@ function calculateSetTonnage(
     return { ...EMPTY, totalKg: reps * set.load_kg };
   }
   if (set.percent_1rm != null) {
-    const oneRm = maxLookup.get(exerciseName);
-    if (oneRm == null) {
+    const resolvedKg = resolveOneRepMaxKg(exerciseName, set.percent_1rm, maxLookup);
+    if (resolvedKg == null) {
       return { ...EMPTY, excludedSetCount: 1 };
     }
-    return { ...EMPTY, totalKg: reps * (set.percent_1rm / 100) * oneRm };
+    return { ...EMPTY, totalKg: reps * resolvedKg };
   }
   return EMPTY;
 }

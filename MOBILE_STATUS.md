@@ -1,5 +1,13 @@
 # MOBILE_STATUS.md — Mobil Uygulama Durum Tespiti (Sporcu + Koç/Admin salt-okunur)
 
+> **GÜNCELLEME 2026-08-08 (Parti 7):** Mobil `ExerciseCard.tsx` artık `exercise_sets`'i join edip
+> set-bazlı reps/yük/RPE gösteriyor — Parti 2.2.D'den beri açık olan deprecated-kolon bağımlılığı
+> (`exercises.load_kg`/`load_percent`/`unit`/`sets`/`reps`/`duration_sec`) tamamen kaldırıldı.
+> Aktif program + günün seansları sorgusu (`getActiveProgramId`/`getDaySessions`) ve %1RM→kg
+> çözümlemesi (`buildMaxLookup`/`resolveOneRepMaxKg`) `packages/db/queries/`'e çıkarıldı — mobil ve
+> web artık aynı sorgu/hesap mantığını paylaşıyor. Fiziksel cihazda hem sporcu hem coach hesabıyla
+> doğrulandı, regresyon yok. Detay: PROGRESS.md § Parti 7, BUGS.md (Orta, kapandı).
+>
 > **GÜNCELLEME 2026-08-05 (Parti 8 Nihai Kapanış):** Parti 8 (8.B→8.I) fiziksel cihazda tam
 > olarak doğrulandı — 8.C/8.D/8.H'nin ertelediği dokunma/navigasyon testi (sporcu listesi,
 > program, recovery, yarışmalar ekranları; admin tüm org/coach yalnızca kendi takımı parite +

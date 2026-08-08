@@ -583,7 +583,7 @@ Aşağıdaki agent'ların her biri bir uzman gibi davranır. Görev başlamadan 
 [ ] apps/web/lib/supabase/client.ts → Client component client
 [ ] apps/web/lib/hooks/useUserContext.ts → Role + org + team bilgisi hook
 [ ] apps/web/app/(auth)/login/page.tsx → E-posta veya kullanıcı adı + şifre ile giriş (Magic Link Parti 4.D'de tamamen kaldırıldı)
-[ ] apps/web/app/(auth)/invite/[token]/page.tsx → ARTIK KULLANILMIYOR (bağlantısız/ölü sayfa — bkz. aşağıdaki not) [Son doğrulama: Parti 4.E]
+[ ] apps/web/app/(auth)/invite/[token]/page.tsx → ARTIK KULLANILMIYOR (bağlantısız/ölü sayfa — bkz. aşağıdaki not) [Son doğrulama: Parti 7]
 [ ] supabase/functions/invite-member/ → Edge Function: davet emaili gönder
 [ ] packages/validators/auth.ts → Login, davet Zod şemaları
 ```
@@ -598,7 +598,7 @@ Aşağıdaki agent'ların her biri bir uzman gibi davranır. Görev başlamadan 
 // 5. /settings → sadece admin role
 ```
 
-**Davet akışı (gerçek yol — [Son doğrulama: Parti 4.E]):**
+**Davet akışı (gerçek yol — [Son doğrulama: Parti 7]):**
 ```
 Admin Settings'te davet formunu gönderir
 → apps/web/app/api/auth/invite/route.ts (session-doğrulamalı Next.js proxy)
@@ -647,12 +647,12 @@ code-exchange'i içindi).
 
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
-- Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 4.C]
+- Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
 - Supabase Realtime: program publish edilince toast notification
 - Mobile-first responsive (koçlar tablet kullanabilir)
 - Loading state'ler: skeleton komponentleri (shadcn Skeleton)
 
-**Realtime aboneliği (gerçek pattern — [Son doğrulama: Parti 4.C]):**
+**Realtime aboneliği (gerçek pattern — [Son doğrulama: Parti 7]):**
 `training_programs` üzerinde `is_published=eq.true` filtreli bir `postgres_changes` UPDATE aboneliği,
 event geldiğinde `router.refresh()` çağırıp bir toast gösterir (`queryClient.invalidateQueries` DEĞİL —
 proje TanStack Query kullanmıyor). Gerçek uygulamalar:
@@ -929,7 +929,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-07
+Son otomatik senkron: 2026-08-08
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
