@@ -9,6 +9,47 @@ const optionalNumber = z
 // supabase/functions/create-athlete-account/index.ts (USERNAME_RE) ile birebir aynı olmalı.
 export const ATHLETE_USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 
+const TR_MAP: Record<string, string> = {
+  İ: "i",
+  I: "i",
+  ı: "i",
+  Ç: "c",
+  ç: "c",
+  Ğ: "g",
+  ğ: "g",
+  Ö: "o",
+  ö: "o",
+  Ş: "s",
+  ş: "s",
+  Ü: "u",
+  ü: "u",
+};
+
+// Tam adı ATHLETE_USERNAME_RE'yi geçen bir kullanıcı adı önerisine çevirir.
+// Türkçe karakterler toLowerCase()'den ÖNCE case-sensitive map edilir — aksi halde
+// "İ".toLowerCase() === "i̇" (nokta + combining dot above) gibi beklenmeyen sonuçlar çıkar.
+export function suggestUsername(fullName: string): string {
+  const mapped = fullName.replace(/[İIıÇçĞğÖöŞşÜü]/g, (ch) => TR_MAP[ch] ?? ch);
+  const base = mapped
+    .toLowerCase()
+    .replace(/\s+/g, ".")
+    .replace(/[^a-z0-9._]/g, "")
+    .replace(/\.{2,}/g, ".")
+    .replace(/^\.+|\.+$/g, "")
+    .slice(0, 30);
+  return base.length >= 3 ? base : "";
+}
+
+const TEMP_PASSWORD_CHARS =
+  "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"; // 0 O o 1 l I hariç (karıştırılabilir)
+const TEMP_PASSWORD_LENGTH = 10;
+
+// Koçun sporcuya sözlü ileteceği geçici bir şifre üretir — karıştırılabilir karakterler yok.
+export function generateTempPassword(): string {
+  const bytes = crypto.getRandomValues(new Uint32Array(TEMP_PASSWORD_LENGTH));
+  return Array.from(bytes, (b) => TEMP_PASSWORD_CHARS[b % TEMP_PASSWORD_CHARS.length]).join("");
+}
+
 const createAthleteBaseSchema = z.object({
   full_name: z.string().min(2, "Ad en az 2 karakter olmalı"),
   team_id: z.string().uuid("Geçerli takım seçin"),

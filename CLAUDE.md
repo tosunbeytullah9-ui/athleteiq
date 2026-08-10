@@ -165,6 +165,7 @@ AthleteIQ/
 │   │   └── tsconfig.json
 │   └── validators/
 │       ├── acwr.ts
+│       ├── athlete.test.ts
 │       ├── athlete.ts
 │       ├── auth.ts
 │       ├── index.ts
@@ -190,8 +191,10 @@ AthleteIQ/
 │   │   └── storage-version
 │   ├── functions/
 │   │   ├── create-athlete-account/
+│   │   ├── grant-athlete-access/
 │   │   ├── invite-member/
 │   │   ├── polar-sync/
+│   │   ├── reset-athlete-password/
 │   │   └── whoop-webhook/
 │   ├── migrations/
 │   │   ├── 001_schema.sql
@@ -929,7 +932,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-08
+Son otomatik senkron: 2026-08-10
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---

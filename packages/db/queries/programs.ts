@@ -25,6 +25,59 @@ export async function getProgramById(client: DbClient, id: string) {
   return data;
 }
 
+/** Bir bloktaki tüm haftaları (tam ağaçlarıyla), hafta sırasına göre çeker — çok haftalı düzenleme sekmeleri için. */
+export async function getProgramsByBlockId(client: DbClient, blockId: string) {
+  const { data, error } = await client
+    .from("training_programs")
+    .select(`*, training_sessions(*, exercises(*, exercise_sets(*)))`)
+    .eq("block_id", blockId)
+    .order("week_index_in_block", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Verilen program id'lerinden hangilerinde sporcunun girdiği veri (session_rpe,
+ * athlete_session_notes, exercises.completed_at) var — update_program_week/
+ * propagate_week_to_future bu programların training_sessions'ını silip yeniden
+ * kurduğu için, kaydetmeden/yaymadan önce bu id'leri kontrol edip koça uyarı
+ * göstermek gerekir (bkz. PROGRESS.md Parti 10).
+ */
+export async function getProgramIdsWithAthleteData(
+  client: DbClient,
+  programIds: string[]
+): Promise<Set<string>> {
+  if (programIds.length === 0) return new Set();
+
+  const { data, error } = await client
+    .from("training_sessions")
+    .select("program_id, session_rpe, athlete_session_notes, exercises(completed_at)")
+    .in("program_id", programIds);
+
+  if (error) throw error;
+
+  const result = new Set<string>();
+  for (const row of data ?? []) {
+    const hasData =
+      row.session_rpe != null ||
+      row.athlete_session_notes != null ||
+      (row.exercises ?? []).some((e: { completed_at: string | null }) => e.completed_at != null);
+    if (hasData) result.add(row.program_id);
+  }
+  return result;
+}
+
+/** Bir bloktaki tüm haftaların yayın durumunu tek seferde değiştirir. */
+export async function setBlockPublished(client: DbClient, blockId: string, isPublished: boolean) {
+  const { error } = await client
+    .from("training_programs")
+    .update({ is_published: isPublished, updated_at: new Date().toISOString() })
+    .eq("block_id", blockId);
+
+  if (error) throw error;
+}
+
 export async function createProgram(
   client: DbClient,
   program: TablesInsert<"training_programs">

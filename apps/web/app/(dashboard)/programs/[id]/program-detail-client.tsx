@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, CheckCircle2, Clock, Users, User, Send, Pencil } from "lucide-react";
@@ -9,7 +9,7 @@ import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
-import { publishProgram } from "@athleteiq/db/queries/programs";
+import { publishProgram, setBlockPublished } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
 import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 import {
@@ -78,6 +78,11 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
   const isAthlete = role === "athlete";
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublished, setIsPublished] = useState(program.is_published ?? false);
+  const [blockPublishInfo, setBlockPublishInfo] = useState<{
+    publishedCount: number;
+    totalCount: number;
+  } | null>(null);
+  const [isBlockPublishing, setIsBlockPublishing] = useState(false);
 
   const maxLookup = useMemo(() => buildMaxLookup(athleteMaxes), [athleteMaxes]);
   const programTonnage = useMemo(
@@ -85,14 +90,58 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
     [program.training_sessions, maxLookup]
   );
 
+  async function refreshBlockPublishInfo(blockId: string) {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("training_programs")
+      .select("id, is_published")
+      .eq("block_id", blockId);
+    if (error) {
+      console.error("Blok yayın durumu sorgusu hatası:", error);
+      return;
+    }
+    const rows = data ?? [];
+    setBlockPublishInfo({
+      publishedCount: rows.filter((r) => r.is_published).length,
+      totalCount: rows.length,
+    });
+  }
+
+  useEffect(() => {
+    if (!program.block_id) return;
+    refreshBlockPublishInfo(program.block_id);
+  }, [program.block_id]);
+
   async function handlePublish() {
     setIsPublishing(true);
     try {
       const supabase = createClient();
       await publishProgram(supabase, program.id);
       setIsPublished(true);
+      if (program.block_id) await refreshBlockPublishInfo(program.block_id);
     } finally {
       setIsPublishing(false);
+    }
+  }
+
+  // "Tüm bloğu yayınla" — tek tek hafta yayınlamadan (handlePublish) AYRI bir
+  // aksiyon, mevcut davranışı bozmaz. training_programs üzerinde doğrudan
+  // update yeterli — programs_write RLS politikası zaten ALL (bkz. PROGRESS.md
+  // Parti 10). Blok oluşturulurken otomatik yayınlama yapılmıyor (RPC her
+  // zaman is_published=false ile başlatıyor); bu buton yalnızca koçun
+  // bilinçli tetiklediği toplu aksiyon.
+  async function handleBlockPublishToggle() {
+    if (!program.block_id || !blockPublishInfo) return;
+    const allPublished = blockPublishInfo.publishedCount === blockPublishInfo.totalCount;
+    const nextState = !allPublished;
+    setIsBlockPublishing(true);
+    try {
+      const supabase = createClient();
+      await setBlockPublished(supabase, program.block_id, nextState);
+      setIsPublished(nextState);
+      await refreshBlockPublishInfo(program.block_id);
+    } finally {
+      setIsBlockPublishing(false);
     }
   }
 
@@ -200,6 +249,26 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
               </div>
             )}
           </div>
+
+          {program.block_id && !isAthlete && blockPublishInfo && (
+            <div className="mt-4 flex items-center justify-between gap-4 border-t pt-4">
+              <p className="text-sm text-muted-foreground">
+                Blok: {blockPublishInfo.publishedCount}/{blockPublishInfo.totalCount} hafta yayında
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleBlockPublishToggle}
+                disabled={isBlockPublishing}
+              >
+                {isBlockPublishing
+                  ? "İşleniyor..."
+                  : blockPublishInfo.publishedCount === blockPublishInfo.totalCount
+                  ? "Tüm bloğu yayından kaldır"
+                  : "Tüm bloğu yayınla"}
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

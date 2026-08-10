@@ -7,6 +7,8 @@ import { Input } from "@athleteiq/ui/components/input";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Skeleton } from "@athleteiq/ui/components/skeleton";
 import { AddAthleteModal } from "@/components/features/athletes/add-athlete-modal";
+import { GrantAccessModal } from "@/components/features/athletes/grant-access-modal";
+import { ResetPasswordModal } from "@/components/features/athletes/reset-password-modal";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
@@ -126,6 +128,7 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Yaş</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Branş</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Durum</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Giriş</th>
               </tr>
             </thead>
             <tbody>
@@ -161,6 +164,33 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                     <Badge variant={athlete.is_active ? "default" : "secondary"}>
                       {athlete.is_active ? "Aktif" : "Pasif"}
                     </Badge>
+                  </td>
+                  <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                      {athlete.user_id ? (
+                        <>
+                          <Badge variant="outline">
+                            {athlete.username ? `@${athlete.username}` : "Giriş var"}
+                          </Badge>
+                          <ResetPasswordModal
+                            athlete={{
+                              id: athlete.id,
+                              full_name: athlete.full_name,
+                              username: athlete.username,
+                            }}
+                            onSuccess={() => router.refresh()}
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <Badge variant="secondary">Giriş yok</Badge>
+                          <GrantAccessModal
+                            athlete={{ id: athlete.id, full_name: athlete.full_name }}
+                            onSuccess={() => router.refresh()}
+                          />
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

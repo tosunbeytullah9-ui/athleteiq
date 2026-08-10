@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getProgramById } from "@athleteiq/db/queries/programs";
+import { getProgramById, getProgramsByBlockId } from "@athleteiq/db/queries/programs";
 import {
   getPlatformExercises,
   getOrgExercises,
@@ -45,6 +45,12 @@ export default async function EditProgramPage({ params }: Props) {
 
   if (!program) notFound();
 
+  // block_id yoksa tek elemanlı roster — WeekTabs bu durumda hiç render
+  // edilmiyor (bkz. edit-program-client.tsx), tek haftalık akış değişmiyor.
+  const blockWeeks = program.block_id
+    ? await getProgramsByBlockId(supabase, program.block_id)
+    : [program];
+
   const athletes: { id: string; full_name: string; team_id: string }[] =
     athletesResult.data ?? [];
   // getAthleteMaxes tek bir athleteId alıyor (org-wide eşdeğeri yok) —
@@ -56,7 +62,8 @@ export default async function EditProgramPage({ params }: Props) {
 
   return (
     <EditProgramClient
-      program={program}
+      blockWeeks={blockWeeks}
+      initialProgramId={program.id}
       orgId={orgId}
       teams={teamsResult.data ?? []}
       athletes={athletes}

@@ -1,6 +1,116 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-07 (**Parti 9 — Egzersiz kütüphanesi: super-admin platform yönetim
+> Son güncelleme: 2026-08-10 (**Parti 11 — Çok haftalı program düzenleme arayüzü** — coach'un
+> bir `program_blocks` bloğundaki tüm haftaları (2+ hafta) tek ekranda, sekmeler halinde gezip
+> düzenleyebildiği arayüz eklendi. **Kritik keşif (görev talimatının varsaymadığı):** talimat
+> "sıfırdan inşa et" varsayımıyla geldi, ama keşifte tek-haftalık düzenleme ekranının
+> (`programs/[id]/edit/edit-program-client.tsx`) `update_program_week`/`propagate_week_to_future`
+> RPC'lerine ZATEN uçtan uca bağlı olduğu bulundu (Parti 3.E/3.F) — bu parti sıfırdan inşa değil,
+> o ekranı çok-haftalı/sekmeli/autosave'li bir deneyime EVRİLTTİ. `packages/db/queries/
+> programs.ts`'e 3 yeni sorgu eklendi: `getProgramsByBlockId` (bloktaki tüm haftaları tam
+> ağaçlarıyla çeker), `getProgramIdsWithAthleteData` (verilen program id'lerinden hangilerinde
+> `session_rpe`/`athlete_session_notes`/`exercises.completed_at` dolu — PostgREST'in join+OR
+> kısıtı yüzünden ham SQL yerine nested select + JS filtre), `setBlockPublished` (blok-geneli
+> toplu yayın toggle'ı, `programs_write` RLS'i zaten ALL). Eski `EditProgramClient` (~750 satır)
+> `week-editor-form.tsx`'e taşındı ve `forwardRef`+`useImperativeHandle` ile dışarıdan tetiklenebilir
+> hale getirildi (`isDirty`/`checkAthleteData`/`save`/`discardChanges`); yeni `edit-program-client.tsx`
+> artık sekme/dirty/kaydetme orkestrasyonunu yapan ince bir sarmalayıcı. Yeni bileşenler:
+> `components/ui/tabs.tsx` (shadcn Tabs — `@radix-ui/react-tabs` zaten bağımlılıktı, yeni paket
+> kurulmadı), `week-tabs.tsx`, `athlete-data-warning-dialog.tsx` (mevcut el-yapımı overlay
+> deseniyle, bu repoda Radix AlertDialog yok). Sporcu-verisi koruması hem sekme-geçişi
+> autosave'ine HEM de manuel "Değişiklikleri Kaydet" butonuna uygulandı (talimat yalnızca
+> autosave'i belirtiyordu, ama `update_program_week`'in yıkıcı delete+reinsert'i her iki
+> tetikleyicide de aynı — manuel butonu kapsam dışı bırakmak eşdeğer bir açık bırakırdı, bilinçli
+> genişletme). "Tüm bloğu yayınla" butonu görev talimatının aksine edit ekranına değil, program
+> detay sayfasına (`program-detail-client.tsx`) kondu — "program başlığının yanına" talimatı
+> literal olarak yalnızca o sayfada karşılanabiliyordu (edit ekranı `program.title`'ı başlık
+> olarak hiç göstermiyor, düzenlenebilir bir form alanı olarak gösteriyor). "Tüm blok
+> query'lerini invalidate et" talimatı `router.refresh()`'e çevrildi — proje TanStack Query
+> KULLANMIYOR (bağımlılık var, repo genelinde sıfır gerçek kullanım, doğrulandı) — CLAUDE.md
+> §3'ün zaten belgelediği gerçek desen. **DOĞRULAMA (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh`,
+> gerçek admin JWT'siyle, Playwright + headless Chromium):** bu ortamda `@supabase/ssr`'ın
+> browser client'ı `credentials`+CORS uyuşmazlığı yüzünden `signInWithPassword`'da "Failed to
+> fetch" veriyor (yeniden üretildi: `credentials:'include'` eklenince manuel bir fetch de aynı
+> hatayı veriyor) — bu, bu partinin koduyla İLGİSİZ bir headless-tarayıcı/sandbox kısıtı;
+> Node'un fetch'i ve gerçek Postgres/PostgREST erişimi sorunsuz. Login UI'ını atlamak için
+> Node'da (sandbox kısıtından etkilenmeyen tarafta) alınan gerçek access/refresh token,
+> `@supabase/ssr`'ın cookie formatına (`sb-<ref>-auth-token`, base64url + `base64-` prefix)
+> elle kodlanıp `context.addCookies()` ile enjekte edildi — sonrası tamamen gerçek uygulama
+> kodu, gerçek RLS, gerçek RPC'lerle çalıştı. Mevcut 3 haftalık "Yarışma Dönemi" bloğu (Hafta
+> 33/34/35) üzerinde uçtan uca doğrulandı: (1) sekmeler doğru render oluyor (tarih aralığı +
+> yayın rozeti); (2) dirty olmayan sekmeye geçiş anında; (3) Hafta 2'de başlık değiştirilip
+> Hafta 3'e geçilince Hafta 2 otomatik kaydedildi, Hafta 1/3 SQL ile doğrulanan şekilde
+> etkilenmedi; (4) süperset (`superset_group`/`superset_order`) tam delete+reinsert döngüsünden
+> sağlam çıktı (SQL ile doğrulandı); (5) "Tüm bloğu yayınla" 3 haftayı da yayına aldı, buton
+> "yayından kaldır"a döndü, tekrar tıklanınca 3'ü de taslağa döndü; (6) `session_rpe`'i SQL ile
+> elle dolduruldu, o haftayı düzenleyip başka sekmeye geçmeye çalışınca uyarı diyaloğu çıktı —
+> İptal'de değişiklik geri alındı VE sekme geçişi yine de gerçekleşti (veri kaybı yok), Devam
+> Et'te değişiklik kaydedildi VE `session_rpe` uyarıda söylendiği gibi silindi; (7) tek haftalık
+> (`block_id IS NULL`) bir program açıldı — sekme şeridi hiç render olmadı, manuel kaydet eski
+> `/programs/{id}` yönlendirmesini korudu (regresyon yok). **Canlı testte gerçek bir race-condition
+> bug'ı bulunup düzeltildi:** ilk implementasyonda, sekme-geçişi autosave'i başarıyla kaydettikten
+> sonra bile "dirty" noktası hiç temizlenmiyordu — `WeekEditorForm`'un kendi `isDirty`-effect'i,
+> `reset()`'in tetiklediği pending re-render'ı flush etmeden `key` değişimiyle unmount ediliyordu
+> (React, key değişince eski ağacı reconcile etmeden atıyor). Düzeltme: orkestratör (`edit-program-
+> client.tsx`), dirty temizliğini child'ın effect'ine güvenmek yerine `commitSwitch`/
+> `handleSwitchDialogCancel` içinde EXPLICIT yapıyor. Bu bug tip kontrolünden/statik okumadan
+> YAKALANAMAZDI — yalnızca gerçek tarayıcıda gerçek bir sekme geçişi yapılınca görüldü. Tüm test
+> verisi (geçici başlık/not değişiklikleri, `session_rpe` test değeri, yayın durumu) orijinal
+> haline geri döndürüldü. `pnpm --filter web type-check` + `pnpm --filter @athleteiq/db type-check`
+> + `pnpm --filter web lint` temiz (yalnızca önceden var olan, bu partiyle ilgisiz uyarılar).
+> Detay: § Parti 11)
+> Önceki: 2026-08-10 (**Parti 10 — Sporcu Giriş Erişimi Yönetimi** — girişsiz eklenen
+> sporculara (roster-only, `create_login` kapalıyken) sonradan giriş erişimi verme ve mevcut
+> girişli sporcuların şifresini sıfırlama yolu eklendi. **Kritik keşif (talimatın varsaydığından
+> farklı):** "girişle sporcu ekleme" akışı (`add-athlete-modal.tsx`'teki `create_login` checkbox'ı
+> → `/api/athletes/create-account` proxy'si → `create-athlete-account` Edge Function'ı, Parti
+> 4.B/4.C) zaten UÇTAN UCA kuruluydu, ama bugüne dek canlı Supabase Cloud'a karşı HİÇ
+> çağrılmamıştı (org'da `athlete` rolünde tek bir membership yoktu) — bu Parti onu ilk kez
+> gerçekten çalıştırıp doğruladı. İki yeni Edge Function eklendi: `grant-athlete-access`
+> (`athlete_id`+`username`+`password` alır, `create-athlete-account`'ın yetki/doğrulama/rollback
+> desenini birebir tekrarlar ama org_id/team_id'yi payload'dan değil sporcunun KENDİ satırından
+> okur) ve `reset-athlete-password` (`auth.admin.updateUserById`). `packages/validators/athlete.ts`'e
+> Türkçe-karakter-duyarlı `suggestUsername()` (İ/I/ı/Ç/ç/Ğ/ğ/Ö/ö/Ş/ş/Ü/ü case-sensitive map,
+> `"İBRAHİM ÇOLAK"` → `"ibrahim.colak"`) ve `generateTempPassword()` (karıştırılabilir karakter
+> hariç) eklendi, 7 unit test ile doğrulandı (yeni: paket kökten `vitest` bağımlılığı almadığı
+> için `packages/validators/package.json`'a `test`/`vitest` eklendi). Web tarafında
+> `athletes-client.tsx`'e yeni "Giriş" kolonu ("Giriş yok"/`@kullaniciadi`/"Giriş var" rozeti +
+> "Erişim ver"/"Şifre sıfırla" butonları, `add-athlete-modal.tsx`'teki gibi TanStack Query DEĞİL
+> `router.refresh()` deseniyle) + iki yeni modal (`grant-access-modal.tsx`/
+> `reset-password-modal.tsx`, açık-metin şifre + kopyala butonu + "bir daha gösterilmeyecek"
+> uyarılı başarı ekranı) eklendi, iki yeni proxy route (`/api/athletes/grant-login`,
+> `/api/athletes/reset-password`) mevcut `create-account/route.ts` şablonunu birebir izliyor.
+> **DOĞRULAMA (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh`, gerçek Auth REST + gerçek admin
+> JWT'siyle, curl):** 6/6 kontrol geçti — (1) girişsiz test sporcusu eklendi, `user_id` NULL
+> doğrulandı; (2) `grant-athlete-access` çağrıldı, `auth.users`+`athletes.user_id/username`+
+> `memberships`(role=athlete) üçü de doğru oluştu; (3) yeni kullanıcı adı+şifreyle Auth REST
+> login **200** (mobilin `signInWithPassword`'ünün birebir eşdeğeri — fiziksel cihaz/Expo bu
+> ortamda mevcut değildi, bu yüzden gerçek uygulama yerine bu eşdeğer kullanıldı); (4)
+> `reset-athlete-password` çağrıldı, yeni şifre **200**, eski şifre **400
+> invalid_credentials**; (5) aynı username ikinci bir sporcuya denendi → **409**, yan etkisiz
+> (orphan auth user/athletes değişikliği yok); (6) `parti8f-temp-coach@athleteiq.app` için RLS
+> simülasyonu (`set local request.jwt.claims`) — coach hâlâ yalnızca kendi takımının (ACE, yeni
+> test sporcusu dahil) 4 sporcusunu görüyor, regresyon yok. **Bir üretim veri bütünlüğü hatası
+> canlıda yakalanıp anında düzeltildi:** İbrahim'i yeniden oluştururken `full_name`'i içeren ilk
+> `curl` çağrısı, Windows konsolunun kod sayfası yüzünden Türkçe karakterleri (`İ`/`Ç`)
+> `U+FFFD` replacement karakterine bozdu (DB'de doğrulandı: `hex_bytes` `efbfbd...`) — fark
+> edilip o satır silinip, payload bu kez Node'da Unicode escape'lerinden (`İ`/`Ç`)
+> üretilip UTF-8 dosyaya yazılarak `curl --data-binary @dosya` ile tekrar gönderildi, byte
+> seviyesinde doğrulandı (`hex_bytes` `c4b0.../c387...` — doğru UTF-8). **Görev 6 — İbrahim'in
+> yeniden oluşturulması (kullanıcı onayıyla):** silmeden önce `athlete_id` FK'lı 12 tablo tek
+> tek sorgulandı, 34 satırın (2 program → 4 seans → 6 egzersiz → 14 set, 3 test sonucu, 3 1RM
+> kaydı, 1 ACWR logu, 1 program bloğu — hepsi `on delete cascade`) silineceği raporlandı,
+> kullanıcı "Evet, sil ve yeniden oluştur"u seçti; `athletes` satırı + eski
+> `tosunbeytullah9+ibrahim@gmail.com` auth kullanıcısı silindi (cascade `leftover=0` doğrulandı),
+> `create-athlete-account` ÜZERİNDEN (bu fonksiyonun ilk gerçek/başarılı çağrısı) `ibrahim.colak`
+> kullanıcı adıyla yeniden oluşturuldu, Auth REST login **200** ile doğrulandı. Tüm geçici test
+> verisi (1 test sporcusu + granted auth user + membership) temizlendi, `leftover=0` doğrulandı.
+> `pnpm --filter web build` (26 sayfa, yeni 2 route dahil) + `pnpm turbo run type-check` (5/5
+> paket) + `pnpm --filter @athleteiq/validators test` (7/7) temiz. `parti8f-temp-coach*`
+> hesaplarına dokunulmadı, `create-athlete-account`'ın mantığı değişmedi, yeni RLS/migration
+> yazılmadı, yeni bir `_shared/` Edge Function soyutlaması icat edilmedi (mevcut
+> duplikasyon konvansiyonu izlendi). Detay: § Parti 10)
+> Önceki: 2026-08-07 (**Parti 9 — Egzersiz kütüphanesi: super-admin platform yönetim
 > ekranı** — `platform_exercises` (135 satır) şimdiye kadar tamamen salt-okunurdu
 > (`005_exercises.sql`'in tek politikası `platform_read_all`, SELECT `using(true)`) — düzeltme
 > yalnızca elle SQL ile mümkündü. Yeni migration `028_platform_exercises_admin_rls.sql`,
@@ -104,6 +214,258 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 11 — Çok haftalı program düzenleme arayüzü ✅ (2026-08-10)
+
+**Not numaralandırma hakkında:** görev talimatı bu işi "Parti 10" olarak adlandırıyordu, ama
+o numara PROGRESS.md'de zaten "Sporcu Giriş Erişimi Yönetimi"ne verilmişti (yukarıdaki bölüm,
+aynı gün daha önce kapandı) — çakışmayı önlemek için bu iş **Parti 11** olarak kaydedildi.
+
+**Kapsam:** Saf UI işi — migration yok, yeni RPC yok, RLS değişikliği yok. Coach'un
+`create_program_with_weeks` ile oluşturulmuş çok haftalı bir bloktaki (`program_blocks` +
+`training_programs.block_id`/`week_index_in_block`) her haftayı ayrı ayrı açıp kapatmak yerine
+tek ekranda sekmelerle gezip düzenleyebilmesi, sekme değiştirirken otomatik kaydetme, sporcu
+verisi (RPE/not/tamamlanma) kaybı riskine karşı onay diyaloğu, ve blok-geneli toplu yayınlama.
+
+#### Keşif — talimatın varsaymadığı mevcut durum
+
+Talimat "hafta sekmeleri + autosave + propagate + blok yayınlama, hepsi sıfırdan" diye geldi.
+Gerçek kod tabanı incelemesinde şu zaten TAMAMEN kuruluydu (Parti 3.D/3.E/3.F):
+- `programs/[id]/edit/edit-program-client.tsx` — 3 adımlı wizard, `update_program_week` RPC'sini
+  çağırıyor, kendi "Sonraki Haftalara Uygula" butonu + onay penceresi zaten vardı.
+- `apps/web/lib/program-rpc.ts` — `buildSessionsPayload` (form state → RPC'nin beklediği JSONB
+  ağacı) ve `mapRpcError` zaten doğru sözleşmeyle çalışıyordu.
+- `packages/db/types.ts` — `program_blocks`, `block_id`, `week_index_in_block` ve üç RPC'nin
+  tipleri zaten güncel.
+
+Eksik olan yalnızca: (1) birden fazla haftayı AYNI ekranda gösterip aralarında gezinme, (2)
+sekme geçişinde otomatik kaydetme, (3) sporcu-verisi-kaybı koruması (mevcut propagate onayı
+yalnızca "kaydedilmemiş değişiklik" uyarısı veriyordu, sporcu verisi kaybı uyarısı YOKTU), (4)
+blok-geneli yayınlama butonu.
+
+#### Değişiklikler
+
+- **`packages/db/queries/programs.ts`** — 3 yeni fonksiyon: `getProgramsByBlockId` (bir bloktaki
+  tüm haftaları `week_index_in_block` sırasına göre, tam ağaçlarıyla — `training_sessions(*,
+  exercises(*, exercise_sets(*)))` — çeker); `getProgramIdsWithAthleteData` (görevin verdiği ham
+  SQL — `training_sessions LEFT JOIN exercises WHERE session_rpe IS NOT NULL OR ... `— PostgREST
+  ile birebir ifade edilemiyor, bunun yerine nested select + JS'te filtre); `setBlockPublished`
+  (`update training_programs set is_published=:v where block_id=:id`, `publishProgram`'ın
+  deseniyle birebir aynı).
+- **`apps/web/components/features/program-builder/week-editor-form.tsx`** (yeni) — eski
+  `EditProgramClient`'ın gövdesi (3 adımlı form, `programSchema`, submit/propagate mantığı)
+  buraya taşındı, `forwardRef`+`useImperativeHandle` ile `isDirty()`/`checkAthleteData()`/
+  `save(opts?: {force})`/`discardChanges()` dışa açıldı. Manuel "Değişiklikleri Kaydet" butonu
+  ve "Sonraki Haftalara Uygula" akışı da AYNI guard'lı `save`/athlete-data-kontrolü çekirdeğinden
+  geçiyor artık (tek kaynak, iki tetikleyici).
+- **`apps/web/app/(dashboard)/programs/[id]/edit/edit-program-client.tsx`** (yeniden yazıldı) —
+  artık ince bir orkestratör: `activeId`/`dirtyIds` state'i tutuyor, `WeekTabs`'ı yalnızca
+  `blockWeeks.length > 1` iken render ediyor (tek haftalık programlarda sekme şeridi hiç
+  görünmüyor — regresyon korunuyor), sekme geçişini `requestSwitch`→(dirty değilse anında switch;
+  dirty ise `checkAthleteData`→gerekirse onay diyaloğu→`save`) akışıyla yönetiyor, `beforeunload`
+  guard'ı ekliyor (bu repoda ilk kez — önceden hiç yoktu).
+- **`apps/web/app/(dashboard)/programs/[id]/edit/page.tsx`** — `program.block_id` varsa
+  `getProgramsByBlockId` ile TÜM bloğu (tam ağaçlarıyla) eager-fetch edip `blockWeeks` prop'u
+  olarak geçiyor; yoksa tek elemanlı `[program]` (davranış değişmiyor).
+- **`apps/web/components/ui/tabs.tsx`** (yeni) — standart shadcn Tabs sarmalayıcısı,
+  `@radix-ui/react-tabs` ZATEN `apps/web/package.json`'da bağımlılıktı (yeni paket kurulmadı),
+  yalnızca eksik olan wrapper component'i eklendi (`dialog.tsx` ile aynı desen).
+- **`apps/web/components/features/program-builder/week-tabs.tsx`** (yeni) — controlled `Tabs`
+  (`value`/`onValueChange`), her sekmede "Hafta {week_index_in_block}", tarih aralığı, yayın
+  rozeti, dirty-dot. `value` yalnızca ebeveyn onaylayınca değiştiği için sekme geçişi doğal
+  olarak "kilitli" kalıyor (kaydetme/onay sürerken).
+- **`apps/web/components/features/program-builder/athlete-data-warning-dialog.tsx`** (yeni) —
+  hem sekme-geçişi hem propagate guard'ı için ortak, el-yapımı overlay (bu repoda Radix
+  AlertDialog yok, mevcut `delete-confirm-dialog.tsx`/eski propagate modalıyla aynı desen).
+- **`apps/web/app/(dashboard)/programs/[id]/program-detail-client.tsx`** — "Tüm bloğu yayınla"
+  butonu buraya eklendi (edit ekranına DEĞİL — görev talimatı "program başlığının yanına"
+  diyordu, ama `program.title` bir başlık olarak yalnızca bu sayfada gösteriliyor; edit ekranında
+  düzenlenebilir form alanı olarak var, statik başlık değil). Mevcut tek-hafta `handlePublish`'e
+  dokunulmadı. Sibling haftaların `is_published` sayısını hafif bir client-side sorgu ile çekiyor
+  (mevcut `futureWeeks` desenine benzer, ağır `getProgramsByBlockId`'yi kullanmıyor).
+
+#### Bulunan ve düzeltilen gerçek bug (yalnızca canlı tarayıcı testinde yakalandı)
+
+İlk implementasyonda, sekme-geçişi autosave'i **her zaman doğru kaydediyordu** (SQL ile
+doğrulandı) ama kaydedilen haftanın dirty-dot'u hiç temizlenmiyordu. Kök neden: `WeekEditorForm`
+`reset(data, {keepValues:true})` çağırıp `formState.isDirty`'yi false yapıyor, bu da kendi
+`useEffect`'i üzerinden `onDirtyChange(id, false)`'u tetikliyor — AMA orkestratör aynı tick'te
+`setActiveId(nextId)`'yi de çağırdığı için, `key` değişimi eski `WeekEditorForm` instance'ını
+React'in pending re-render'ı flush etmesine FIRSAT VERMEDEN unmount ediyordu (React, key
+değişince eski ağacı reconcile etmez, direkt atar). Düzeltme: orkestratör dirty temizliğini
+child'ın effect'ine güvenmek yerine `commitSwitch` ve `handleSwitchDialogCancel` içinde
+EXPLICIT yapıyor. **Bu sınıf bug statik analiz/tip kontrolüyle YAKALANAMAZ** — yalnızca gerçek
+bir sekme geçişi gerçek bir tarayıcıda çalıştırılınca ortaya çıktı.
+
+#### Doğrulama ortamı notu — headless Chromium + Supabase login
+
+Bu sandbox'ta Playwright'ın headless Chromium'u, `@supabase/ssr`'ın browser client'ının
+`signInWithPassword` çağrısında "Failed to fetch" veriyor — kök neden muhtemelen
+`credentials`+CORS header kombinasyonu (elle `credentials:'include'` eklenen bir fetch AYNI
+hatayı yeniden üretiyor), ama bu **bu partinin kodundan tamamen bağımsız** bir sandbox/headless-
+tarayıcı kısıtı (Node'un kendi `fetch`'i ve gerçek PostgREST erişimi sorunsuz çalışıyor). Login
+UI'ını atlamak için: Node'da gerçek access/refresh token alınıp `@supabase/ssr`'ın cookie
+formatına (`sb-<project-ref>-auth-token`, `base64-` + base64url) elle kodlanıp
+`context.addCookies()` ile enjekte edildi; bundan sonrası (middleware, RLS, RPC çağrıları, sayfa
+render'ı) tamamen gerçek uygulama koduyla, gerçek Supabase Cloud'a karşı çalıştı. Bu notun
+amacı: bu repoda ileride Playwright/headless tarayıcı tabanlı bir E2E kurulacaksa (BUGS.md/
+CLAUDE.md §11'de hâlâ "⏳ E2E Playwright testleri" olarak bekliyor), gerçek login formunu
+otomatikleştirmeye çalışmadan önce bu kısıtı bilmek zaman kaybettirmeyecek.
+
+**DOĞRULAMA (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh`, gerçek admin JWT'siyle, mevcut
+"Yarışma Dönemi" 3 haftalık bloğu — Hafta 33/34/35 — üzerinde):**
+1. Edit ekranı açıldığında 3 sekme doğru render oldu (tarih aralıkları, Hafta 33 için "Yayında"
+   rozeti, 34/35 için "Taslak").
+2. Dirty olmayan bir sekmeye geçiş anında oldu, dialog/gecikme yok.
+3. Hafta 2'de başlık değiştirilip Hafta 3'e geçildi → SQL ile doğrulandı: yalnızca Hafta 2'nin
+   `title`/`updated_at`'i değişti, Hafta 1 ve 3 bit-bit aynı kaldı.
+4. Süperset içeren bir haftada (`Bench Press`+`Ab Wheel Rollout` = grup A, `Back Squat`+
+   `B-Stance Hip Thrust` = grup A) sekme-geçişi autosave'i tetiklendi → `superset_group`/
+   `superset_order` tam delete+reinsert döngüsünden değişmeden çıktı (SQL ile doğrulandı — bu
+   sözleşmenin en kolay kırılacağı yerdi, kırılmadı).
+5. "Tüm bloğu yayınla" → 3/3 hafta `is_published=true` oldu, buton "Tüm bloğu yayından kaldır"a
+   döndü; tekrar tıklanınca 3/3 tekrar `false` oldu.
+6. Bir haftanın `session_rpe`'i SQL ile elle 7'ye dolduruldu → o haftayı düzenleyip başka sekmeye
+   geçmeye çalışınca uyarı diyaloğu çıktı. İptal: başlık değişikliği DB'ye hiç yazılmadı (SQL ile
+   doğrulandı), sekme yine de geçti (veri kaybı riski yok, ama edit de kaybolmadı — dialog
+   göründüğü an autosave henüz olmamıştı). Devam Et: başlık değişikliği kaydedildi VE
+   `session_rpe` uyarıda söylendiği gibi `null`'a döndü (SQL ile doğrulandı — uyarı metninin
+   doğruluğunun da kanıtı).
+7. Tek haftalık (`block_id IS NULL`) bir program açıldı: sekme şeridi hiç render olmadı, notlar
+   alanı değiştirilip manuel "Değişiklikleri Kaydet" ile kaydedildi, kayıt sonrası eski
+   `/programs/{id}` yönlendirme davranışı korundu (regresyon yok).
+
+Tüm test verisi (geçici başlık/not değerleri, `session_rpe` test değeri, yayın durumu) orijinal
+haline geri döndürüldü. `pnpm --filter web type-check` + `pnpm --filter @athleteiq/db type-check`
++ `pnpm --filter web lint` temiz (yalnızca bu partiden önce de var olan, ilgisiz uyarılar).
+
+**Ek doğrulama — Görev 5 madde 1 (sıfırdan create akışı, ayrı bir turda kapatıldı):** Yukarıdaki
+1-7 testleri mevcut "Yarışma Dönemi" bloğu üzerindeydi; `create_program_with_weeks`'in kendisi
+(wizard → RPC → çoklu `training_programs` satırı) hiç egzersiz edilmemişti. Gerçek "Yeni Program
+Oluştur" formuyla, süperset içeren (Back Squat + Ab Wheel Rollout, Grup A) 4 haftalık bir test
+bloğu oluşturuldu: 4 `training_programs` satırı, `start_date` 7'şer gün kayıyor
+(10.08→17.08→24.08→31.08), her hafta eşit set sayısı (4) — SQL ile doğrulandı. Ardından Hafta
+2/3/4'te Back Squat'ın ilk setinin `%1RM`'i sırasıyla 75/80/85 yapılıp sekme değiştirilerek
+(autosave) kaydedildi; SQL sorgusu her haftanın YALNIZCA kendi ilk setinin değiştiğini, diğer
+setlerin (70) ve süperset atamasının (Grup A, sıra 1/2) dört haftada da korunduğunu doğruladı —
+create → edit → autosave zincirinin uçtan uca, sıfırdan üretilmiş veriyle de sağlam olduğunun
+kanıtı. Test bloğu doğrulama sonrası silindi (`training_programs` + `program_blocks`,
+`block_id=3f17ba17-...`).
+
+#### Bilinçli olarak yapılmayanlar / kapsam dışı bırakılanlar
+
+- RPC'lerin içine dokunulmadı (yalnızca çağrıldı).
+- Tek haftalık program akışı DEĞİŞMEDİ (yukarıdaki 7. madde regresyon testiyle doğrulandı).
+- Blok seviyesinde tek seferlik kayıt (B modeli) kurulmadı — haftalık autosave (A modeli)
+  bilinçli tercih, görev talimatının kendisi de bunu istiyordu.
+- Otomatik yüzde progresyonu aracı eklenmedi (ayrı bir iş olarak bırakıldı).
+- `packages/validators/program.ts` (dead code, gerçek RPC sözleşmesiyle uyumsuz — bkz. BUGS.md
+  yeni madde) bilinçli olarak DOKUNULMADI, kapsam dışı.
+
+### Parti 10 — Sporcu Giriş Erişimi Yönetimi ✅ (2026-08-10)
+
+**Kapsam:** Girişsiz eklenen (`create_login` kapalıyken, roster-only) sporculara sonradan giriş
+erişimi verme ve mevcut girişli sporcuların şifresini sıfırlama. Migration yok (görev talimatı
+zaten "bu partide migration yok" diyordu). Dokunulan/eklenen dosyalar: `supabase/functions/
+grant-athlete-access/index.ts` (yeni), `supabase/functions/reset-athlete-password/index.ts`
+(yeni), `apps/web/app/api/athletes/grant-login/route.ts` (yeni), `apps/web/app/api/athletes/
+reset-password/route.ts` (yeni), `apps/web/components/features/athletes/grant-access-modal.tsx`
+(yeni), `apps/web/components/features/athletes/reset-password-modal.tsx` (yeni), `apps/web/app/
+(dashboard)/athletes/athletes-client.tsx`, `packages/validators/athlete.ts`, `packages/
+validators/athlete.test.ts` (yeni), `packages/validators/package.json`.
+
+**0. Keşif (talimatın varsaydığından farklı çıktı):** İki paralel Explore agent'ıyla mevcut
+sporcu-ekleme akışı ve `create-athlete-account` Edge Function'ı okundu. Beklenenin aksine,
+"girişle sporcu ekleme" yolu (`add-athlete-modal.tsx`'teki `create_login` checkbox'ı →
+`submitWithLogin` → `/api/athletes/create-account` proxy'si → `create-athlete-account` Edge
+Function'ı, Parti 4.B/4.C'de kurulmuş) zaten uçtan uca TAMAMDI — ama org'da `athlete` rolünde
+tek bir membership olmaması, bu fonksiyonun bugüne dek canlı Supabase Cloud'a karşı hiç
+çağrılmadığını gösteriyordu (görev talimatındaki not doğrulandı). `packages/validators/
+athlete.ts`'te `ATHLETE_USERNAME_RE` zaten vardı (Edge Function'daki `USERNAME_RE` ile elle
+senkron tutulan bir yorum eşliğinde); Türkçe transliterasyon/slug helper'ı ve rastgele şifre
+üretici repoda hiç yoktu. `apps/web`'de `supabase.functions.invoke` hiç kullanılmıyor — her
+Edge Function için elle yazılmış bir Next.js proxy route (`createClient()`→`getUser()` guard→
+`getSession()`→`fetch(.../functions/v1/<fn>)`) konvansiyonu var (`apps/web/app/api/auth/
+invite/route.ts` kanonik örnek), `_shared/` bir Edge Function yardımcı modülü YOK (`create-
+athlete-account`/`invite-member` JWT-doğrulama bloğunu birbirinden bağımsız kopyalamış).
+`athletes-client.tsx` Server Component + `router.refresh()` kullanıyor, TanStack Query
+(package.json'da var ama hiç kullanılmayan bir bağımlılık, CLAUDE.md'nin iddiasıyla tutarlı)
+DEĞİL.
+
+**Tasarım kararları (keşfe dayalı):**
+- Yeni 2 Edge Function, mevcut `_shared/` yokluğu konvansiyonuna uyularak JWT-doğrulama +
+  yetki bloğunu KENDİ İÇİNDE tekrarlıyor — yeni bir soyutlama icat edilmedi (görev talimatı
+  zaten "aynısını kullan, yeni kural icat etme" diyordu).
+- `suggestUsername`/`generateTempPassword`, zaten `ATHLETE_USERNAME_RE`'yi barındıran
+  `packages/validators/athlete.ts`'e eklendi (yeni modül açmaya gerek kalmadı). Türkçe map
+  (`İ/I/ı→i`, `Ç/ç→c`, `Ğ/ğ→g`, `Ö/ö→o`, `Ş/ş→s`, `Ü/ü→u`) case-sensitive olarak
+  `toLowerCase()`'DEN ÖNCE uygulanıyor (aksi halde `"İ".toLowerCase()` beklenmedik sonuç verir).
+  `generateTempPassword` `crypto.getRandomValues` kullanıyor (tarayıcı + Node 20+'ta global,
+  ek bağımlılık yok), karıştırılabilir karakterleri (`0 O o 1 l I`) hariç tutuyor.
+- 2 yeni proxy route, mevcut `create-account/route.ts`'nin birebir kopyası (aynı desen: session
+  guard → body'yi olduğu gibi forward et, Edge Function'ın kendi validasyonuna güven).
+- Web UI'da "TanStack Query invalidate et" talimatı, projenin gerçek konvansiyonuna
+  (`router.refresh()`) çevrildi.
+
+**Görev 5 — DOĞRULAMA (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh`, gerçek Auth REST + gerçek
+admin JWT'siyle, curl/Node — bu oturumda fiziksel Expo cihazı/emülatör mevcut değildi, "mobilde
+giriş yap" adımı `supabase.auth.signInWithPassword`'ün birebir sunucu eşdeğeri olan Auth REST
+`token?grant_type=password` çağrısıyla test edildi, bu açıkça not düşülüyor):**
+1. Girişsiz test sporcusu (`PW10-TEST Sporcu`, admin JWT'siyle gerçek `athletes` insert'i,
+   `submitRosterOnly`'nin yaptığının aynısı) eklendi → `user_id`/`username` **NULL** doğrulandı.
+2. `grant-athlete-access` çağrıldı (`username:"pw10.test"`) → **200**; SQL ile `auth.users`
+   (email `pw10.test@athleteiq.app`, confirmed), `athletes.user_id`/`username`, `memberships`
+   (`role:"athlete"`, `invited_by`=admin) üçünün de doğru oluştuğu tek sorguyla doğrulandı.
+3. Auth REST `token?grant_type=password` ile `pw10.test@athleteiq.app`/şifre → **200**,
+   `access_token` döndü, `user.id` beklenen id ile eşleşti.
+4. `reset-athlete-password` çağrıldı → **200**; yeni şifreyle login **200**, ESKİ şifreyle
+   login **400 invalid_credentials**.
+5. Aynı username (`pw10.test`) ikinci bir girişsiz sporcuya (`Mert Efe Kılıçer`) denendi →
+   **409** `"Bu kullanıcı adı alınmış"`; SQL ile ikinci sporcunun `user_id`/`username`'inin hâlâ
+   NULL olduğu VE orphan bir `auth.users` satırı oluşmadığı doğrulandı (ilk `createUser` çağrısı
+   hiç tetiklenmemiş — `ilike` ön kontrolü çalışıyor).
+6. `parti8f-temp-coach@athleteiq.app` regresyonu — gerçek şifresi bilinmediğinden (ve "BUNA
+   DOKUNMA" talimatı gereği sıfırlanmadığından) canlı login yerine RLS simülasyonu kullanıldı
+   (`begin; set local role authenticated; set local request.jwt.claims='{"sub":"<coach_uid>"}';
+   select ... from athletes; commit;`) — coach hâlâ yalnızca kendi takımının (ACE) 4 sporcusunu
+   görüyor (yeni granted test sporcusu dahil, doğru şekilde), başka takımdan sızma yok.
+Test sporcusu + granted auth user + membership doğrulama sonrası silindi, `leftover=0`
+(3 ayrı sorgu: `auth.users`/`athletes`/`memberships`) doğrulandı.
+
+**Canlıda yakalanan bir üretim veri bütünlüğü hatası (Görev 6 sırasında, anında düzeltildi):**
+İbrahim'i `create-athlete-account` ile yeniden oluştururken ilk `curl` denemesinde `full_name`
+alanı ("İBRAHİM ÇOLAK") doğrudan bash komut metnine yazılmıştı — Windows konsolunun kod
+sayfası Türkçe karakterleri curl'e ulaşmadan `U+FFFD` (replacement character) bozdu; DB'ye
+`"�BRAH�M �OLAK"` olarak yazıldığı `encode(full_name::bytea,'hex')` (`efbfbd...` tekrarı) ile
+teşhis edildi. O satır + oluşan auth kullanıcısı hemen silinip, payload bu kez Node'da
+`"İBRAHİM ÇOLAK"` Unicode escape'lerinden üretilip bir UTF-8 dosyaya yazılarak
+`curl --data-binary @dosya` ile gönderildi — `hex_bytes` `c4b0...c387...` (doğru UTF-8 İ/Ç)
+ile doğrulandı. Ders: bu ortamda Türkçe/non-ASCII içerikli payload'lar shell komut metnine
+gömülmemeli, Node'da (veya dosyadan) UTF-8 olarak üretilmeli.
+
+**Görev 6 — İbrahim'in yeniden oluşturulması (kullanıcı onayıyla):** Silmeden önce
+`athlete_id` FK'lı 12 tablo tek tek sorgulandı (hepsi migration dosyalarında `on delete cascade`
+olarak doğrulandı): `athlete_1rm_records`(3), `training_programs`(2, → `training_sessions`(4) →
+`exercises`(6) → `exercise_sets`(14)), `test_results`(3), `acwr_logs`(1), `program_blocks`(1),
+diğer 7 tablo(0). Toplam 34 satır + `athletes` satırının kendisi + eski
+`tosunbeytullah9+ibrahim@gmail.com` auth kullanıcısının silineceği raporlandı,
+**AskUserQuestion ile onay istendi**, kullanıcı "Evet, sil ve yeniden oluştur"u seçti. Silme
+sonrası cascade `leftover=0` (7 ayrı sayaç) doğrulandı. `create-athlete-account` ÜZERİNDEN
+(**bu fonksiyonun ilk gerçek/başarılı çağrısı**) `ibrahim.colak` kullanıcı adı + yeni şifreyle
+yeniden oluşturuldu; `full_name` byte-seviyesinde doğru UTF-8, `memberships` (`role:"athlete"`)
+doğru oluştu, Auth REST login **200** ile doğrulandı.
+
+**Kod doğrulaması:** `pnpm --filter web build` → 26 sayfa (yeni `/api/athletes/grant-login` +
+`/api/athletes/reset-password` route'ları dahil), 0 yeni hata/uyarı. `pnpm turbo run
+type-check` → 5/5 paket temiz. `pnpm --filter @athleteiq/validators test` → 7/7 yeşil
+(`suggestUsername` Türkçe-karakter/çok-kelimeli/tek-harf vakaları + `ATHLETE_USERNAME_RE`
+uyumu, `generateTempPassword` uzunluk/yasak-karakter kontrolleri).
+
+**Yapılmayanlar (talimat gereği):** `create-athlete-account`'ın mantığına dokunulmadı (yalnızca
+referans alınıp çağrıldı). `parti8f-temp-coach*` hesapları değiştirilmedi. Girişsiz sporcu
+ekleme yolu (`submitRosterOnly`) kaldırılmadı. Yeni RLS politikası/migration yazılmadı. Mobil
+rol çözümleme mantığına dokunulmadı. Yeni bir `_shared/` Edge Function soyutlaması icat
+edilmedi.
 
 ### Parti 7 — Mobil: set-bazlı egzersiz görüntüleme, exercise_sets join'i ✅ (2026-08-08)
 
