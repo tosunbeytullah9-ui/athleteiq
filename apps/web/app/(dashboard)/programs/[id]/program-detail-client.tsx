@@ -3,19 +3,31 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, Clock, Users, User, Send, Pencil } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Users, User, Send, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
-import { publishProgram, setBlockPublished } from "@athleteiq/db/queries/programs";
+import { toast } from "@/components/ui/use-toast";
+import { AthleteDataWarningDialog } from "@/components/features/program-builder/athlete-data-warning-dialog";
+import {
+  publishProgram,
+  setBlockPublished,
+  getProgramsByBlockId,
+  setProgramsArchived,
+  deletePrograms,
+  deleteProgramBlock,
+} from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
 import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 import {
   buildMaxLookup,
   calculateProgramTonnage,
   calculateSessionTonnage,
+  summarizeUnresolved,
+  type TonnageContext,
+  type TonnageSummary,
 } from "@/lib/tonnage";
 
 type Program = Tables<"training_programs"> & {
@@ -48,9 +60,26 @@ function formatTonnage(kg: number): string {
   return `${kg.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} kg`;
 }
 
+function TonnageBreakdown({ tonnage }: { tonnage: TonnageSummary }) {
+  if (tonnage.unresolved.length === 0) return null;
+  const groups = summarizeUnresolved(tonnage.unresolved);
+  return (
+    <div className="mt-1 space-y-0.5">
+      <p className="text-xs text-amber-600">
+        {tonnage.totalSetCount} setten {tonnage.unresolved.length}&apos;i hesaplanamadı:
+      </p>
+      {groups.map((g) => (
+        <p key={g.reason} className="text-xs text-amber-600 pl-3">
+          • {g.label} — {g.exerciseNames.join(", ")} ({g.count} set)
+        </p>
+      ))}
+    </div>
+  );
+}
+
 interface Props {
   program: Program;
-  athlete: { id: string; full_name: string } | null;
+  athlete: { id: string; full_name: string; weight_kg: number | null } | null;
   team: { id: string; name: string } | null;
   athleteMaxes: Athlete1RMRecord[];
 }
@@ -84,10 +113,28 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
   } | null>(null);
   const [isBlockPublishing, setIsBlockPublishing] = useState(false);
 
+  const [deleteDialog, setDeleteDialog] = useState<{
+    willDelete: boolean;
+    description: string;
+    affectedWeeks?: string[];
+    targetIds: string[];
+    blockId: string | null;
+  } | null>(null);
+  const [isDeleteBusy, setIsDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const maxLookup = useMemo(() => buildMaxLookup(athleteMaxes), [athleteMaxes]);
+  const tonnageContext: TonnageContext = useMemo(
+    () => ({
+      maxLookup,
+      athleteWeightKg: athlete?.weight_kg ?? null,
+      hasAthleteContext: !!program.athlete_id,
+    }),
+    [maxLookup, athlete?.weight_kg, program.athlete_id]
+  );
   const programTonnage = useMemo(
-    () => calculateProgramTonnage(program.training_sessions, maxLookup),
-    [program.training_sessions, maxLookup]
+    () => calculateProgramTonnage(program.training_sessions, tonnageContext),
+    [program.training_sessions, tonnageContext]
   );
 
   async function refreshBlockPublishInfo(blockId: string) {
@@ -145,6 +192,78 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
     }
   }
 
+  // "Sil" — block_id doluysa TÜM blok kapsamında çalışır, tek haftaya değil
+  // (tek haftayı silmek bloğun hafta numaralandırmasını bozar). Yayınlanmamış
+  // hedefler kalıcı silinir, yayında olan tek bir hafta bile varsa tüm hedef
+  // arşivlenir (karma blok durumunda kısmi işlem yapılmaz).
+  async function handleDeleteClick() {
+    const supabase = createClient();
+    let targets: Program[] = [program];
+    if (program.block_id) {
+      targets = (await getProgramsByBlockId(supabase, program.block_id)) as Program[];
+    }
+
+    const willDelete = targets.every((p) => !p.is_published);
+    const sessionCount = targets.reduce((sum, p) => sum + p.training_sessions.length, 0);
+    const exerciseCount = targets.reduce(
+      (sum, p) => sum + p.training_sessions.reduce((s, sess) => s + sess.exercises.length, 0),
+      0
+    );
+    const setCount = targets.reduce(
+      (sum, p) =>
+        sum +
+        p.training_sessions.reduce(
+          (s, sess) => s + sess.exercises.reduce((e, ex) => e + (ex.exercise_sets?.length ?? 0), 0),
+          0
+        ),
+      0
+    );
+
+    const blockPrefix =
+      targets.length > 1 ? `Bu işlem ${targets.length} haftalık bloğun tamamını kapsar. ` : "";
+    const description = willDelete
+      ? `${blockPrefix}${sessionCount} seans, ${exerciseCount} egzersiz, ${setCount} set kalıcı olarak silinecek. Bu işlem geri alınamaz.`
+      : `${blockPrefix}Program arşivlenecek. Sporcular artık göremeyecek, veriler korunacak.`;
+    const affectedWeeks =
+      targets.length > 1
+        ? targets
+            .slice()
+            .sort((a, b) => (a.week_index_in_block ?? 0) - (b.week_index_in_block ?? 0))
+            .map((p) => `Hafta ${p.week_index_in_block ?? "?"}`)
+        : undefined;
+
+    setDeleteError(null);
+    setDeleteDialog({
+      willDelete,
+      description,
+      affectedWeeks,
+      targetIds: targets.map((p) => p.id),
+      blockId: program.block_id,
+    });
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteDialog) return;
+    setIsDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const supabase = createClient();
+      if (deleteDialog.willDelete) {
+        await deletePrograms(supabase, deleteDialog.targetIds);
+        if (deleteDialog.blockId) await deleteProgramBlock(supabase, deleteDialog.blockId);
+        toast({ title: "Program silindi" });
+      } else {
+        await setProgramsArchived(supabase, deleteDialog.targetIds, true);
+        toast({ title: "Program arşivlendi" });
+      }
+      router.push("/programs");
+    } catch (err: unknown) {
+      setDeleteError(err instanceof Error ? err.message : "İşlem sırasında hata oluştu.");
+    } finally {
+      setIsDeleteBusy(false);
+    }
+  }
+
   const sessionsByDay = Array.from({ length: 7 }, (_, i) => ({
     day: i + 1,
     label: DAY_LABELS[i]!,
@@ -161,12 +280,35 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
           Programlar
         </Button>
         {!isAthlete && (
-          <Button variant="outline" size="sm" onClick={() => router.push(`/programs/${program.id}/edit`)}>
-            <Pencil className="h-4 w-4" />
-            Düzenle
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => router.push(`/programs/${program.id}/edit`)}>
+              <Pencil className="h-4 w-4" />
+              Düzenle
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleDeleteClick}>
+              <Trash2 className="h-4 w-4" />
+              Sil
+            </Button>
+          </div>
         )}
       </div>
+
+      {deleteDialog && (
+        <AthleteDataWarningDialog
+          title={deleteDialog.willDelete ? "Programı Sil" : "Programı Arşivle"}
+          description={deleteDialog.description}
+          affectedWeeks={deleteDialog.affectedWeeks}
+          confirmLabel={deleteDialog.willDelete ? "Sil" : "Arşivle"}
+          isBusy={isDeleteBusy}
+          error={deleteError}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => {
+            if (isDeleteBusy) return;
+            setDeleteDialog(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
 
       {/* Başlık kartı */}
       <Card>
@@ -214,15 +356,13 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
                 )}
                 <span>{program.training_sessions.length} seans</span>
                 <span className="font-medium text-foreground">
-                  Toplam Tonaj: {formatTonnage(programTonnage.totalKg)}
+                  {programTonnage.totalSetCount > 0 && programTonnage.resolvedSetCount === 0
+                    ? "Tonaj hesaplanamıyor"
+                    : `Toplam Tonaj: ${formatTonnage(programTonnage.totalKg)}`}
                 </span>
               </div>
 
-              {programTonnage.excludedSetCount > 0 && (
-                <p className="mt-1 text-xs text-amber-600">
-                  {programTonnage.excludedSetCount} set 1RM eksikliği nedeniyle tonaja dahil edilmedi.
-                </p>
-              )}
+              <TonnageBreakdown tonnage={programTonnage} />
 
               {program.notes && (
                 <p className="mt-3 text-sm text-muted-foreground">{program.notes}</p>
@@ -287,7 +427,7 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
               </h2>
               <div className="space-y-3">
                 {sessions.map((session) => {
-                  const sessionTonnage = calculateSessionTonnage(session, maxLookup);
+                  const sessionTonnage = calculateSessionTonnage(session, tonnageContext);
                   return (
                   <Card key={session.id}>
                     <CardHeader className="pb-3">
@@ -311,19 +451,12 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
                       )}
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                         <span className="font-medium text-foreground">
-                          Tonaj: {formatTonnage(sessionTonnage.totalKg)}
+                          {sessionTonnage.totalSetCount > 0 && sessionTonnage.resolvedSetCount === 0
+                            ? "Tonaj hesaplanamıyor"
+                            : `Tonaj: ${formatTonnage(sessionTonnage.totalKg)}`}
                         </span>
-                        {sessionTonnage.bodyweightRepCount > 0 && (
-                          <span>
-                            {sessionTonnage.bodyweightRepCount} tekrar (vücut ağırlığı/bant, tonaja dahil değil)
-                          </span>
-                        )}
-                        {sessionTonnage.excludedSetCount > 0 && (
-                          <span className="text-amber-600">
-                            {sessionTonnage.excludedSetCount} set 1RM eksikliği nedeniyle dahil edilmedi
-                          </span>
-                        )}
                       </div>
+                      <TonnageBreakdown tonnage={sessionTonnage} />
                     </CardHeader>
 
                     {session.exercises.length > 0 && (

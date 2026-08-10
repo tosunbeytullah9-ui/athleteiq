@@ -3,10 +3,11 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, CheckCircle2, Clock, Users, User } from "lucide-react";
+import { Plus, CheckCircle2, Clock, Users, User, Archive, ArchiveRestore } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
+import { setProgramsArchived } from "@athleteiq/db/queries/programs";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent } from "@athleteiq/ui/components/card";
@@ -45,6 +46,8 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
   const [filter, setFilter] = useState<"all" | "published" | "draft">(
     isAthlete ? "published" : "all"
   );
+  const [showArchived, setShowArchived] = useState(false);
+  const [unarchivingId, setUnarchivingId] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -81,15 +84,38 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
   );
 
   const filtered = useMemo(() => {
-    // Athlete her durumda yalnızca yayınlanmış programları görür (RLS de zorlar)
-    if (isAthlete) return programs.filter((p) => p.is_published);
-    if (filter === "published") return programs.filter((p) => p.is_published);
-    if (filter === "draft") return programs.filter((p) => !p.is_published);
-    return programs;
-  }, [programs, filter, isAthlete]);
+    // Athlete her durumda yalnızca yayınlanmış VE arşivlenmemiş programları görür
+    // (RLS is_archived'dan habersiz — bu istemci tarafı bir UX filtresi).
+    if (isAthlete) return programs.filter((p) => p.is_published && !p.is_archived);
+    const base = programs.filter((p) => showArchived || !p.is_archived);
+    if (filter === "published") return base.filter((p) => p.is_published);
+    if (filter === "draft") return base.filter((p) => !p.is_published);
+    return base;
+  }, [programs, filter, isAthlete, showArchived]);
 
-  const publishedCount = programs.filter((p) => p.is_published).length;
-  const draftCount = programs.filter((p) => !p.is_published).length;
+  const activePrograms = programs.filter((p) => !p.is_archived);
+  const publishedCount = activePrograms.filter((p) => p.is_published).length;
+  const draftCount = activePrograms.filter((p) => !p.is_published).length;
+  const archivedCount = programs.filter((p) => p.is_archived).length;
+
+  async function handleUnarchive(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setUnarchivingId(id);
+    try {
+      const supabase = createClient();
+      await setProgramsArchived(supabase, [id], false);
+      toast({ title: "Program arşivden çıkarıldı" });
+      router.refresh();
+    } catch (err: unknown) {
+      toast({
+        title: "İşlem başarısız",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setUnarchivingId(null);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -99,7 +125,7 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
           <p className="text-sm text-muted-foreground mt-1">
             {isAthlete
               ? `${publishedCount} program`
-              : `${programs.length} program — ${publishedCount} yayında, ${draftCount} taslak`}
+              : `${activePrograms.length} program — ${publishedCount} yayında, ${draftCount} taslak`}
           </p>
         </div>
         {!isAthlete && (
@@ -112,20 +138,33 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
         )}
       </div>
 
-      <div className={`flex gap-2 ${isAthlete ? "hidden" : ""}`}>
-        {(["all", "published", "draft"] as const).map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              filter === f
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-            }`}
-          >
-            {f === "all" ? "Tümü" : f === "published" ? "Yayında" : "Taslak"}
-          </button>
-        ))}
+      <div className={`flex items-center justify-between gap-2 ${isAthlete ? "hidden" : ""}`}>
+        <div className="flex gap-2">
+          {(["all", "published", "draft"] as const).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                filter === f
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+              }`}
+            >
+              {f === "all" ? "Tümü" : f === "published" ? "Yayında" : "Taslak"}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={() => setShowArchived((s) => !s)}
+          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+            showArchived
+              ? "bg-primary text-primary-foreground"
+              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+          }`}
+        >
+          <Archive className="h-3.5 w-3.5" />
+          Arşivi göster {archivedCount > 0 && `(${archivedCount})`}
+        </button>
       </div>
 
       {filtered.length === 0 ? (
@@ -189,7 +228,25 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
                     <Badge variant={program.is_published ? "default" : "secondary"} className="text-xs">
                       {program.is_published ? "Yayında" : "Taslak"}
                     </Badge>
+                    {program.is_archived && (
+                      <Badge variant="secondary" className="text-xs">
+                        Arşivlendi
+                      </Badge>
+                    )}
                   </div>
+
+                  {program.is_archived && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mb-3 w-full"
+                      disabled={unarchivingId === program.id}
+                      onClick={(e) => handleUnarchive(program.id, e)}
+                    >
+                      <ArchiveRestore className="h-3.5 w-3.5" />
+                      {unarchivingId === program.id ? "İşleniyor..." : "Arşivden çıkar"}
+                    </Button>
+                  )}
 
                   <div className="text-xs text-muted-foreground space-y-1">
                     <div className="flex items-center gap-1.5">

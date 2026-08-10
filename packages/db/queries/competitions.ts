@@ -1,5 +1,5 @@
 import type { DbClient } from "./_client";
-import type { TablesInsert } from "../types";
+import type { TablesInsert, TablesUpdate } from "../types";
 
 export async function getCompetitions(client: DbClient, orgId: string) {
   const { data, error } = await client
@@ -24,6 +24,29 @@ export async function createCompetition(
 
   if (error) throw error;
   return data;
+}
+
+export async function updateCompetition(
+  client: DbClient,
+  id: string,
+  updates: TablesUpdate<"competitions">
+) {
+  // competitions tablosunda updated_at kolonu yok — updateProgram'daki gibi otomatik
+  // spread yapılmaz.
+  const { data, error } = await client
+    .from("competitions")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteCompetition(client: DbClient, id: string): Promise<void> {
+  const { error } = await client.from("competitions").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function addCompetitionResult(

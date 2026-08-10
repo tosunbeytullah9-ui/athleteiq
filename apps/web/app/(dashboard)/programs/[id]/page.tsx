@@ -20,7 +20,7 @@ export default async function ProgramDetailPage({ params }: Props) {
   // aynı gerekçe) — %1RM setleri bu durumda hep "dahil edilmedi" sayılır.
   const [athleteResult, teamResult, athleteMaxes] = await Promise.all([
     program.athlete_id
-      ? supabase.from("athletes").select("id, full_name").eq("id", program.athlete_id).single()
+      ? supabase.from("athletes").select("id, full_name, weight_kg").eq("id", program.athlete_id).single()
       : Promise.resolve({ data: null }),
     program.team_id
       ? supabase.from("teams").select("id, name").eq("id", program.team_id).single()

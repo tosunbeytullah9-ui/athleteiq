@@ -137,6 +137,37 @@ export async function getActiveProgramId(
   return data?.[0]?.id ?? null;
 }
 
+/** Bir veya birden fazla programın arşiv durumunu tek seferde değiştirir (blok kapsamlı işlemler için). */
+export async function setProgramsArchived(
+  client: DbClient,
+  ids: string[],
+  isArchived: boolean
+): Promise<void> {
+  const { error } = await client
+    .from("training_programs")
+    .update({ is_archived: isArchived, updated_at: new Date().toISOString() })
+    .in("id", ids);
+
+  if (error) throw error;
+}
+
+/** Verilen programları kalıcı olarak siler — cascade zinciri training_sessions/exercises/exercise_sets'i de temizler. */
+export async function deletePrograms(client: DbClient, ids: string[]): Promise<void> {
+  const { error } = await client.from("training_programs").delete().in("id", ids);
+  if (error) throw error;
+}
+
+/**
+ * Bir programın bloğunu siler — yalnızca bloğun TÜM haftaları (deletePrograms ile)
+ * silindikten sonra çağrılmalı. block_id -> program_blocks FK'si "on delete set null"
+ * yönünde, yani training_programs satırlarını silmek program_blocks satırını otomatik
+ * temizlemiyor; bu fonksiyon o yetim satırı kaldırır.
+ */
+export async function deleteProgramBlock(client: DbClient, blockId: string): Promise<void> {
+  const { error } = await client.from("program_blocks").delete().eq("id", blockId);
+  if (error) throw error;
+}
+
 /** Bir programın belirli bir haftanın gününe düşen seanslarını, egzersizlerini ve setlerini çeker. */
 export async function getDaySessions(client: DbClient, programId: string, dayOfWeek: number) {
   const { data, error } = await client

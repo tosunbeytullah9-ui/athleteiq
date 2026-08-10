@@ -1,6 +1,34 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-10 (**Parti 11 — Çok haftalı program düzenleme arayüzü** — coach'un
+> Son güncelleme: 2026-08-10 (**Parti 12 — Tonaj Hesabı, Program Silme/Arşivleme, Yarışma
+> Düzenleme** — üç bağımsız iş. **Kritik keşif (görev talimatının varsaymadığı):** talimat
+> tonaj hesabının `exercises.sets/reps/load_kg/load_percent` ölü kolonlarından okuduğunu
+> varsayıyordu — discovery'de bu zaten Parti 2.2.F/Parti 7'de düzeltilmiş bulundu
+> (`apps/web/lib/tonnage.ts` tamamen `exercise_sets`'ten okuyor). Bu partide Görev 1 "sıfırdan
+> yaz" değil, mevcut hesabı tamamlama oldu: vücut ağırlığı setleri artık `athletes.weight_kg`
+> ile çözümleniyor (önceden hiç çözümlenmiyordu), yük önceliği spesifikasyona göre düzeltildi
+> (`load_kg` > `is_bodyweight` > `percent_1rm` > `band_resistance`), çözümlenemeyen setler artık
+> 4 sebep koduna (`no_1rm_record`/`unknown_bodyweight`/`no_athlete_context`/`band_resistance`)
+> göre egzersiz adı bazında gruplanıp gösteriliyor, ve tüm setler çözümlenemediğinde "0 kg"
+> yerine "Tonaj hesaplanamıyor" yazıyor. Görev 2: `training_programs.is_archived` kolonu
+> eklendi (029_program_archive.sql), `get_athlete_programs` artık arşivlenmiş programları
+> dönmüyor. Yayınlanmamış programlar kalıcı silinir (cascade zaten hazırdı), yayındaki
+> programlar bunun yerine arşivlenir; `block_id` doluysa işlem TÜM bloğa uygulanır (tek hafta
+> değil — bloktaki tek bir hafta bile yayındaysa tüm blok arşivlenir, karma işlem yapılmaz).
+> `program_blocks`'un hiçbir FK'si training_programs silindiğinde otomatik temizlenmediği
+> için (`block_id → program_blocks` ilişkisi `on delete set null`, ters yönde cascade yok),
+> blok tamamen silindiğinde yetim `program_blocks` satırı da ayrıca siliniyor
+> (`deleteProgramBlock`). Görev 3: `competitions` için düzenle/sil eklendi, mevcut inline
+> "yarışma ekle" formu iki modda (create/edit) yeniden kullanıldı, ayrı form yazılmadı.
+> **Doğrulama:** `pnpm --filter web exec tsc --noEmit` + `pnpm --filter @athleteiq/db exec tsc
+> --noEmit` + `pnpm --filter web build` temiz. Tonaj hesap mantığı (öncelik sırası, sebep
+> kodlama, gruplama) geçici bir Vitest dosyasıyla 6 test senaryosunda doğrulandı, sonra
+> silindi (kalıcı test paketine eklenmesi istenmedi). DB davranışı (cascade delete, blok
+> temizliği, arşiv filtresi, yarışma cascade) Supabase Cloud'da (`nlmwcygmbbxmfpsubvmh`)
+> gerçek SQL ile test edilip temizlendi — 0 yetim kayıt, orijinal 12 program/3 yarışma/3
+> sporcu dokunulmadan kaldı (CLAUDE.md'nin "9 program" notu zaten bayattı, bu parti öncesinde
+> de 12'ydi). Detay: § Parti 12)
+> Önceki: 2026-08-10 (**Parti 11 — Çok haftalı program düzenleme arayüzü** — coach'un
 > bir `program_blocks` bloğundaki tüm haftaları (2+ hafta) tek ekranda, sekmeler halinde gezip
 > düzenleyebildiği arayüz eklendi. **Kritik keşif (görev talimatının varsaymadığı):** talimat
 > "sıfırdan inşa et" varsayımıyla geldi, ama keşifte tek-haftalık düzenleme ekranının
@@ -214,6 +242,78 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 12 — Tonaj Hesabı, Program Silme/Arşivleme, Yarışma Düzenleme ✅ (2026-08-10)
+
+**Görev 1 — Tonaj hesabını tamamla.** `apps/web/lib/tonnage.ts` yeniden tasarlandı:
+`TonnageSummary` artık `{ totalKg, totalSetCount, resolvedSetCount, unresolved: {reason,
+exerciseName}[] }` taşıyor. `calculateSetTonnage` bir `TonnageContext` (`maxLookup`,
+`athleteWeightKg`, `hasAthleteContext`) alıyor ve önceliği spesifikasyondaki sırayla
+uyguluyor: `reps == null` → hesaba katma; `load_kg` → doğrudan; `is_bodyweight` →
+`athleteWeightKg` (takım programında/`weight_kg` boşken sebep kodlu unresolved); `percent_1rm`
+→ `resolveOneRepMaxKg` (1RM kaydı yoksa unresolved); `band_resistance` → her zaman unresolved.
+Yeni `summarizeUnresolved()` sebep bazında gruplayıp benzersiz egzersiz adlarını döndürüyor —
+UI'da "4 set hesaplanamadı → 1RM kaydı yok (Back Squat, Bench Press)" formatında gösteriliyor.
+`apps/web/app/(dashboard)/programs/[id]/page.tsx` artık `athletes.weight_kg`'ı da çekiyor;
+`program-detail-client.tsx` hem program hem seans seviyesinde "Tonaj hesaplanamıyor" fallback'ini
+(`totalSetCount > 0 && resolvedSetCount === 0`) ve sebep dökümünü gösteriyor.
+**Not düşülen takip:** tonaj sayılarının anlamlı olması için `athlete_1rm_records` tablosuna
+gerçek veri girilmesi gerekiyor (şu an 0 satır).
+
+**Görev 2 — Program silme ve arşivleme.** Migration `029_program_archive.sql`:
+`training_programs.is_archived boolean not null default false` + `idx_training_programs_active`
+partial index + `get_athlete_programs`'a `and is_archived = false` eklendi. `packages/db/types.ts`
+aynı commit'te regenerate edildi (Supabase MCP `generate_typescript_types`, local Docker
+stack çalışmadığı için CLI yerine cloud'a doğrudan `apply_migration` ile push edildi).
+`packages/db/queries/programs.ts`'e üç fonksiyon: `setProgramsArchived(ids, isArchived)`,
+`deletePrograms(ids)`, `deleteProgramBlock(blockId)` (yetim kalan `program_blocks` satırını
+temizler — hiçbir FK bunu otomatik yapmıyor). `program-detail-client.tsx`'e "Sil" butonu:
+`block_id` doluysa `getProgramsByBlockId` ile TÜM haftaları çekip hedef kapsamını genişletiyor,
+`willDelete = target.every(p => !p.is_published)` — tek bir hafta bile yayındaysa tüm blok
+arşivleniyor (karma işlem yok). Onay diyaloğu için mevcut `AthleteDataWarningDialog`
+(Parti 11'den, zaten `affectedWeeks`/`isBusy`/`error` destekliyor) yeniden kullanıldı, yeni
+bir dialog bileşeni yazılmadı. `programs-client.tsx`'e "Arşivi göster" toggle'ı, arşivlenmiş
+kartlarda "Arşivlendi" rozeti ve tek satırlık (blok kapsamına genişletilmeyen, kasıtlı basit)
+"Arşivden çıkar" aksiyonu eklendi; athlete dalı `is_published && !is_archived` ile
+daraltıldı (istemci tarafı UX filtresi — RLS `is_archived`'dan habersiz bırakıldı, yeni
+politika yazılmadı, talimatın kapsamı buydu). ACWR (`acwr_logs`) `training_programs`'a hiç
+bağlı değil — dokunulmadı. Mobile'a `get_athlete_programs` filtresi dışında dokunulmadı;
+`getActiveProgramId` (yalnızca mobile ekranlarından çağrılıyor) aynı `is_archived`
+farkındalığından yoksun ama görev kapsamı dışı bırakıldı — takip gerektiriyor.
+
+**Görev 3 — Yarışma düzenleme.** `packages/db/queries/competitions.ts`'e `updateCompetition`
+(competitions'ta `updated_at` kolonu YOK — `updateProgram`'daki otomatik spread burada
+uygulanmadı) ve `deleteCompetition` eklendi. `competitions-client.tsx`'teki mevcut inline
+"yarışma ekle" formu `editTarget` state'iyle create/edit iki modu da kullanacak şekilde
+genişletildi (ayrı form yazılmadı) — düzenle tıklanınca `reset(editTarget değerleri)` ile
+dolduruluyor. Her karta kalem/çöp ikonu eklendi, silme mevcut `DeleteConfirmDialog`
+(`components/features/exercises/`) ile, açıklamada `competition_results.length` sayısı
+gösteriliyor (zaten eager-load edilmiş veri, ek sorgu yok). `competitions_write` RLS zaten
+`ALL` — yeni politika yazılmadı.
+
+**Doğrulama (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh`, Supabase MCP ile):**
+- `pnpm --filter web exec tsc --noEmit`, `pnpm --filter @athleteiq/db exec tsc --noEmit`,
+  `pnpm --filter web build` — üçü de temiz (build'deki uyarılar hepsi bu partiden önce
+  vardı, ilgisiz).
+- Tonaj mantığı: geçici `apps/web/lib/tonnage.verify.test.ts` (Vitest, 6 test) — öncelik
+  sırası (load_kg > is_bodyweight > percent_1rm > band_resistance), sebep kodlama
+  (`no_1rm_record`/`unknown_bodyweight`/`no_athlete_context`/`band_resistance`), takım
+  programında hem bodyweight hem %1RM'in `no_athlete_context`'e düşmesi, ve
+  `summarizeUnresolved`'ın gruplama/dedupe davranışı doğrulandı — 6/6 geçti, dosya silindi
+  (kalıcı test paketine eklenmesi görev kapsamında istenmedi).
+- DB davranışı gerçek SQL ile: (1) yayınlanmamış test programı (session+exercise+exercise_set
+  ile) silindi → 0 yetim kayıt (training_sessions/exercises/exercise_sets); (2) 2 haftalık
+  test bloğu oluşturulup her iki hafta da silindi, ardından `program_blocks` satırı da
+  silindi → 0 yetim hafta, 0 yetim blok; (3) yayında bir test programı arşivlendi →
+  `get_athlete_programs()` çağrısı artık onu döndürmüyor (arşivleme öncesi döndürüyordu);
+  (4) test yarışması oluşturuldu, güncellendi, `competition_results` ile birlikte silindi →
+  0 yetim sonuç kaydı. Tüm test kayıtları (`PARTI12_TEST_*` başlıklı) temizlendi ve SQL ile
+  0 kaldığı doğrulandı — orijinal 12 program/3 yarışma/3 sporcu dokunulmadan kaldı (canlı
+  sayım 12 çıktı, CLAUDE.md §11'deki "9 program" notu bu partiden önce zaten bayattı — iki
+  block'un toplam 6 haftası + 6 bağımsız program = 12; ayrı bir düzeltme gerektirmiyor,
+  gözlem olarak not düşüldü).
+
+---
 
 ### Parti 11 — Çok haftalı program düzenleme arayüzü ✅ (2026-08-10)
 
@@ -1666,6 +1766,9 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 - [x] Exercise picker modal — program builder'da kütüphaneden egzersiz seçme ✅ (2026-06-26)
 - [x] 1RM takibi — `/tests` sayfasında "1RM Kayıtları" bölümü + program builder "Son max" rozeti ✅ (2026-07-20, Parti 2.2.E)
 - [x] Tonaj özet metriği — program detay sayfasında seans/program bazlı toplam tonaj + 1RM eksikliği uyarısı ✅ (2026-07-21, Parti 2.2.F — **Parti 2 tamamen kapandı**)
+- [x] Tonaj hesabı tamamlandı — vücut ağırlığı çözümlemesi (`athletes.weight_kg`), sebep kodlu döküm, "hesaplanamıyor" fallback'i ✅ (2026-08-10, Parti 12)
+- [x] Program silme/arşivleme (blok-farkında, yayın durumuna göre sil/arşivle) ✅ (2026-08-10, Parti 12)
+- [x] Yarışma düzenleme/silme ✅ (2026-08-10, Parti 12)
 - [ ] ACWR grafiği — Recharts ile görsel trend (şu an tablo mu grafik mi kontrol et)
 
 ### Öncelik 3 — Gelecek Sprint

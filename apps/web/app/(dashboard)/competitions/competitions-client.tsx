@@ -1,17 +1,23 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trophy, MapPin, Calendar, X } from "lucide-react";
+import { Plus, Trophy, MapPin, Calendar, X, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { createClient } from "@/lib/supabase/client";
-import { createCompetition } from "@athleteiq/db/queries/competitions";
+import { toast } from "@/components/ui/use-toast";
+import { DeleteConfirmDialog } from "@/components/features/exercises/delete-confirm-dialog";
+import {
+  createCompetition,
+  updateCompetition,
+  deleteCompetition,
+} from "@athleteiq/db/queries/competitions";
 import type { Tables } from "@athleteiq/db/types";
 
 type Competition = Tables<"competitions"> & {
@@ -60,6 +66,8 @@ function isUpcoming(dateStr: string | null): boolean {
 export function CompetitionsClient({ orgId, competitions: initialCompetitions, teams }: Props) {
   const [competitions, setCompetitions] = useState<Competition[]>(initialCompetitions);
   const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState<Competition | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Competition | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "upcoming" | "past">("upcoming");
 
@@ -72,30 +80,93 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
     resolver: zodResolver(competitionSchema),
   });
 
+  useEffect(() => {
+    if (!editTarget) return;
+    reset({
+      name: editTarget.name,
+      competition_date: editTarget.competition_date ?? "",
+      location: editTarget.location ?? "",
+      level: (editTarget.level ?? "") as CompetitionForm["level"],
+      team_id: editTarget.team_id ?? "",
+      notes: editTarget.notes ?? "",
+    });
+  }, [editTarget, reset]);
+
+  function openCreateForm() {
+    setEditTarget(null);
+    reset({ name: "", competition_date: "", location: "", level: undefined, team_id: "", notes: "" });
+    setShowForm(true);
+  }
+
+  function openEditForm(comp: Competition) {
+    setEditTarget(comp);
+    setShowForm(true);
+  }
+
+  function closeForm() {
+    setShowForm(false);
+    setEditTarget(null);
+    setSubmitError(null);
+  }
+
   async function onSubmit(data: CompetitionForm) {
     setSubmitError(null);
     try {
       const supabase = createClient();
-      const newComp = await createCompetition(supabase, {
-        org_id: orgId,
-        name: data.name,
-        competition_date: data.competition_date,
-        location: data.location ?? null,
-        level: data.level ?? null,
-        team_id: data.team_id || null,
-        notes: data.notes ?? null,
-      });
-      // Fetch with results joined — competitions query returns base row, add empty results
-      const compWithResults = { ...newComp, competition_results: [] };
-      setCompetitions((prev) =>
-        [...prev, compWithResults as Competition].sort((a, b) =>
-          (a.competition_date ?? "") < (b.competition_date ?? "") ? -1 : 1
-        )
-      );
-      reset();
-      setShowForm(false);
+      if (editTarget) {
+        const updated = await updateCompetition(supabase, editTarget.id, {
+          name: data.name,
+          competition_date: data.competition_date,
+          location: data.location ?? null,
+          level: data.level ?? null,
+          team_id: data.team_id || null,
+          notes: data.notes ?? null,
+        });
+        setCompetitions((prev) =>
+          prev
+            .map((c) => (c.id === editTarget.id ? { ...c, ...updated } : c))
+            .sort((a, b) => ((a.competition_date ?? "") < (b.competition_date ?? "") ? -1 : 1))
+        );
+        toast({ title: "Yarışma güncellendi" });
+      } else {
+        const newComp = await createCompetition(supabase, {
+          org_id: orgId,
+          name: data.name,
+          competition_date: data.competition_date,
+          location: data.location ?? null,
+          level: data.level ?? null,
+          team_id: data.team_id || null,
+          notes: data.notes ?? null,
+        });
+        // Fetch with results joined — competitions query returns base row, add empty results
+        const compWithResults = { ...newComp, competition_results: [] };
+        setCompetitions((prev) =>
+          [...prev, compWithResults as Competition].sort((a, b) =>
+            (a.competition_date ?? "") < (b.competition_date ?? "") ? -1 : 1
+          )
+        );
+      }
+      closeForm();
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Yarışma eklenirken hata oluştu.");
+      setSubmitError(err instanceof Error ? err.message : "Yarışma kaydedilirken hata oluştu.");
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return;
+    try {
+      const supabase = createClient();
+      await deleteCompetition(supabase, deleteTarget.id);
+      setCompetitions((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      toast({ title: "Yarışma silindi" });
+    } catch (err: unknown) {
+      toast({
+        title: "Silme başarısız",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setDeleteTarget(null);
     }
   }
 
@@ -116,17 +187,17 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
             {competitions.length} yarışma — {upcomingCount} yaklaşan
           </p>
         </div>
-        <Button onClick={() => setShowForm((v) => !v)}>
+        <Button onClick={() => (showForm ? closeForm() : openCreateForm())}>
           {showForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
           {showForm ? "İptal" : "Yarışma Ekle"}
         </Button>
       </div>
 
-      {/* Ekleme formu */}
+      {/* Ekleme/düzenleme formu */}
       {showForm && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Yeni Yarışma</CardTitle>
+            <CardTitle className="text-base">{editTarget ? "Yarışmayı Düzenle" : "Yeni Yarışma"}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -206,11 +277,15 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
               )}
 
               <div className="flex justify-end gap-3">
-                <Button type="button" variant="outline" onClick={() => setShowForm(false)}>
+                <Button type="button" variant="outline" onClick={closeForm}>
                   İptal
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? "Kaydediliyor..." : "Yarışmayı Ekle"}
+                  {isSubmitting
+                    ? "Kaydediliyor..."
+                    : editTarget
+                    ? "Kaydet"
+                    : "Yarışmayı Ekle"}
                 </Button>
               </div>
             </form>
@@ -246,7 +321,7 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
               ? "Geçmiş yarışma bulunmuyor."
               : "Henüz yarışma eklenmemiş."}
           </p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => setShowForm(true)}>
+          <Button variant="outline" size="sm" className="mt-4" onClick={openCreateForm}>
             Yarışma Ekle
           </Button>
         </div>
@@ -297,6 +372,20 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
                               {LEVEL_LABELS[comp.level] ?? comp.level}
                             </span>
                           )}
+                          <button
+                            onClick={() => openEditForm(comp)}
+                            className="rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+                            aria-label="Düzenle"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(comp)}
+                            className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                            aria-label="Sil"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
 
@@ -345,6 +434,19 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
             );
           })}
         </div>
+      )}
+
+      {deleteTarget && (
+        <DeleteConfirmDialog
+          title="Yarışmayı Sil"
+          description={
+            deleteTarget.competition_results.length > 0
+              ? `"${deleteTarget.name}" yarışmasını silmek istediğinize emin misiniz? ${deleteTarget.competition_results.length} sonuç kaydı da silinecek.`
+              : `"${deleteTarget.name}" yarışmasını silmek istediğinize emin misiniz?`
+          }
+          onConfirm={handleDeleteConfirm}
+          onCancel={() => setDeleteTarget(null)}
+        />
       )}
     </div>
   );
