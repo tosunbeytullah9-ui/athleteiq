@@ -1,5 +1,20 @@
 # MOBILE_STATUS.md — Mobil Uygulama Durum Tespiti (Sporcu + Koç/Admin salt-okunur)
 
+> **GÜNCELLEME 2026-08-11 (Parti 14):** Sporcu `(tabs)/program/*` ağacına yeni bir route eklendi:
+> `program/checkin.tsx` — günlük 5 maddelik (uyku kalitesi/kas ağrısı/yorgunluk/stres/ruh hali,
+> 1-5, hepsi aynı yönde) wellness self-report formu + son 7 gün geçmişi. `program/index.tsx`'in
+> en üstüne sığ bir "Sabah Değerlendirmesi" kartı eklendi (bugün doldurulmadıysa "Doldur",
+> doldurulduysa toplam puan + "Düzenle" — `checkin.tsx`'e yönlendiriyor). Form ASLA
+> `program/index.tsx`'e inline edilmedi — bu dosya aşağıdaki "Donma bug'ı" bölümünün dokümante
+> ettiği css-interop dev-mode donma riskinin kanıtlanmış tetikleyicisi, yeni kart bilinçli olarak
+> 3-4 düz node'a sınırlı tutuldu. Yeni bağımlılıklar: `@athleteiq/validators` (önceden hiç
+> bağımlılık olarak bildirilmemişti — runtime import gerektirdiği için eklendi), `zod` (savunma
+> amaçlı doğrudan bağımlılık), `@react-navigation/native` (`useFocusEffect` için — `expo-router`
+> bu hook'u re-export etmiyor). `tsc --noEmit` + `expo lint` temiz. **Fiziksel cihaz testi bu
+> ortamda yapılamadı** (cihaz erişimi yok) — kod/tip doğrulaması geçti, form doldurma/aynı-gün
+> upsert/gece yarısı tarih davranışı kullanıcı tarafından cihazda doğrulanmalı. Detay:
+> PROGRESS.md § Parti 14.
+>
 > **GÜNCELLEME 2026-08-10 (Parti 13):** Sporcu `(tabs)/program/*` ekranları artık çoklu program
 > destekliyor — `program/index.tsx` `get_athlete_programs` RPC'sini çağırıp bugün-tarih-aktif
 > (`start_date <= today <= end_date`) TÜM yayınlanmış+arşivlenmemiş programları çekiyor, birden
@@ -117,9 +132,10 @@ app/
 └── (tabs)/
     ├── _layout.tsx          → Bottom tab, role'e göre dallanıyor (Parti 8.B): athlete/null/yüklenirken 4 sekme (Program, Recovery, Yarışmalar, Profil); coach/admin 2 sekme (Sporcularım, Profil) — tüm 6 route her zaman render edilir, ilgisiz olanlar href:null ile gizlenir
     ├── program/
-    │   ├── _layout.tsx      → Stack (index + [day])
-    │   ├── index.tsx        → Haftalık program + realtime
-    │   └── [day].tsx        → Günlük egzersiz detayı
+    │   ├── _layout.tsx      → Stack (index + [day] + checkin)
+    │   ├── index.tsx        → Haftalık program + realtime + YENİ (Parti 14): "Sabah Değerlendirmesi" kartı
+    │   ├── [day].tsx        → Günlük egzersiz detayı
+    │   └── checkin.tsx      → YENİ (Parti 14): wellness check-in formu (5 madde 1-5 + uyku saati + not) + son 7 gün geçmişi
     ├── recovery/
     │   ├── _layout.tsx
     │   └── index.tsx        → Wearable recovery metrikleri
@@ -152,8 +168,9 @@ app/
 | Ekran | Durum | Not |
 |-------|-------|-----|
 | Login | ✅ Tam | Şifre girişi çalışır; magic link kodu var (deep-link dönüşü şüpheli, aşağıya bak) |
-| Program (haftalık) | ✅ Tam | Realtime abonelik + pull-to-refresh + 7 günlük görünüm |
+| Program (haftalık) | ✅ Tam | Realtime abonelik + pull-to-refresh + 7 günlük görünüm + Sabah Değerlendirmesi kartı (Parti 14) |
 | Program [day] (günlük) | ✅ Tam | Seans + egzersiz kartları |
+| Program/checkin (wellness) | ✅ Tam (Parti 14) | 5 madde 1-5 seçici + uyku saati/not + canlı toplam + son 7 gün geçmişi; fiziksel cihaz testi henüz yapılmadı |
 | Recovery | ✅ Tam | Wearable yoksa boş-durum; veri varsa ring + metrikler |
 | Competitions | ✅ Tam | Yaklaşan/geçmiş ayrımı, geri sayım rozeti |
 | Profile | ✅ Tam | Bilgiler + wearable satırları + çıkış |

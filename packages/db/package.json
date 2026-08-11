@@ -15,15 +15,18 @@
     "./queries/teams": "./queries/teams.ts",
     "./queries/memberships": "./queries/memberships.ts",
     "./queries/exercises": "./queries/exercises.ts",
-    "./queries/organizations": "./queries/organizations.ts"
+    "./queries/organizations": "./queries/organizations.ts",
+    "./queries/wellness": "./queries/wellness.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.45.0"
+    "@supabase/supabase-js": "^2.45.0",
+    "@athleteiq/validators": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "@types/node": "^20.0.0"
   }
 }

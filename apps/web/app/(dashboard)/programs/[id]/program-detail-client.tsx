@@ -22,7 +22,7 @@ import {
 import type { Tables } from "@athleteiq/db/types";
 import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 import {
-  buildMaxLookup,
+  buildMaxHistoryLookup,
   calculateProgramTonnage,
   calculateSessionTonnage,
   summarizeUnresolved,
@@ -81,7 +81,7 @@ interface Props {
   program: Program;
   athlete: { id: string; full_name: string; weight_kg: number | null } | null;
   team: { id: string; name: string } | null;
-  athleteMaxes: Athlete1RMRecord[];
+  athleteMaxHistory: Athlete1RMRecord[];
 }
 
 const DAY_LABELS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
@@ -101,7 +101,7 @@ const PHASE_LABELS: Record<string, string> = {
   peak: "Zirve",
 };
 
-export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Props) {
+export function ProgramDetailClient({ program, athlete, team, athleteMaxHistory }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
   const isAthlete = role === "athlete";
@@ -123,14 +123,15 @@ export function ProgramDetailClient({ program, athlete, team, athleteMaxes }: Pr
   const [isDeleteBusy, setIsDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
-  const maxLookup = useMemo(() => buildMaxLookup(athleteMaxes), [athleteMaxes]);
+  const maxHistoryLookup = useMemo(() => buildMaxHistoryLookup(athleteMaxHistory), [athleteMaxHistory]);
   const tonnageContext: TonnageContext = useMemo(
     () => ({
-      maxLookup,
+      maxHistoryLookup,
       athleteWeightKg: athlete?.weight_kg ?? null,
       hasAthleteContext: !!program.athlete_id,
+      programStartDate: program.start_date,
     }),
-    [maxLookup, athlete?.weight_kg, program.athlete_id]
+    [maxHistoryLookup, athlete?.weight_kg, program.athlete_id, program.start_date]
   );
   const programTonnage = useMemo(
     () => calculateProgramTonnage(program.training_sessions, tonnageContext),

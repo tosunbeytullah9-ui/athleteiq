@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { X, Search } from "lucide-react";
 import { Input } from "@athleteiq/ui/components/input";
+import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory, Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 
 const MOVEMENT_LABELS: Record<string, string> = {
@@ -29,6 +30,9 @@ export interface PickedExercise {
   category?: string;
   load_type?: string;
   superset_group?: string;
+  /** Katalog kaydının id'si — 1RM formu gibi exercise_id/exercise_source gereken akışlar için. */
+  id?: string;
+  source?: "platform" | "org";
 }
 
 interface Props {
@@ -56,7 +60,7 @@ export function ExercisePickerModal({
   const maxMap = useMemo(() => {
     const m: Record<string, number> = {};
     for (const r of athleteMaxes) {
-      m[r.exercise_name.toLowerCase()] = r.weight_kg;
+      m[normalizeExerciseName(r.exercise_name)] = r.weight_kg;
     }
     return m;
   }, [athleteMaxes]);
@@ -70,8 +74,12 @@ export function ExercisePickerModal({
   const filtered = useMemo(() => {
     return combined.filter((ex) => {
       if (search) {
-        const q = search.toLowerCase();
-        if (!ex.name.toLowerCase().includes(q) && !(ex.name_tr?.toLowerCase().includes(q) ?? false)) return false;
+        const q = normalizeExerciseName(search);
+        if (
+          !normalizeExerciseName(ex.name).includes(q) &&
+          !(ex.name_tr && normalizeExerciseName(ex.name_tr).includes(q))
+        )
+          return false;
       }
       if (filterMode === "platform") return ex._source === "platform";
       if (filterMode === "org") return ex._source === "org";
@@ -96,6 +104,8 @@ export function ExercisePickerModal({
       name: ex.name,
       category: ex.movement_pattern ?? undefined,
       load_type: ex.load_type ?? undefined,
+      id: ex.id,
+      source: ex._source,
     });
     onClose();
   }
@@ -207,7 +217,9 @@ export function ExercisePickerModal({
                 <p className="text-center text-sm text-muted-foreground py-8">Sonuç bulunamadı.</p>
               ) : (
                 filtered.map((ex) => {
-                  const max = maxMap[ex.name.toLowerCase()] ?? maxMap[(ex.name_tr ?? "").toLowerCase()];
+                  const max =
+                    maxMap[normalizeExerciseName(ex.name)] ??
+                    (ex.name_tr ? maxMap[normalizeExerciseName(ex.name_tr)] : undefined);
 
                   return (
                     <button

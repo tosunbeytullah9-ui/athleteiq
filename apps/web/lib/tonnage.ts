@@ -1,7 +1,11 @@
 import type { Tables } from "@athleteiq/db/types";
-import { buildMaxLookup, resolveOneRepMaxKg } from "@athleteiq/db/queries/exercises";
+import {
+  buildMaxHistoryLookup,
+  resolveOneRepMaxKgForDate,
+  type Athlete1RMRecord,
+} from "@athleteiq/db/queries/exercises";
 
-export { buildMaxLookup };
+export { buildMaxHistoryLookup };
 
 type ExerciseSetRow = Tables<"exercise_sets">;
 type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: ExerciseSetRow[] };
@@ -19,11 +23,13 @@ export interface UnresolvedSet {
 }
 
 export interface TonnageContext {
-  maxLookup: Map<string, number>;
+  maxHistoryLookup: Map<string, Athlete1RMRecord[]>;
   /** Sporcunun vücut ağırlığı (kg) — bilinmiyorsa null. */
   athleteWeightKg: number | null;
   /** false ise (takım programı) bodyweight/%1RM hiçbir zaman çözümlenemez. */
   hasAthleteContext: boolean;
+  /** %1RM setleri bu tarihe en yakın geçmiş 1RM kaydıyla çözümlenir (program.start_date). */
+  programStartDate: string | null;
 }
 
 export interface TonnageSummary {
@@ -79,7 +85,12 @@ function calculateSetTonnage(
     if (!context.hasAthleteContext) {
       return { ...base, unresolved: [{ reason: "no_athlete_context", exerciseName }] };
     }
-    const resolvedKg = resolveOneRepMaxKg(exerciseName, set.percent_1rm, context.maxLookup);
+    const resolvedKg = resolveOneRepMaxKgForDate(
+      exerciseName,
+      set.percent_1rm,
+      context.maxHistoryLookup,
+      context.programStartDate
+    );
     if (resolvedKg == null) {
       return { ...base, unresolved: [{ reason: "no_1rm_record", exerciseName }] };
     }

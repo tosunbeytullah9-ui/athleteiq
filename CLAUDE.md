@@ -113,7 +113,6 @@ Playwright (E2E testler)
 ```
 AthleteIQ/
 ├── .claude/
-│   ├── scheduled_tasks.lock
 │   └── settings.local.json
 ├── apps/
 │   ├── mobile/
@@ -169,12 +168,15 @@ AthleteIQ/
 │       ├── athlete.test.ts
 │       ├── athlete.ts
 │       ├── auth.ts
+│       ├── exercise.test.ts
+│       ├── exercise.ts
 │       ├── index.ts
 │       ├── organization.ts
 │       ├── package.json
 │       ├── program.ts
 │       ├── team.ts
-│       └── tsconfig.json
+│       ├── tsconfig.json
+│       └── wellness.ts
 ├── patches/
 │   └── react-native-css-interop@0.2.6.patch
 ├── scripts/
@@ -226,7 +228,8 @@ AthleteIQ/
 │   │   ├── 027_drop_calculate_acwr.sql
 │   │   ├── 028_platform_exercises_admin_rls.sql
 │   │   ├── 029_program_archive.sql
-│   │   └── 030_program_discipline.sql
+│   │   ├── 030_program_discipline.sql
+│   │   └── 031_1rm_team_scoped_rls.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -935,7 +938,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-10
+Son otomatik senkron: 2026-08-11
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -979,6 +982,7 @@ Son otomatik senkron: 2026-08-10
 - 028_platform_exercises_admin_rls.sql
 - 029_program_archive.sql
 - 030_program_discipline.sql
+- 031_1rm_team_scoped_rls.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE

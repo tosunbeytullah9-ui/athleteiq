@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import {
@@ -15,10 +16,13 @@ import {
   isDateActive,
   sortAthletePrograms,
 } from "@athleteiq/db/queries/programs";
+import { getWellnessCheckin } from "@athleteiq/db/queries/wellness";
+import { getLocalDateString } from "@athleteiq/validators/wellness";
 import { ProgramTabStrip } from "@/components/ProgramTabStrip";
 import type { Tables } from "@athleteiq/db/types";
 
 type TrainingProgram = Tables<"training_programs">;
+type WellnessCheckin = Tables<"wellness_checkins">;
 type SessionSummary = Pick<
   Tables<"training_sessions">,
   "id" | "day_of_week" | "session_type" | "title" | "duration_min" | "order_index"
@@ -51,6 +55,7 @@ export default function ProgramScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  const [todayWellness, setTodayWellness] = useState<WellnessCheckin | null>(null);
 
   const fetchPrograms = useCallback(async (athleteId: string) => {
     const { data, error } = await supabase.rpc("get_athlete_programs", {
@@ -110,6 +115,19 @@ export default function ProgramScreen() {
     setRefreshing(true);
     fetchPrograms(athlete.id);
   }, [athlete, fetchPrograms]);
+
+  const fetchTodayWellness = useCallback(async (athleteId: string) => {
+    const data = await getWellnessCheckin(supabase, athleteId, getLocalDateString());
+    setTodayWellness(data);
+  }, []);
+
+  // Sabah check-in kartını güncel tutmak için: checkin ekranından geri dönüldüğünde
+  // (aynı program screen instance'ı, remount olmuyor) yeniden çeker.
+  useFocusEffect(
+    useCallback(() => {
+      if (athlete) fetchTodayWellness(athlete.id);
+    }, [athlete, fetchTodayWellness])
+  );
 
   // Seçili sekmenin seans özetini çek — sekme değişince veya program listesi
   // güncellenince yeniden çalışır.
@@ -189,6 +207,26 @@ export default function ProgramScreen() {
       )}
 
       <View className="p-4">
+        <TouchableOpacity
+          className="bg-white rounded-2xl p-4 mb-4 shadow-sm flex-row items-center justify-between"
+          onPress={() => router.push("/(tabs)/program/checkin")}
+          activeOpacity={0.75}
+        >
+          <View>
+            <Text className="text-xs text-blue-700 font-semibold uppercase tracking-wider mb-1">
+              Sabah Değerlendirmesi
+            </Text>
+            <Text className="text-gray-900 font-bold text-base">
+              {todayWellness ? `${todayWellness.wellness_total ?? "—"}/25` : "Bugün doldurulmadı"}
+            </Text>
+          </View>
+          <View className="bg-blue-50 px-3 py-1.5 rounded-lg">
+            <Text className="text-blue-700 text-sm font-medium">
+              {todayWellness ? "Düzenle" : "Doldur"}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
         {activePrograms.length === 0 ? (
           <View className="bg-white rounded-2xl p-8 items-center mt-4">
             <Text className="text-4xl mb-3">📋</Text>

@@ -1,3 +1,4 @@
+import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import type { DbClient } from "./_client";
 
 export type PlatformExercise = {
@@ -341,7 +342,8 @@ export async function forkPlatformExercise(
   return createOrgExercise(client, payload);
 }
 
-export async function getAthleteMaxes(
+/** Bir sporcunun TÜM 1RM geçmişi, dedup edilmeden (test_date desc). */
+export async function getAthleteMaxHistory(
   client: DbClient,
   athleteId: string
 ): Promise<Athlete1RMRecord[]> {
@@ -352,17 +354,29 @@ export async function getAthleteMaxes(
     .order("test_date", { ascending: false });
 
   if (error) throw error;
+  return (data ?? []) as Athlete1RMRecord[];
+}
 
-  // En güncel 1RM'i her egzersiz için döndür
+/** Geçmişten, her egzersiz için en güncel test_date'li kaydı seçer (isim normalize edilerek dedup). */
+export function dedupeLatestMaxes(history: Athlete1RMRecord[]): Athlete1RMRecord[] {
   const seen = new Set<string>();
   const latest: Athlete1RMRecord[] = [];
-  for (const r of (data ?? []) as Athlete1RMRecord[]) {
-    if (!seen.has(r.exercise_name)) {
-      seen.add(r.exercise_name);
+  for (const r of history) {
+    const key = normalizeExerciseName(r.exercise_name);
+    if (!seen.has(key)) {
+      seen.add(key);
       latest.push(r);
     }
   }
   return latest;
+}
+
+export async function getAthleteMaxes(
+  client: DbClient,
+  athleteId: string
+): Promise<Athlete1RMRecord[]> {
+  const history = await getAthleteMaxHistory(client, athleteId);
+  return dedupeLatestMaxes(history);
 }
 
 export async function create1RMRecord(
@@ -379,12 +393,34 @@ export async function create1RMRecord(
   return result;
 }
 
-/** Her egzersiz adı için en güncel 1RM kaydına hızlı erişim. */
+export async function updateAthlete1RMRecord(
+  client: DbClient,
+  id: string,
+  data: Partial<Pick<Athlete1RMRecord, "weight_kg" | "test_date" | "notes">>
+): Promise<Athlete1RMRecord> {
+  const { data: result, error } = await (client as any)
+    .from("athlete_1rm_records")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result;
+}
+
+export async function deleteAthlete1RMRecord(client: DbClient, id: string): Promise<void> {
+  const { error } = await (client as any).from("athlete_1rm_records").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/** Her egzersiz adı için en güncel 1RM kaydına hızlı erişim (isim normalize edilerek anahtarlanır). */
 export function buildMaxLookup(athleteMaxes: Athlete1RMRecord[]): Map<string, number> {
   const lookup = new Map<string, number>();
   for (const record of athleteMaxes) {
-    if (!lookup.has(record.exercise_name)) {
-      lookup.set(record.exercise_name, record.weight_kg);
+    const key = normalizeExerciseName(record.exercise_name);
+    if (!lookup.has(key)) {
+      lookup.set(key, record.weight_kg);
     }
   }
   return lookup;
@@ -396,7 +432,54 @@ export function resolveOneRepMaxKg(
   percent1rm: number,
   maxLookup: Map<string, number>
 ): number | null {
-  const oneRm = maxLookup.get(exerciseName);
+  const oneRm = maxLookup.get(normalizeExerciseName(exerciseName));
   if (oneRm == null) return null;
   return (percent1rm / 100) * oneRm;
+}
+
+/** Egzersiz adına göre (normalize edilerek) gruplanmış tam 1RM geçmişi — her grup test_date desc sıralı. */
+export function buildMaxHistoryLookup(
+  history: Athlete1RMRecord[]
+): Map<string, Athlete1RMRecord[]> {
+  const lookup = new Map<string, Athlete1RMRecord[]>();
+  for (const record of history) {
+    const key = normalizeExerciseName(record.exercise_name);
+    const bucket = lookup.get(key);
+    if (bucket) {
+      bucket.push(record);
+    } else {
+      lookup.set(key, [record]);
+    }
+  }
+  for (const bucket of lookup.values()) {
+    bucket.sort((a, b) => (a.test_date < b.test_date ? 1 : a.test_date > b.test_date ? -1 : 0));
+  }
+  return lookup;
+}
+
+/**
+ * %1RM -> gerçek kg, programın tarihine göre. Kullanılacak kayıt: test_date <=
+ * referenceDate olanların en büyüğü (programdan önceki en güncel test). Böyle bir
+ * kayıt yoksa en eski kaydı kullanır (çözümlenemedi SAYILMAZ — sadece daha uzak bir
+ * tarihli değer kullanılmış olur). referenceDate null ise (programın start_date'i
+ * yoksa) en güncel kayıt kullanılır. Bu egzersiz için hiç kayıt yoksa null.
+ */
+export function resolveOneRepMaxKgForDate(
+  exerciseName: string,
+  percent1rm: number,
+  historyLookup: Map<string, Athlete1RMRecord[]>,
+  referenceDate: string | null
+): number | null {
+  const records = historyLookup.get(normalizeExerciseName(exerciseName));
+  if (!records || records.length === 0) return null;
+
+  // records test_date desc sıralı (buildMaxHistoryLookup), boş olmadığı yukarıda kontrol edildi.
+  let chosen: Athlete1RMRecord;
+  if (referenceDate == null) {
+    chosen = records[0]!;
+  } else {
+    const priorOrEqual = records.find((r) => r.test_date <= referenceDate);
+    chosen = priorOrEqual ?? records[records.length - 1]!;
+  }
+  return (percent1rm / 100) * chosen.weight_kg;
 }

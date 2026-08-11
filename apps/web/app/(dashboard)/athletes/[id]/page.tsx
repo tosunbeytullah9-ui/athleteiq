@@ -1,6 +1,12 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAthleteById } from "@athleteiq/db/queries/athletes";
+import {
+  getAthleteMaxHistory,
+  getPlatformExercises,
+  getOrgExercises,
+  getOrgCategories,
+} from "@athleteiq/db/queries/exercises";
 import { AthleteDetailClient } from "./athlete-detail-client";
 
 interface Props {
@@ -11,8 +17,18 @@ export default async function AthleteDetailPage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
 
-  const [athlete, programsResult, testsResult, acwrResult] = await Promise.all([
-    getAthleteById(supabase, id).catch(() => null),
+  const athlete = await getAthleteById(supabase, id).catch(() => null);
+  if (!athlete) notFound();
+
+  const [
+    programsResult,
+    testsResult,
+    acwrResult,
+    maxHistory,
+    platformExercises,
+    orgExercises,
+    categories,
+  ] = await Promise.all([
     supabase
       .from("training_programs")
       .select("id, title, phase, start_date, end_date, is_published, week_number")
@@ -31,9 +47,11 @@ export default async function AthleteDetailPage({ params }: Props) {
       .eq("athlete_id", id)
       .order("log_date", { ascending: false })
       .limit(30),
+    getAthleteMaxHistory(supabase, id),
+    getPlatformExercises(supabase),
+    getOrgExercises(supabase, athlete.org_id),
+    getOrgCategories(supabase, athlete.org_id),
   ]);
-
-  if (!athlete) notFound();
 
   return (
     <AthleteDetailClient
@@ -41,6 +59,10 @@ export default async function AthleteDetailPage({ params }: Props) {
       recentPrograms={programsResult.data ?? []}
       recentTests={testsResult.data ?? []}
       acwrLogs={acwrResult.data ?? []}
+      maxHistory={maxHistory}
+      platformExercises={platformExercises}
+      orgExercises={orgExercises}
+      categories={categories}
     />
   );
 }

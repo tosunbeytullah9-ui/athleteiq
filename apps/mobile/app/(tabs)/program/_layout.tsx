@@ -13,6 +13,15 @@ export default function ProgramLayout() {
           headerTintColor: "#534AB7",
         }}
       />
+      <Stack.Screen
+        name="checkin"
+        options={{
+          headerShown: true,
+          headerTitle: "Sabah Değerlendirmesi",
+          headerBackTitle: "Geri",
+          headerTintColor: "#534AB7",
+        }}
+      />
     </Stack>
   );
 }

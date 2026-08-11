@@ -5,7 +5,15 @@ import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import type { Tables } from "@athleteiq/db/types";
+import type {
+  Athlete1RMRecord,
+  PlatformExercise,
+  OrgExercise,
+  OrgExerciseCategory,
+} from "@athleteiq/db/queries/exercises";
+import { OneRmRecordsTab } from "./one-rm-records-tab";
 
 type Athlete = Tables<"athletes">;
 
@@ -41,6 +49,10 @@ interface Props {
   recentPrograms: RecentProgram[];
   recentTests: TestResult[];
   acwrLogs: AcwrLog[];
+  maxHistory: Athlete1RMRecord[];
+  platformExercises: PlatformExercise[];
+  orgExercises: OrgExercise[];
+  categories: OrgExerciseCategory[];
 }
 
 const GENDER_LABELS: Record<string, string> = {
@@ -64,7 +76,16 @@ function acwrColor(ratio: number | null): string {
   return "text-red-600";
 }
 
-export function AthleteDetailClient({ athlete, recentPrograms, recentTests, acwrLogs }: Props) {
+export function AthleteDetailClient({
+  athlete,
+  recentPrograms,
+  recentTests,
+  acwrLogs,
+  maxHistory,
+  platformExercises,
+  orgExercises,
+  categories,
+}: Props) {
   const latestAcwr = acwrLogs[0];
   const initials = athlete.full_name
     .split(" ")
@@ -145,6 +166,13 @@ export function AthleteDetailClient({ athlete, recentPrograms, recentTests, acwr
         </CardContent>
       </Card>
 
+      <Tabs defaultValue="overview">
+        <TabsList>
+          <TabsTrigger value="overview">Genel Bakış</TabsTrigger>
+          <TabsTrigger value="one-rm">1RM Kayıtları</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Programlar */}
         <Card>
@@ -273,6 +301,18 @@ export function AthleteDetailClient({ athlete, recentPrograms, recentTests, acwr
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        <TabsContent value="one-rm">
+          <OneRmRecordsTab
+            athleteId={athlete.id}
+            history={maxHistory}
+            platformExercises={platformExercises}
+            orgExercises={orgExercises}
+            categories={categories}
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

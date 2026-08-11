@@ -4,3 +4,5 @@ export * from "./program";
 export * from "./acwr";
 export * from "./team";
 export * from "./organization";
+export * from "./wellness";
+export * from "./exercise";

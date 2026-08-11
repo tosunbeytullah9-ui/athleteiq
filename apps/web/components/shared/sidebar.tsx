@@ -14,6 +14,7 @@ import {
   Shield,
   Activity,
   Layers,
+  Sunrise,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserContext } from "@/lib/hooks/useUserContext";
@@ -30,6 +31,7 @@ const navItems: {
   { href: "/programs", label: "Programlar", icon: ClipboardList, roles: ["admin", "coach", "athlete"] },
   { href: "/exercises", label: "Egzersizler", icon: Layers, roles: ["admin", "coach"] },
   { href: "/acwr", label: "ACWR", icon: BarChart2, roles: ["admin", "coach"] },
+  { href: "/readiness", label: "Wellness", icon: Sunrise, roles: ["admin", "coach"] },
   { href: "/competitions", label: "Yarışmalar", icon: Trophy, roles: ["admin", "coach"] },
   { href: "/tests", label: "Testler", icon: TestTube2, roles: ["admin", "coach"] },
   { href: "/wearables", label: "Wearable", icon: Watch, roles: ["admin", "coach"] },

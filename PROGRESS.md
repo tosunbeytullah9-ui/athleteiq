@@ -1,6 +1,62 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-10 (**Parti 13 — Mobil Program Ekranı: Süperset Gösterimi ve Çoklu
+> Son güncelleme: 2026-08-11 (**Parti 15 — 1RM Kayıt Yönetimi** — `athlete_1rm_records`
+> koç RLS politikalarına takım kapsamı eklendi (`031_1rm_team_scoped_rls.sql`, Parti 8.E'nin
+> ertelediği bulguyu kapattı), sporcu detay sayfasına yeni "1RM Kayıtları" sekmesi (arama
+> bazlı katalog seçimi, geçmiş, edit/sil), tek bir paylaşılan `normalizeExerciseName`
+> (Türkçe karakter/case toleranslı) ve Parti 12'nin tonaj hesabının artık `%1RM` setlerini
+> programın tarihine en yakın geçmiş 1RM kaydıyla çözümlemesi. Canlı RLS testi (gerçek JWT,
+> geçici ACE/ACK koç hesaplarıyla) 6/6, tarih-duyarlı çözümleme gerçek veriyle doğrulandı,
+> type-check 4/4 paket + 12/12 validators testi + web build (27 sayfa) temiz. Detay: § Parti 15)
+> Önceki: 2026-08-11 (**Parti 14 — Sabah Wellness Check-in** — mobilde sporcunun
+> günlük 5 maddelik (McLean 2010 uyarlaması) wellness self-report formu + son 7 gün geçmişi,
+> web'de koçun takımının bugünkü check-in durumunu gördüğü salt-okunur `/readiness` ekranı +
+> sporcu bazlı 14 günlük geçmiş. `wellness_checkins`/`readiness_scores` şeması zaten canlıydı
+> (012/013, READINESS_PLAN.md AŞAMA 1) — bu parti üzerine ilk gerçek okuma/yazma yüzeyini
+> inşa etti, migration YOK. **Görev talimatıyla çelişen bir bulgu:** talimat `wellness_total`'ın
+> "generated DEĞİL, uygulama hesaplayacak" düz bir kolon olduğunu iddia ediyordu; gerçek
+> migration (`012_wellness.sql:28-29`) bunu bir Postgres GENERATED kolonu (`generated always
+> as (sleep_quality+soreness+stress+fatigue+mood) stored`) olarak tanımlıyor. Bu oturumda
+> Supabase MCP mevcut değildi (önceki partilerde kullanılan araç bu oturumda bağlı değildi),
+> canlı DB'ye doğrudan sorgu atılamadı; kullanıcıya soruldu, migration dosyası kaynak alındı —
+> `wellness_total` insert/upsert payload'una hiç dahil edilmiyor, yalnızca canlı "../25" UI
+> önizlemesi için client-side ayrıca hesaplanıyor. **İki gerçek, talimatta olmayan blokaj
+> bulundu ve giderildi:** (1) `apps/mobile/package.json` `@athleteiq/validators`'ı hiç
+> bağımlılık olarak bildirmiyordu — yeni fonksiyonlar (`computeWellnessTotal`/
+> `getLocalDateString`/`wellnessCheckinSchema`) runtime'da çağrıldığı için (eski `@athleteiq/db`
+> boşluğunun aksine, o zaman tüm kullanımlar `import type`di) eklenmeden Metro bundle
+> çözemezdi — eklendi + `pnpm install`. (2) Hem `packages/db` hem `packages/validators`
+> barrel değil açık alt-yol `exports` map'i kullanıyor — yeni dosyalar barrel'e eklenmesinin
+> YANINDA `package.json`'a da eklenmek zorunda, ikisi de güncellendi. Mobilde yeni
+> `apps/mobile/app/(tabs)/program/checkin.tsx` (ayrı Stack route — MOBILE_STATUS.md'nin
+> dokümante ettiği `program/index.tsx` css-interop donma riski yüzünden forma ASLA inline
+> edilmedi): 5 madde 1-5 dokunmalı seçici (yalnızca uç değerler için talimatın verdiği Türkçe
+> etiketler, 2/3/4 için talimatta etiket yok — standart Likert uçlandırma konvansiyonu
+> uygulandı), canlı toplam göstergesi, `safeParse` ile ikinci savunma katmanı (ham Postgres
+> CHECK hatası kullanıcıya hiç ulaşmıyor), altında son 7 gün geçmişi (yalnızca bugünün
+> satırında "Düzenle" — RLS dünü de kabul eder ama UI bilinçli olarak yalnızca bugüne izin
+> veriyor). `program/index.tsx`'e EN SON ve EN KÜÇÜK değişiklik olarak sığ (3-4 düz node, tek
+> seviye ternary, döngü yok) bir "Sabah Değerlendirmesi" kartı eklendi, `useFocusEffect`
+> (`@react-navigation/native` — yeni bağımlılık, expo-router re-export etmiyor, pnpm store'da
+> zaten resolve edilmiş haldeydi) ile checkin'den dönüşte otomatik güncelleniyor. Web'de yeni
+> `/readiness` (roster × bugünün check-in'leri `useMemo` ile bellek-içi LEFT JOIN, "Doldurmadı"
+> gri/KIRMIZI DEĞİL ayrı gösteriliyor, `wearables-client.tsx`/`athletes-client.tsx` desenleri
+> — realtime dahil — birebir tekrar kullanıldı; "bugün" client'ta bir `useEffect` içinde
+> tarayıcı yerel saatiyle hesaplanıyor, render gövdesinde DEĞİL, hydration uyuşmazlığı riskine
+> karşı) + `/readiness/[athleteId]` (14 günlük düz liste, grafik/renk-kodlama yok — 5-25
+> aralığı için eşik tanımlı değil, bu readiness-skor motorunun işi). Middleware'e
+> DOKUNULMADI (athlete zaten `/programs*` dışına genel kilitli, doğrudan doğrulandı).
+> **Doğrulama:** `packages/validators`+`packages/db` type-check + web/mobile `tsc --noEmit`
+> 4/4 paket 0 hata; mobile `eslint` 0 hata (1 önceden var olan ilgisiz uyarı); web build →
+> **29 sayfa** (öncesi 27), sıfır hata; `git diff --stat` ile Parti 13'ün süperset/sekme
+> dosyalarının SIFIR değiştiği doğrulandı. **Fiziksel cihaz/tarayıcı testi bu ortamda
+> yapılamadı** (mobil cihaz/headless tarayıcı erişimi yok) — kod/tip/build doğrulaması geçti,
+> uçtan uca senaryolar (gerçek form doldurma, gece yarısı `checkin_date` testi, aynı-gün
+> upsert, web'de takım izolasyonu) ve test verisi temizliği (DELETE politikası yok, Supabase
+> MCP gerektiriyor — bu oturumda mevcut değildi) kullanıcı tarafından canlıda yapılmalı.
+> Kapsam dışı (görev talimatı gereği): `readiness_scores` yazımı/motoru, RLS/migration
+> değişikliği, koç-vekil giriş UI'ı, trend/baseline/z-skor, push bildirimi. Detay: § Parti 14)
+> Önceki: 2026-08-10 (**Parti 13 — Mobil Program Ekranı: Süperset Gösterimi ve Çoklu
 > Program Sekmeleri** — üç iş: `training_programs.discipline` kolonu + web branş formu,
 > mobilde çoklu program sekmeleri, mobilde süperset gruplaması. **Kritik keşif (görev
 > talimatının varsaymadığı):** talimat `get_athlete_programs` RPC'sinin zaten kullanıldığını
@@ -294,6 +350,285 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 15 — 1RM Kayıt Yönetimi ✅ (2026-08-11)
+
+#### Kapsam
+
+`athlete_1rm_records` şeması Parti 2.2.E'den beri vardı (0 satır, org-geneli `/tests`
+sayfasında salt-ekleme bir alt-bölüm) ama üç eksik vardı: (1) `1rm_insert`/`1rm_update`/
+`1rm_delete` RLS politikaları org-only'di (`BUGS.md`'de Parti 8.E'nin bilinçli olarak
+ertelediği, ayrı bırakılmış bir bulgu), (2) sporcu bazlı bir yönetim ekranı (geçmiş/edit/
+delete) yoktu, (3) Parti 12'nin tonaj hesabı bu tablodan hiç veri çekemiyordu (DB boş
+olduğu için `%1RM` setleri hep "1RM kaydı yok" diyordu) ve eşleştirme tam string-eşitliğiyle
+yapılıyordu (Türkçe karakter/case toleransı yoktu). Bu parti üçünü birden kapattı: bir
+migration (Görev 1), tek bir paylaşılan Türkçe-normalize fonksiyonu (Görev 2), sporcu detay
+sayfasına yeni bir "1RM Kayıtları" sekmesi (Görev 3), ve tonaj hesabının tarih-duyarlı
+çözümlemeye geçmesi (Görev 4).
+
+#### Değişiklikler
+
+- **`supabase/migrations/031_1rm_team_scoped_rls.sql`** (yeni migration): `1rm_insert`/
+  `1rm_update`/`1rm_delete` `ALTER POLICY` ile (DROP+CREATE değil — migration 025/026
+  konvansiyonu) yerinde güncellendi. Coach dalı `my_role(a.org_id) in ('admin','coach')`
+  (org-only) → `my_role(a.org_id) = 'admin' or (my_role(a.org_id) = 'coach' and a.team_id =
+  my_team_id(a.org_id))` (`wellness_insert`/`athletes_select` şablonu), tüm koşul
+  `coalesce(..., false)` ile sarıldı (proje konvansiyonu — burada da `exists(...)` zaten
+  fail-closed, coalesce yalnızca tutarlılık için). `1rm_select`'e dokunulmadı (görev
+  talimatı). `is_super_admin()` dalı bilinçli eklenmedi — orijinal politikada hiç yoktu,
+  tek admin hesabı zaten org'da `admin` membership'ine sahip. Şema/kolon değişmediği için
+  `packages/db/types.ts` regenerasyonu gerekmedi.
+- **`packages/validators/athlete.ts`**: un-exported `TR_MAP` → exported `TR_CHAR_MAP`
+  (davranış aynı, sadece görünürlük — `exercise.ts`'in yeniden kullanması için).
+- **`packages/validators/exercise.ts`** (yeni): `normalizeExerciseName(name)` — Türkçe
+  karakterleri `toLowerCase()`'den ÖNCE case-sensitive map eder (`suggestUsername`'deki
+  "İ" bug'ının aynısını tekrar yaşamamak için), boşluk/case normalize eder. `packages/
+  validators/exercise.test.ts` (yeni, 5 test — Türkçe fold, "İnverted Row", case/boşluk
+  toleransı, çoklu varyantın aynı anahtara düşmesi).
+- **`packages/db/queries/exercises.ts`**: `getAthleteMaxHistory` (yeni — tam geçmiş,
+  dedup YOK), `getAthleteMaxes` artık ona sarılıp `normalizeExerciseName` ile dedup ediyor
+  (önceden exact-string'di — saf iyileştirme, farklı case'li aynı egzersiz artık doğru
+  birleşiyor), `dedupeLatestMaxes` (yeni, saf fonksiyon), `updateAthlete1RMRecord`/
+  `deleteAthlete1RMRecord` (yeni — edit/delete UI'ı hiç yoktu), `buildMaxLookup`/
+  `resolveOneRepMaxKg` imzaları AYNEN kalıp (mobil `ExerciseCard.tsx`/`program/[day].tsx`
+  kırılmasın) iç anahtarlama `normalizeExerciseName`'e geçti, `buildMaxHistoryLookup`/
+  `resolveOneRepMaxKgForDate` (yeni — tarih-duyarlı çözümleme, aşağıya bkz.).
+  `packages/db/package.json`'a `@athleteiq/validators` (`workspace:*`) + `@types/node`
+  (crypto global'i için — db'nin validators'a bağımlı olması `athlete.ts`'i de programına
+  çekti, db'nin kendi `node_modules`'ünde `@types/node` yoktu, `packages/validators`'a da
+  aynı sebeple eklendi) devDependency olarak eklendi.
+- **`apps/web/components/features/exercises/exercise-picker-modal.tsx`**: `PickedExercise`'e
+  opsiyonel `id`/`source` eklendi (mevcut program-builder kullanımı bozulmadı, geriye dönük
+  uyumlu), arama filtresi + "Son max" `maxMap` anahtarlaması `normalizeExerciseName`'e geçti.
+- **`apps/web/app/(dashboard)/athletes/[id]/page.tsx`** + **`athlete-detail-client.tsx`**:
+  sayfa artık `getAthleteMaxHistory`/`getPlatformExercises`/`getOrgExercises`/
+  `getOrgCategories`'i de paralel çekiyor; sayfa `@/components/ui/tabs` ile "Genel Bakış"
+  (mevcut içerik, davranış değişmedi) ve yeni "1RM Kayıtları" sekmesine ayrıldı.
+- **`apps/web/app/(dashboard)/athletes/[id]/one-rm-records-tab.tsx`** (yeni): güncel liste
+  (egzersiz/kg/tarih/"X gün önce", `buildMaxHistoryLookup` ile grupluyor), satıra tıklayınca
+  geçmiş açılıyor (edit/sil inline), ekleme formu `ExercisePickerModal` ile katalog araması
+  (`name_tr` dahil) üzerinden `exercise_id`/`exercise_source`/`exercise_name` dolduruyor.
+  Aynı egzersiz+tarih (exercise_id+exercise_source+test_date) varsa engellemeyen bir uyarı
+  gösteriliyor. Gelecek tarih Zod `.refine` + `<input max>` ile engelleniyor. "Bugün"
+  `packages/validators/wellness.ts`'teki `getLocalDateString` ile hesaplanıyor
+  (`tests-client.tsx`'in kendi UTC-tabanlı `today()`'si DEĞİL — aynı gece-yarısı-kayması
+  sınıfını tekrar yazmamak için).
+- **`apps/web/lib/tonnage.ts`**: `TonnageContext.maxLookup`/`buildMaxLookup` →
+  `maxHistoryLookup: Map<string, Athlete1RMRecord[]>`/`buildMaxHistoryLookup` + yeni
+  `programStartDate: string | null`; `calculateSetTonnage` artık `resolveOneRepMaxKgForDate`
+  çağırıyor. `REASON_LABELS`/`UnresolvedReason`/`summarizeUnresolved` dokunulmadı.
+- **`apps/web/app/(dashboard)/programs/[id]/page.tsx`** + **`program-detail-client.tsx`**:
+  `getAthleteMaxes` → `getAthleteMaxHistory`, `athleteMaxes` prop → `athleteMaxHistory`,
+  `tonnageContext`'e `programStartDate: program.start_date` eklendi. `programs/new/` ve
+  `programs/[id]/edit/`'teki `getAthleteMaxes` kullanımına (tek-değer "Son max" rozeti,
+  tarihsiz) dokunulmadı.
+- **Tarih-duyarlı çözümleme mantığı** (`resolveOneRepMaxKgForDate`): egzersiz için
+  `test_date <= programStartDate` olan kayıtların en büyüğü kullanılır; hiç yoksa en eski
+  kayıt kullanılır (unresolved SAYILMAZ — `resolvedSetCount`'a dahil olur); egzersiz için
+  hiç kayıt yoksa `no_1rm_record` (mevcut davranış, değişmedi).
+
+#### Doğrulama
+
+- Type-check: `@athleteiq/validators`, `@athleteiq/db`, web (`tsc --noEmit`), mobile
+  (`npx tsc --noEmit`) — **4/4 paket 0 hata**. `pnpm --filter @athleteiq/validators test`
+  → **12/12 test yeşil** (7 mevcut `athlete.test.ts` + 5 yeni `exercise.test.ts`).
+  `pnpm --filter web lint` → 0 hata (23 önceden var olan, bu partiden bağımsız uyarı).
+  `pnpm --filter web build` → **27 sayfa**, sıfır derleme hatası.
+- **Canlı RLS testi** (Supabase Cloud `nlmwcygmbbxmfpsubvmh`, gerçek Auth REST + gerçek
+  JWT'ler — `parti15-temp-coach-ace@athleteiq.test` (ACE takımı, İbrahim'in takımı) ve
+  `parti15-temp-coach-ack@athleteiq.test` (ACK takımı, farklı takım) geçici hesapları
+  `auth.admin.createUser` ile oluşturuldu): **6/6 kontrol geçti** — (1) ACK coach'u
+  İbrahim'e (ACE) INSERT dener → `403 42501 "new row violates row-level security policy"`;
+  (2) ACE coach'u İbrahim'e INSERT dener → `201` başarılı; (3)/(4) ACK coach'u o satırı
+  UPDATE/DELETE dener → PostgREST `200 []` (RLS `using` 0 satır görünür kılıyor, sessiz
+  no-op — beklenen davranış); (5)/(6) ACE coach'u aynı satırı UPDATE sonra DELETE eder →
+  ikisi de başarılı (regresyon yok). Geçici hesaplar + membership satırları + test satırı
+  temizlendi, `athlete_1rm_records` **0 satırla** doğrulandı. `get_advisors` migration
+  sonrası yeni ERROR/WARN üretmedi.
+- **Tarih-duyarlı çözümleme, gerçek veriyle** (admin JWT'siyle İbrahim'e 3 Back Squat kaydı
+  seed edildi: 140kg/2026-08-11, 142kg/2026-08-11 [mükerrer-tarih senaryosu — DB engellemedi,
+  beklenen], 135kg/2026-07-01; İbrahim'in 3 gerçek "Müsabaka" programının `start_date`'lerine
+  karşı `resolveOneRepMaxKgForDate`'in birebir aynı algoritması gerçek veriye çalıştırıldı):
+  `start_date=2026-08-10` (iki 08-11 kaydından ÖNCE) → doğru şekilde 135kg/07-01'i seçti
+  (gelecekteki kaydı YOK saydı); `start_date=2026-08-17`/`2026-08-24` (08-11'den SONRA) →
+  140kg'ı seçti; senteik "tüm kayıtlar referans tarihinden sonra" senaryosu → en eski kaydı
+  kullandı (unresolved DEĞİL); eşleşen egzersiz yok senaryosu → `null`. Test verisi silindi,
+  `athlete_1rm_records` tekrar 0 satır.
+- **Katalog verisi** (SQL ile doğrudan sorgulandı): `Inverted Row` hem `platform_exercises`
+  hem `org_exercises`'ta mevcut (picker'ın `combined=[...org,...platform]` sıralaması org'u
+  önce listeliyor); `Bear Crawl`'ın `name_tr`'si `Ayı Yürüyüşü`.
+- **Canlı tarayıcı/manuel UI testi bu ortamda yapılamadı** (headless tarayıcı erişimi yok).
+  Kod incelemesiyle doğrulanan ama interaktif olarak TIKLANMAYAN davranışlar: gelecek
+  `test_date` engeli (Zod `.refine` + `<input max>`), mükerrer-tarih UI uyarısının render'ı,
+  arama kutusunun gerçek klavye girişiyle filtrelemesi, sekme geçişleri. Kullanıcı canlıda
+  bir kez gözden geçirmeli.
+
+#### Kapsam dışı bırakılan (görev talimatı gereği)
+
+`exercises` tablosuna katalog referansı eklenmedi (eşleştirme hâlâ isim üzerinden — artık
+normalize edilmiş isim, ama isim değişirse yine kırılabilir; `BUGS.md`'ye açık madde
+eklendi). `athlete_1rm_records`'a UNIQUE kısıt eklenmedi (geçmiş kaydı meşru). Mobile'a 1RM
+giriş ekranı eklenmedi. `1rm_select` değiştirilmedi. Tonaj bileşeninin gerekçe/reason
+gösterme mantığı (`UnresolvedReason`/`REASON_LABELS`) değişmedi.
+
+---
+
+### Parti 14 — Sabah Wellness Check-in ✅ (2026-08-11)
+
+#### Kapsam
+
+Mobilde sporcunun günlük 5 maddelik (McLean ve ark. 2010 uyarlaması) wellness self-report
+formu + son 7 gün geçmişi, web'de koçun takımının bugünkü check-in durumunu gördüğü
+salt-okunur `/readiness` ekranı + sporcu bazlı 14 günlük geçmiş. `wellness_checkins`/
+`readiness_scores` şeması ve RLS'i zaten canlıydı (`012_wellness.sql`/`013_readiness_scores.sql`,
+READINESS_PLAN.md AŞAMA 1, 2026-07-15'te uygulandı) — bu parti üzerine ilk gerçek okuma/yazma
+yüzeyini inşa etti. **Bu partide migration YOK**, şema/RLS'e dokunulmadı.
+
+#### Keşif — görev talimatıyla çelişen bir bulgu
+
+Görev talimatı `wellness_total`'ın "generated DEĞİL, uygulama hesaplayacak" düz bir kolon
+olduğunu, canlı DB'den doğrulandığını iddia ediyordu. Gerçek migration dosyası
+(`supabase/migrations/012_wellness.sql:28-29`) bunu bir Postgres GENERATED kolonu olarak
+tanımlıyor:
+```sql
+wellness_total integer generated always as
+  (sleep_quality + soreness + stress + fatigue + mood) stored,
+```
+Hiçbir sonraki migration bu kolona dokunmamış (`wellness_total` için repo genelinde tek eşleşme).
+Önceki partilerin kullandığı Supabase MCP (`execute_sql`/`list_tables` vb.) bu oturumda
+bağlı değildi, canlı DB'ye doğrudan sorgu atılıp gerçek durum teyit edilemedi. Kullanıcıya
+soruldu; **migration dosyası kaynak alınmasına karar verildi** — `wellness_total` hiçbir
+insert/upsert payload'ına dahil edilmiyor (Postgres reddeder: generated kolona değer
+yazılamaz), DB'nin otomatik hesapladığı değer okuma yolunda kullanılıyor. Client-side
+`computeWellnessTotal` yalnızca formu doldururken gösterilen canlı "../25" önizlemesi için
+var — asla sunucuya gönderilmiyor.
+
+#### İki gerçek, görev talimatında olmayan blokaj
+
+1. **`apps/mobile/package.json` `@athleteiq/validators`'ı bağımlılık olarak bildirmiyordu**
+   (yalnızca `@athleteiq/db` vardı). `@athleteiq/db`'nin tarihsel boşluğu (MOBILE_STATUS.md)
+   zararsızdı çünkü tüm kullanımlar `import type`di (build'de silinir); bu partinin
+   `computeWellnessTotal`/`getLocalDateString`/`wellnessCheckinSchema`'sı RUNTIME'da
+   çağrılıyor — eklenmeden Metro modülü çözemezdi. `"@athleteiq/validators": "workspace:*"`
+   eklendi + `pnpm install`.
+2. **Hem `packages/db/package.json` hem `packages/validators/package.json` barrel değil,
+   açık alt-yol `exports` map'i kullanıyor** (örn. `"./team": "./team.ts"`). Yeni dosyaları
+   yalnızca `index.ts` barrel'ine eklemek yetmiyor — `"./queries/wellness"` ve `"./wellness"`
+   girdileri `package.json`'a da eklendi, yoksa subpath import (`@athleteiq/db/queries/wellness`,
+   bu kod tabanının baskın import biçimi) çözümlenmezdi.
+3. (Savunma amaçlı, talimat dışı ek) Metro'nun pnpm workspace symlink'leri üzerinden
+   transitive npm bağımlılığı (zod) çözme davranışı bu ortamda cihazda doğrulanamadığı için
+   `zod` mobile'a da doğrudan bağımlılık olarak eklendi — `apps/web` zaten aynı şekilde hem
+   doğrudan hem `@athleteiq/validators` üzerinden dolaylı bildiriyor, aynı konvansiyon
+   mobile'a da uygulandı.
+
+#### Değişiklikler
+
+- **`packages/validators/wellness.ts`** (yeni): `wellnessCheckinSchema` (Zod, DB CHECK'leriyle
+  birebir: 5 madde `int().min(1).max(5)`, `sleep_hours` `min(0).max(24)` opsiyonel, `notes`
+  opsiyonel) + `computeWellnessTotal` (görev talimatının açık isteği — paket normalde
+  şema-only, deliberate bir sapma) + `getLocalDateString` (cihaz/tarayıcı YEREL tarihini
+  `YYYY-MM-DD` döner, `getFullYear/getMonth/getDate` ile — ASLA `toISOString()` kullanmıyor,
+  o UTC'dir ve bu partinin çözmeye çalıştığı TR UTC+3 kaymasının aynısını üretirdi). Tek
+  kaynak: mobil banner, mobil form ve web koç görünümü "bugün"ü hep bu fonksiyondan okuyor.
+- **`packages/db/queries/wellness.ts`** (yeni): `getWellnessCheckin`/`getAthleteWellnessHistory`
+  (7 günlük mobil listesi ve 14 günlük web detayı için aynı fonksiyon, farklı pencere)/
+  `upsertWellnessCheckin` (`onConflict:"athlete_id,checkin_date"` — `acwr_logs`'un bilinen
+  aynı-gün-upsert bug'ının (UPDATE RLS politikası yok) aksine `wellness_update` politikası
+  VAR, bu upsert güvenli)/`getOrgWellnessCheckins` (`athletes!inner(org_id)` join,
+  `getWearableConnections`/`getTests` deseniyle birebir aynı — `wellness_checkins`'in kendi
+  `org_id` kolonu yok). `WellnessCheckinUpsertInput` tipi `wellness_total`/`id`/`created_at`/
+  `updated_at`'i `Omit` ile payload tipinden derleme-zamanında dışlıyor (yukarıdaki generated-
+  kolon bulgusunun tip-seviyesinde bir daha tekrarlanmaması için).
+- **`apps/mobile/app/(tabs)/program/checkin.tsx`** (yeni route): `[day].tsx` ile aynı desende
+  ayrı bir Stack ekranı — MOBILE_STATUS.md'nin dokümante ettiği `program/index.tsx` css-interop
+  dev-mode donma riski yüzünden form ASLA o dosyaya inline edilmedi. 5 madde için 1-5 dokunmalı
+  seçici (yalnızca uç değerler — 1 ve 5 — için görev talimatının verdiği Türkçe etiketler
+  gösteriliyor; 2/3/4 için talimatta etiket tanımlı değildi, standart Likert uçlandırma
+  konvansiyonu uygulandı, uydurulmadı), üstte canlı "../25" toplam göstergesi
+  (`computeWellnessTotal`, 5 madde dolana kadar "…/25"), opsiyonel `sleep_hours`
+  (`keyboardType="decimal-pad"`, virgüllü Türkçe klavye girişini de kabul ediyor) ve `notes`.
+  5 madde dolmadan Kaydet butonu pasif (client-side kontrol); kaydetmeden hemen önce
+  `wellnessCheckinSchema.safeParse` ikinci savunma katmanı olarak çalışıyor — ham Postgres
+  CHECK ihlali hatası hiçbir zaman kullanıcıya ulaşmıyor, Türkçe `Alert.alert` gösteriliyor.
+  Aynı ekranda formun altında son 7 gün geçmişi (`getAthleteWellnessHistory`) — yalnızca
+  bugünün satırında "Düzenle" görünüyor (RLS `checkin_date >= current_date-1` ile dünü de
+  düzenlemeye izin veriyor ama UI bilinçli olarak yalnızca bugüne izin veriyor — dünün verisini
+  geriye dönük değiştirmek izleme kalitesini bozar); form zaten üstte ve doldurulmuş olduğu
+  için "Düzenle" bir navigasyon değil, scroll-to-top. Silme aksiyonu YOK (`wellness_checkins`'te
+  DELETE RLS politikası yok, denemek anlamsız bir hata döndürürdü).
+- **`apps/mobile/app/(tabs)/program/_layout.tsx`**: `checkin` için `[day]` ile birebir aynı
+  `Stack.Screen` seçenekleri (`headerTitle:"Sabah Değerlendirmesi"`, `headerBackTitle:"Geri"`,
+  `headerTintColor:"#534AB7"` — sibling ekranla tutarlılık için, gövdenin `blue-700`'ü değil).
+- **`apps/mobile/app/(tabs)/program/index.tsx`**: en üste tek, sığ bir "Sabah Değerlendirmesi"
+  kartı eklendi (3-4 düz `View`/`Text`/`TouchableOpacity` node'u, tek seviye ternary className,
+  döngü yok) — bilinçli olarak EN SON ve EN KÜÇÜK değişiklik olarak yapıldı, çünkü bu dosya
+  MOBILE_STATUS.md'nin dokümante ettiği `react-native-css-interop` donma bug'ının kanıtlanmış
+  tetikleyici alanı. Kart, check-in yoksa "Bugün doldurulmadı"+"Doldur", varsa `{toplam}/25`+
+  "Düzenle" gösterip `checkin.tsx`'e yönlendiriyor. `useFocusEffect` (`@react-navigation/native`
+  — yeni doğrudan bağımlılık; `expo-router` bu hook'u re-export etmiyor, ama pnpm store'da
+  zaten `7.3.4` olarak resolve edilmiş haldeydi, `pnpm install` yeni bir şey indirmedi) ile
+  `checkin.tsx`'ten `router.back()` sonrası kart otomatik güncelleniyor (aynı screen instance
+  remount olmadığı için bu olmadan mevcut `useEffect` yeniden çalışmazdı).
+- **`apps/web/app/(dashboard)/readiness/page.tsx`** + **`readiness-client.tsx`** (yeni):
+  sunucu bileşeni `wearables/page.tsx` deseninde `aiq_org_id` cookie'sinden org roster +
+  `getOrgWellnessCheckins` (sunucu saati UTC'ye yakın olduğu için ±1 gün paylı bir pencere —
+  gerçek "bugün" ayrımı client'ta yapılıyor) çekiyor. Client bileşen "bugün"ü tarayıcının
+  yerel saatiyle bir `useEffect` içinde hesaplıyor, render gövdesinde DEĞİL — bir Client
+  Component da hydration öncesi bir kez sunucuda render edildiği için render'da hesaplamak
+  server/client uyuşmazlığı riski taşırdı (tam da bu partinin çözdüğü UTC/TR-yerel sınıfında
+  bir bug'ı render katmanına taşımak olurdu); `todayLocal===null` iken `Skeleton` gösteriliyor.
+  Roster × bugünün check-in'leri `useMemo` ile bellek-içi LEFT JOIN'lenip iki ayrı bölüme
+  render ediliyor: "Bugün Check-in Yapmayanlar" (gri rozetler, KIRMIZI DEĞİL — eksik veri bir
+  uyum/compliance sorunu, tehlike sinyali değil; tıklanınca da 14 günlük geçmişe gidiyor) ve
+  "Bugün Check-in Yapanlar" (ad/toplam/uyku/doldurma saati tablosu, satır tıklanınca detaya
+  gidiyor). Realtime: `athletes-client.tsx`'teki `postgres_changes` deseninin birebir aynısı
+  (`event:"*"`, filtre yok — RLS zaten aboneye ulaşan satırları kısıtlıyor), `wellness_checkins`
+  tablosuna bağlandı, `router.refresh()`+toast. Sidebar'a `roles:["admin","coach"]` ile tek
+  satır eklendi (`/acwr`'den hemen sonra). Middleware'e DOKUNULMADI — athlete zaten
+  `/programs*` dışına genel olarak kilitli, yeni route'lar için ayrı bir allowlist olmadığı
+  doğrudan `middleware.ts` okunarak doğrulandı.
+- **`apps/web/app/(dashboard)/readiness/[athleteId]/page.tsx`** + **`readiness-detail-client.tsx`**
+  (yeni): `athletes/[id]/page.tsx` deseninde (`getAthleteById(...).catch(()=>null)` →
+  `notFound()`, sunucu saatiyle gevşek 15 günlük pencere — burada "bugün" ayrımı yapılmadığı
+  için client-taraflı yerel tarih hesaplamasına ihtiyaç yok). 14 günlük düz liste (tarih/
+  toplam/uyku/not) — grafik veya renk-kodlama YOK, 5-25 aralığı için "iyi/kötü" eşiği henüz
+  tanımlı değil, bunu icat etmek kapsam dışı bırakılan readiness-skor motorunun işi olurdu.
+- Grafik/trend/baseline/z-skor, koç-vekil (`source='coach_proxy'`) girişi UI'ı,
+  `readiness_scores` yazımı — hiçbiri bu partide YOK (görev talimatının Yapılmayacaklar'ı).
+
+#### Doğrulama
+
+- `pnpm --filter @athleteiq/validators type-check` + `pnpm --filter @athleteiq/db type-check`
+  + web `npx tsc --noEmit` + mobile `npx tsc --noEmit` — **4/4 paket 0 hata**.
+- Mobile `npx eslint .` → 0 hata (1 önceden var olan, bu partiden bağımsız `lib/auth.tsx`
+  `react-hooks/exhaustive-deps` uyarısı). Web `npx eslint` (değişen dosyalar) → 0 hata
+  (1 önceden var olan, ilgisiz `sidebar.tsx`'teki kullanılmayan `Calendar` import uyarısı —
+  `git diff --stat` ile bu partiden önce var olduğu doğrulandı, bu parti yalnızca `Sunrise`
+  import'u + 1 nav satırı ekledi).
+- `pnpm --filter web build` → **29 sayfa** (öncesi 27 — yeni `/readiness` +
+  `/readiness/[athleteId]`), sıfır derleme hatası, yalnızca önceden var olan ESLint uyarıları.
+- `git diff --stat` ile Parti 13'ün süperset/sekme dosyalarının (`ProgramTabStrip.tsx`,
+  `SupersetGroup.tsx`, `apps/mobile/lib/supersetGroups.ts`, `[day].tsx`) **SIFIR** değiştiği
+  doğrulandı — bu parti tamamen additive, hiçbir mevcut dosyanın program/süperset mantığına
+  dokunmadı.
+- **Fiziksel cihaz/tarayıcı testi bu ortamda yapılamadı** (mobil cihaz veya headless
+  tarayıcı erişimi yok) — kod/tip/build doğrulaması geçti. Görev talimatının Görev 4'teki
+  uçtan uca senaryoları (`ibrahim.colak` ile gerçek form doldurma + `wellness_total`/`source`/
+  `entered_by` SQL doğrulaması, gece yarısı `checkin_date` testi, aynı-gün upsert satır sayısı,
+  eksik alanla engelleme, `sleep_hours=25` client-side engeli, web'de İbrahim/Mehmet Ayberk
+  parite, `parti8f-temp-coach` takım izolasyonu, Parti 13 regresyon kontrolü) ve test verisi
+  temizliği (`wellness_checkins`'te DELETE politikası yok, temizlik Supabase MCP
+  `execute_sql` gerektiriyor — bu oturumda bağlı değildi) **kullanıcı tarafından canlıda
+  yapılmalı.**
+
+#### Kapsam dışı bırakılan (bilinçli, görev talimatı gereği)
+
+`readiness_scores` yazımı/motoru, RLS/migration değişikliği, koç-vekil (`coach_proxy`) giriş
+UI'ı, trend grafiği/baseline/z-skor hesabı, push bildirimi/hatırlatma, `athletes` tablosuna
+dokunma.
+
+---
 
 ### Parti 13 — Mobil Program Ekranı: Süperset Gösterimi ve Çoklu Program Sekmeleri ✅ (2026-08-10)
 
@@ -1959,7 +2294,9 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 - [x] Tonaj hesabı tamamlandı — vücut ağırlığı çözümlemesi (`athletes.weight_kg`), sebep kodlu döküm, "hesaplanamıyor" fallback'i ✅ (2026-08-10, Parti 12)
 - [x] Program silme/arşivleme (blok-farkında, yayın durumuna göre sil/arşivle) ✅ (2026-08-10, Parti 12)
 - [x] Yarışma düzenleme/silme ✅ (2026-08-10, Parti 12)
+- [x] Sabah wellness check-in — mobil form + geçmiş, web koç görünümü (`/readiness`) ✅ (2026-08-11, Parti 14)
 - [ ] ACWR grafiği — Recharts ile görsel trend (şu an tablo mu grafik mi kontrol et)
+- [ ] Readiness skor motoru — bireysel taban çizgisi (`readiness_scores`, ≥14 gün veri birikince, READINESS_PLAN.md §7 Adım 6)
 
 ### Öncelik 3 — Gelecek Sprint
 - [ ] WHOOP aktif sync (altyapı hazır, webhook deploy + token yönetimi aktif et)

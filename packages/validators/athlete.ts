@@ -9,7 +9,9 @@ const optionalNumber = z
 // supabase/functions/create-athlete-account/index.ts (USERNAME_RE) ile birebir aynı olmalı.
 export const ATHLETE_USERNAME_RE = /^[a-z0-9._]{3,30}$/;
 
-const TR_MAP: Record<string, string> = {
+// packages/validators/exercise.ts (normalizeExerciseName) tarafından da yeniden
+// kullanılıyor — Türkçe karakter foldlamayı proje genelinde tek yerde tut.
+export const TR_CHAR_MAP: Record<string, string> = {
   İ: "i",
   I: "i",
   ı: "i",
@@ -29,7 +31,7 @@ const TR_MAP: Record<string, string> = {
 // Türkçe karakterler toLowerCase()'den ÖNCE case-sensitive map edilir — aksi halde
 // "İ".toLowerCase() === "i̇" (nokta + combining dot above) gibi beklenmeyen sonuçlar çıkar.
 export function suggestUsername(fullName: string): string {
-  const mapped = fullName.replace(/[İIıÇçĞğÖöŞşÜü]/g, (ch) => TR_MAP[ch] ?? ch);
+  const mapped = fullName.replace(/[İIıÇçĞğÖöŞşÜü]/g, (ch) => TR_CHAR_MAP[ch] ?? ch);
   const base = mapped
     .toLowerCase()
     .replace(/\s+/g, ".")
