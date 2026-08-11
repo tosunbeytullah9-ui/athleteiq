@@ -939,6 +939,7 @@ export type Database = {
           block_id: string | null
           created_at: string | null
           created_by: string | null
+          discipline: string | null
           end_date: string | null
           id: string
           is_archived: boolean
@@ -958,6 +959,7 @@ export type Database = {
           block_id?: string | null
           created_at?: string | null
           created_by?: string | null
+          discipline?: string | null
           end_date?: string | null
           id?: string
           is_archived?: boolean
@@ -977,6 +979,7 @@ export type Database = {
           block_id?: string | null
           created_at?: string | null
           created_by?: string | null
+          discipline?: string | null
           end_date?: string | null
           id?: string
           is_archived?: boolean
@@ -1318,6 +1321,7 @@ export type Database = {
         Args: {
           p_athlete_id: string
           p_block_start_date: string
+          p_discipline?: string
           p_notes: string
           p_org_id: string
           p_phase: string
@@ -1335,6 +1339,7 @@ export type Database = {
           block_id: string | null
           created_at: string | null
           created_by: string | null
+          discipline: string | null
           end_date: string | null
           id: string
           is_archived: boolean
@@ -1369,6 +1374,7 @@ export type Database = {
       }
       update_program_week: {
         Args: {
+          p_discipline?: string
           p_end_date: string
           p_notes: string
           p_phase: string

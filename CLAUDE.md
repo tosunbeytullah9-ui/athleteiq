@@ -113,6 +113,7 @@ Playwright (E2E testler)
 ```
 AthleteIQ/
 ├── .claude/
+│   ├── scheduled_tasks.lock
 │   └── settings.local.json
 ├── apps/
 │   ├── mobile/
@@ -224,7 +225,8 @@ AthleteIQ/
 │   │   ├── 026_team_scoped_program_rpc.sql
 │   │   ├── 027_drop_calculate_acwr.sql
 │   │   ├── 028_platform_exercises_admin_rls.sql
-│   │   └── 029_program_archive.sql
+│   │   ├── 029_program_archive.sql
+│   │   └── 030_program_discipline.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -976,6 +978,7 @@ Son otomatik senkron: 2026-08-10
 - 027_drop_calculate_acwr.sql
 - 028_platform_exercises_admin_rls.sql
 - 029_program_archive.sql
+- 030_program_discipline.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
   - `invite-member` — v5, ACTIVE

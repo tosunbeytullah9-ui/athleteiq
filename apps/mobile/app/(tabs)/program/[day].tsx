@@ -11,7 +11,9 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import { ExerciseCard } from "@/components/ExerciseCard";
-import { getActiveProgramId, getDaySessions } from "@athleteiq/db/queries/programs";
+import { SupersetGroup } from "@/components/SupersetGroup";
+import { groupExercisesForRender } from "@/lib/supersetGroups";
+import { getDaySessions } from "@athleteiq/db/queries/programs";
 import { getAthleteMaxes, buildMaxLookup } from "@athleteiq/db/queries/exercises";
 import type { Tables } from "@athleteiq/db/types";
 
@@ -37,7 +39,7 @@ const SESSION_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function ProgramDayScreen() {
-  const { day } = useLocalSearchParams<{ day: string }>();
+  const { day, programId } = useLocalSearchParams<{ day: string; programId?: string }>();
   const router = useRouter();
   const { athlete } = useAthleteProfile();
   const [sessions, setSessions] = useState<SessionWithExercises[]>([]);
@@ -48,18 +50,15 @@ export default function ProgramDayScreen() {
   useEffect(() => {
     if (!athlete) return;
 
+    if (!programId) {
+      setLoading(false);
+      return;
+    }
+
     async function fetchDaySessions() {
       try {
-        // Sporcunun en güncel yayınlanmış programını bul
-        const programId = await getActiveProgramId(supabase, {
-          athleteId: athlete!.id,
-          teamId: athlete!.team_id,
-        });
-
-        if (!programId) return;
-
         const [data, athleteMaxes] = await Promise.all([
-          getDaySessions(supabase, programId, dayNum),
+          getDaySessions(supabase, programId!, dayNum),
           getAthleteMaxes(supabase, athlete!.id),
         ]);
 
@@ -77,7 +76,7 @@ export default function ProgramDayScreen() {
     }
 
     fetchDaySessions();
-  }, [athlete, dayNum]);
+  }, [athlete, dayNum, programId]);
 
   const totalDuration = sessions.reduce(
     (sum, s) => sum + (s.duration_min ?? 0),
@@ -124,6 +123,16 @@ export default function ProgramDayScreen() {
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#1d4ed8" />
+        </View>
+      ) : !programId ? (
+        <View className="flex-1 items-center justify-center p-8">
+          <Text className="text-4xl mb-3">⚠️</Text>
+          <Text className="text-gray-900 font-semibold text-lg text-center">
+            Program bulunamadı
+          </Text>
+          <Text className="text-gray-500 text-sm text-center mt-1">
+            Lütfen program ekranına geri dönüp tekrar deneyin.
+          </Text>
         </View>
       ) : sessions.length === 0 ? (
         <View className="flex-1 items-center justify-center p-8">
@@ -174,14 +183,27 @@ export default function ProgramDayScreen() {
                   Egzersiz eklenmemiş.
                 </Text>
               ) : (
-                session.exercises.map((exercise, idx) => (
-                  <ExerciseCard
-                    key={exercise.id}
-                    exercise={exercise}
-                    index={idx}
-                    maxLookup={maxLookup}
-                  />
-                ))
+                groupExercisesForRender(session.exercises).map((unit) =>
+                  unit.kind === "single" ? (
+                    <ExerciseCard
+                      key={unit.exercise.id}
+                      exercise={unit.exercise}
+                      index={unit.index}
+                      maxLookup={maxLookup}
+                    />
+                  ) : (
+                    <SupersetGroup key={unit.groupKey} label={unit.label}>
+                      {unit.members.map((m) => (
+                        <ExerciseCard
+                          key={m.exercise.id}
+                          exercise={m.exercise}
+                          index={m.index}
+                          maxLookup={maxLookup}
+                        />
+                      ))}
+                    </SupersetGroup>
+                  )
+                )
               )}
             </View>
           ))}

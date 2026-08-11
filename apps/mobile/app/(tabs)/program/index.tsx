@@ -10,14 +10,19 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
-import type { Database } from "@athleteiq/db/types";
+import {
+  getProgramSessionsSummary,
+  isDateActive,
+  sortAthletePrograms,
+} from "@athleteiq/db/queries/programs";
+import { ProgramTabStrip } from "@/components/ProgramTabStrip";
+import type { Tables } from "@athleteiq/db/types";
 
-type TrainingProgram = Database["public"]["Tables"]["training_programs"]["Row"];
-type TrainingSession = Database["public"]["Tables"]["training_sessions"]["Row"];
-
-type ProgramWithSessions = TrainingProgram & {
-  training_sessions: TrainingSession[];
-};
+type TrainingProgram = Tables<"training_programs">;
+type SessionSummary = Pick<
+  Tables<"training_sessions">,
+  "id" | "day_of_week" | "session_type" | "title" | "duration_min" | "order_index"
+>;
 
 const DAY_LABELS: Record<number, string> = {
   1: "Pazartesi",
@@ -40,33 +45,23 @@ const SESSION_TYPE_COLORS: Record<string, string> = {
 export default function ProgramScreen() {
   const router = useRouter();
   const { athlete, loading: athleteLoading } = useAthleteProfile();
-  const [programs, setPrograms] = useState<ProgramWithSessions[]>([]);
+  const [activePrograms, setActivePrograms] = useState<TrainingProgram[]>([]);
+  const [activeTabIndex, setActiveTabIndex] = useState(0);
+  const [tabSessions, setTabSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
 
-  const fetchPrograms = useCallback(async (athleteId: string, teamId: string | null) => {
-    const orFilter = teamId
-      ? `athlete_id.eq.${athleteId},team_id.eq.${teamId}`
-      : `athlete_id.eq.${athleteId}`;
-
-    const { data, error } = await supabase
-      .from("training_programs")
-      .select(
-        `
-        *,
-        training_sessions (
-          id, day_of_week, session_type, title, duration_min, order_index
-        )
-      `
-      )
-      .or(orFilter)
-      .eq("is_published", true)
-      .order("start_date", { ascending: false })
-      .limit(5);
+  const fetchPrograms = useCallback(async (athleteId: string) => {
+    const { data, error } = await supabase.rpc("get_athlete_programs", {
+      p_athlete_id: athleteId,
+    });
 
     if (!error && data) {
-      setPrograms(data as ProgramWithSessions[]);
+      const today = new Date().toISOString().slice(0, 10);
+      const active = sortAthletePrograms(data.filter((p) => isDateActive(p, today)));
+      setActivePrograms(active);
+      setActiveTabIndex((prev) => (prev < active.length ? prev : 0));
     }
     setLoading(false);
     setRefreshing(false);
@@ -80,14 +75,14 @@ export default function ProgramScreen() {
 
     // Önce veriyi çek — realtime aboneliğinden bağımsız. Subscribe takılsa bile
     // program listesi gelir.
-    fetchPrograms(athlete.id, athlete.team_id);
+    fetchPrograms(athlete.id);
 
     // Realtime: TÜM training_programs değişikliklerini dinle (filtre YOK).
     // Postgres realtime filtresi (is_published=eq.true) yalnızca satır filtreye
     // UYDUĞUNDA fire eder; unpublish (true→false) olayını kaçırır ve program
     // ekranda takılı kalır. Bu yüzden filtreyi kaldırıp eşleştirmeyi client'ta
     // yapıyoruz: her değişimde fetchPrograms yeniden çalışır ve yalnızca bu
-    // sporcuya ait YAYINLANMIŞ programları döndürür (unpublish → listeden çıkar).
+    // sporcuya ait (get_athlete_programs'ın filtrelediği) programları döndürür.
     const channel = supabase
       .channel(`programs-athlete-${athlete.id}`)
       .on(
@@ -98,12 +93,7 @@ export default function ProgramScreen() {
           table: "training_programs",
         },
         () => {
-          // Her değişimde yeniden çek. fetchPrograms zaten .or(athlete/team) +
-          // .eq(is_published,true) ile filtreler; bu sporcuya ait olmayan veya
-          // unpublish edilmiş programlar sonuçtan otomatik düşer. DELETE
-          // event'inde payload.old yalnızca PK içerebildiği için client-side
-          // eşleştirme yerine koşulsuz refetch daha güvenli (sorgu limit 5, ucuz).
-          fetchPrograms(athlete.id, athlete.team_id);
+          fetchPrograms(athlete.id);
         }
       )
       .subscribe((status) => {
@@ -118,8 +108,25 @@ export default function ProgramScreen() {
   const onRefresh = useCallback(() => {
     if (!athlete) return;
     setRefreshing(true);
-    fetchPrograms(athlete.id, athlete.team_id);
+    fetchPrograms(athlete.id);
   }, [athlete, fetchPrograms]);
+
+  // Seçili sekmenin seans özetini çek — sekme değişince veya program listesi
+  // güncellenince yeniden çalışır.
+  useEffect(() => {
+    const current = activePrograms[activeTabIndex];
+    if (!current) {
+      setTabSessions([]);
+      return;
+    }
+    let cancelled = false;
+    getProgramSessionsSummary(supabase, current.id).then((data) => {
+      if (!cancelled) setTabSessions(data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activePrograms, activeTabIndex]);
 
   if (athleteLoading || loading) {
     return (
@@ -139,7 +146,7 @@ export default function ProgramScreen() {
     );
   }
 
-  const activeProgram = programs[0] ?? null;
+  const activeProgram = activePrograms[activeTabIndex] ?? null;
 
   return (
     <ScrollView
@@ -170,8 +177,19 @@ export default function ProgramScreen() {
         </View>
       </View>
 
+      {activePrograms.length > 1 && (
+        <ProgramTabStrip
+          tabs={activePrograms.map((p) => ({
+            id: p.id,
+            label: p.discipline?.trim() || p.title,
+          }))}
+          activeIndex={activeTabIndex}
+          onSelect={setActiveTabIndex}
+        />
+      )}
+
       <View className="p-4">
-        {programs.length === 0 ? (
+        {activePrograms.length === 0 ? (
           <View className="bg-white rounded-2xl p-8 items-center mt-4">
             <Text className="text-4xl mb-3">📋</Text>
             <Text className="text-gray-900 font-semibold text-lg text-center">
@@ -214,11 +232,9 @@ export default function ProgramScreen() {
               Haftalık Program
             </Text>
             {Array.from({ length: 7 }, (_, i) => i + 1).map((dayNum) => {
-              const sessions = activeProgram
-                ? (activeProgram.training_sessions ?? [])
-                    .filter((s) => s.day_of_week === dayNum)
-                    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-                : [];
+              const sessions = tabSessions
+                .filter((s) => s.day_of_week === dayNum)
+                .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
               const isToday =
                 new Date().getDay() === (dayNum === 7 ? 0 : dayNum);
@@ -231,7 +247,10 @@ export default function ProgramScreen() {
                   }`}
                   disabled={sessions.length === 0}
                   onPress={() =>
-                    router.push(`/(tabs)/program/${dayNum}` as never)
+                    router.push({
+                      pathname: "/(tabs)/program/[day]",
+                      params: { day: String(dayNum), programId: activeProgram!.id },
+                    })
                   }
                   activeOpacity={0.75}
                 >

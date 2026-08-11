@@ -1,6 +1,58 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-10 (**Parti 12 — Tonaj Hesabı, Program Silme/Arşivleme, Yarışma
+> Son güncelleme: 2026-08-10 (**Parti 13 — Mobil Program Ekranı: Süperset Gösterimi ve Çoklu
+> Program Sekmeleri** — üç iş: `training_programs.discipline` kolonu + web branş formu,
+> mobilde çoklu program sekmeleri, mobilde süperset gruplaması. **Kritik keşif (görev
+> talimatının varsaymadığı):** talimat `get_athlete_programs` RPC'sinin zaten kullanıldığını
+> varsayıyordu — repo genelinde hiçbir çağıran bulunamadı, mobil hem `program/index.tsx`'in
+> kendi inline sorgusu hem de `getActiveProgramId` ile bağımsız, `is_archived` farkında
+> olmayan mantık kullanıyordu (Parti 12'nin kendi bıraktığı bir takip notuyla örtüşüyor —
+> "getActiveProgramId ... aynı is_archived farkındalığından yoksun ... takip gerektiriyor").
+> Görev 2 bu RPC'yi ilk kez gerçekten mobile bağladı, RPC'nin kendisine dokunulmadı. Görev 1:
+> migration `030_program_discipline.sql` — `discipline text` (nullable, `teams.discipline`
+> ile aynı desen, CHECK yok) + `create_program_with_weeks`/`update_program_week` RPC'lerine
+> `p_discipline text default null` eklendi. **Postgres detayı:** parametre sayısı değişince
+> `create or replace function` gerçek bir replace olmuyor (Postgres fonksiyon kimliğini
+> parametre tip listesiyle belirliyor, yeni bir overload yaratıyor) — migration önce eski
+> imzaları `drop function if exists` ile sildi, canlıda her iki fonksiyonun da TEK (yeni)
+> imzayla var olduğu `pg_proc` sorgusuyla doğrulandı. Web'in oluşturma ve hafta-düzenleme
+> formlarına serbest metin + datalist önerili ("Artistik Cimnastik"/"Kuvvet & Kondisyon"/
+> "Atletik Performans"/"Fizyoterapi") "Branş" alanı eklendi (`new-program-client.tsx`,
+> `week-editor-form.tsx`) — `p_discipline`'ın SQL'de `default null` olması sayesinde
+> gen-types'ta opsiyonel (`p_discipline?: string`) çıktı, `p_phase`/`p_notes`'un aksine
+> `as string` cast'ine gerek kalmadı. Görev 2: `apps/mobile/app/(tabs)/program/index.tsx`
+> artık `get_athlete_programs` RPC'sini çağırıp bugün-tarih-aktif (`start_date <= today <=
+> end_date`) programları sekme şeridinde gösteriyor (sporcu-kapsamlı önce, yeni
+> `ProgramTabStrip.tsx`; `packages/db/queries/programs.ts`'e `isDateActive`/
+> `sortAthletePrograms`/`getProgramSessionsSummary` eklendi), `[day].tsx` artık `programId`'yi
+> `getActiveProgramId` ile yeniden çözmek yerine `index.tsx`'ten route param olarak alıyor
+> (`getActiveProgramId` silinmedi — koç-klonu ekranın hâlâ canlı bir çağıranı var). Görev 3:
+> yeni `apps/mobile/lib/supersetGroups.ts` (`groupExercisesForRender`) + `SupersetGroup.tsx` —
+> `superset_group`/`superset_order`'a göre egzersizleri gruplayıp çerçeveliyor, `null` gruplar
+> ve tek-üyeli gruplar tekil render ediliyor, `ExerciseCard.tsx`'e hiç dokunulmadı. **Kapsam
+> kararı (kullanıcı onayıyla):** koç-klonu `my-athletes/[athleteId]/program/*` ekranları
+> bilinçli olarak dokunulmadan bırakıldı — görev talimatının doğrulama adımları da yalnızca
+> sporcu tarafını kapsıyor, `git diff` ile bu dosyalarda sıfır değişiklik doğrulandı.
+> **Doğrulama:** `pnpm --filter web exec tsc --noEmit` + `pnpm --filter @athleteiq/db exec tsc
+> --noEmit` + `pnpm --filter web build` (26 sayfa) + mobilde `npx tsc --noEmit` + `expo lint`
+> temiz. `get_advisors` yeni ERROR/WARN üretmedi (SECURITY DEFINER WARN'ları migration
+> öncesinde de vardı, kapsam dışı). RPC davranışı Supabase Cloud'da (`nlmwcygmbbxmfpsubvmh`)
+> izole, gerçek veriye dokunmayan bir test programıyla doğrulandı: `create_program_with_weeks`
+> discipline'ı doğru insert ediyor, `update_program_week` discipline'ı değiştirebiliyor VE
+> ilgisiz bir alan (notes) değişince discipline'ı koruyor (form her zaman mevcut değeri
+> yeniden gönderdiği için ayrı bir coalesce mantığına gerek yok) — test programı sonra
+> silindi, `leftover=0`. İbrahim/Mehmet Ayberk senaryoları gerçek veriyle `get_athlete_programs`
+> doğrudan çağrılarak doğrulandı: İbrahim için 2 tarih-aktif program dönüyor (Haziran'daki
+> "Hipertrofi" tarih filtresiyle elendi) — sporcu-kapsamlı "Müsabaka" takım-kapsamlı
+> "aaaaaaaaaaa"'dan önce sıralanıyor; Mehmet Ayberk için tarih filtresinden sonra tek program
+> kalıyor (sekme şeridi render edilmeyecek). Test kurulumunun bir parçası olarak "aaaaaaaaaaa"
+> ve "Müsabaka" 1. haftaya discipline atandı (görev talimatının Görev 4 adım 1'i, kalıcı
+> bırakıldı); "Müsabaka" 1. haftanın yayın durumu değişikliği test sonunda geri alındı.
+> Orijinal 12 program/3 yarışma/3 sporcu/5 hesap dokunulmadan kaldı, SQL ile doğrulandı.
+> **Fiziksel cihaz/tarayıcı testi bu ortamda yapılamadı** (mobil cihaz veya headless tarayıcı
+> mevcut değil) — kod/tip/SQL doğrulaması geçti, görsel UI doğrulaması (sekme geçişi, süperset
+> çerçevesi) kullanıcı tarafından fiziksel cihazda yapılmalı. Detay: § Parti 13)
+> Önceki: 2026-08-10 (**Parti 12 — Tonaj Hesabı, Program Silme/Arşivleme, Yarışma
 > Düzenleme** — üç bağımsız iş. **Kritik keşif (görev talimatının varsaymadığı):** talimat
 > tonaj hesabının `exercises.sets/reps/load_kg/load_percent` ölü kolonlarından okuduğunu
 > varsayıyordu — discovery'de bu zaten Parti 2.2.F/Parti 7'de düzeltilmiş bulundu
@@ -242,6 +294,144 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 13 — Mobil Program Ekranı: Süperset Gösterimi ve Çoklu Program Sekmeleri ✅ (2026-08-10)
+
+#### Keşif
+
+Görev talimatı `get_athlete_programs(p_athlete_id)` RPC'sinin (`029_program_archive.sql`) zaten
+mobil tarafından çağrıldığını ve daraltmanın client tarafında olduğunu varsayıyordu ("Bunu dosya
+üzerinden doğrula" talimatıyla). Repo genelinde bu RPC'ye tek bir `.rpc("get_athlete_programs"...)`
+çağrısı bulunamadı. Gerçekte iki bağımsız, birbirinden habersiz mantık vardı:
+- `apps/mobile/app/(tabs)/program/index.tsx`'in kendi inline `fetchPrograms`'ı — `training_programs`'ı
+  doğrudan `.or(athlete/team)` + `.eq(is_published,true)` ile sorgulayıp `.limit(5)` alıyor,
+  `is_archived` filtresi YOK, sonuçtaki ilk kaydı (`programs[0]`) tek "aktif program" sayıyordu.
+- `getActiveProgramId` (`packages/db/queries/programs.ts`) — `[day].tsx`'in kullandığı ayrı bir
+  sorgu, o da `is_archived` farkında değil.
+
+Bu, Parti 12'nin PROGRESS.md'sinin kendi bıraktığı bir takip notuyla birebir örtüşüyor:
+*"Mobile'a `get_athlete_programs` filtresi dışında dokunulmadı; `getActiveProgramId` ... aynı
+`is_archived` farkındalığından yoksun ama görev kapsamı dışı bırakıldı — takip gerektiriyor."*
+Bu parti bu boşluğu kapattı: mobil artık gerçekten `get_athlete_programs`'ı çağırıyor (RPC'nin
+kendisine dokunulmadı — talimatın açık kısıtı).
+
+**Kapsam kararı (kullanıcı onayıyla):** Koçun sporcu programını izlediği salt-okunur klon ekranlar
+(`apps/mobile/app/(tabs)/my-athletes/[athleteId]/program/*`, Parti 8.D) bu partide bilinçli olarak
+dokunulmadan bırakıldı — görev talimatının Görev 4 doğrulama adımları da yalnızca sporcu tarafını
+(`(tabs)/program/*`) kapsıyor. Bu ekranlar hâlâ çalışıyor, sadece yeni özellik (sekme/süperset)
+almadı.
+
+#### Görev 1 — `discipline` kolonu + RPC'ler + web formları
+
+Migration `030_program_discipline.sql`: `training_programs` alanına `discipline text` eklendi —
+`teams.discipline` (`001_schema.sql`) ile birebir aynı desen: nullable, serbest metin, CHECK
+constraint yok. `program_blocks`'a bilinçli olarak eklenmedi (blok kendi title/phase/notes'unu
+zaten yalnızca oluşturma anında yazıp senkronlamıyor, discipline aynı ayrışmayı izliyor).
+
+`create_program_with_weeks` ve `update_program_week` RPC'lerine `p_discipline text default null`
+parametresi eklendi (title/phase/notes ile birebir aynı muamele — oluşturmada bloktaki her hafta
+aynı değeri alıyor, düzenlemede yalnızca o hafta güncelleniyor, blok senkronize edilmiyor).
+**Postgres detayı (canlıda gerçek bir risk, keşifte bulundu):** parametre SAYISI değişince
+`create or replace function` gerçek bir "replace" olmuyor — Postgres fonksiyon kimliğini parametre
+tip listesiyle belirliyor, sayı değişince eski imza silinmeden yeni bir overload yaratılıyor. Bu
+yüzden migration, yeni imzayı tanımlamadan ÖNCE `drop function if exists create_program_with_weeks(
+uuid, uuid, uuid, text, text, text, int, date, jsonb)` / `drop function if exists
+update_program_week(uuid, text, text, text, date, date, jsonb)` ile eski (9/7 parametreli) imzaları
+açıkça sildi. Canlıda `pg_proc` sorgusuyla her iki fonksiyonun da TEK (yeni, `p_discipline` dahil)
+imzayla var olduğu doğrulandı — eski imza kalıntısı yok.
+
+Web'in program oluşturma sihirbazına (`new-program-client.tsx`) ve hafta-düzenleme formuna
+(`week-editor-form.tsx`) serbest metin "Branş" alanı eklendi — `<input list="discipline-suggestions">`
++ `<datalist>` ile 4 önerili (Artistik Cimnastik/Kuvvet & Kondisyon/Atletik Performans/Fizyoterapi),
+zorunlu değil, altında "Sekmede görünecek, kısa tutun" yardım metni. `packages/ui/components/input.tsx`
+zaten `...props`'u native `<input>`'a spread ettiği için `list` prop'u ek bir değişiklik gerektirmeden
+forward edildi. **Gen-types nüansı:** `p_discipline`'ın SQL'de `default null` olması, gen-types'ta onu
+opsiyonel (`p_discipline?: string`) üretti — `p_phase`/`p_notes`'un (default'suz, nullable ama
+required-string üretilen, `new-program-client.tsx`'te belgelenmiş) aksine `as string` cast'ine gerek
+kalmadı, sadece `data.discipline?.trim() || undefined` yeterli oldu.
+
+`update_program_week`'in discipline'ı "sıfırlamadığı" doğrulaması: form her zaman `program.discipline`'ı
+yükleyip aynı değeri (değiştirilmediyse) geri gönderiyor — `title`/`phase`/`notes` bugün zaten aynı
+şekilde çalışıyor, ayrı bir coalesce/koruma mantığı gerekmedi. `insert_sessions_tree`'ye ve
+`propagate_week_to_future`/`copy_program_tree`'ye dokunulmadı — ikisi de hedef `training_programs`
+satırının kendi kolonlarına (discipline dahil) hiç yazmıyor, yalnızca session/exercise/exercise_sets
+ağacını taşıyor.
+
+#### Görev 2 — Mobil: çoklu program sekmeleri
+
+`packages/db/queries/programs.ts`'e üç yeni export: `isDateActive` (bugün `start_date`/`end_date`
+aralığında mı), `sortAthletePrograms` (sporcu-kapsamlı programlar takım-kapsamlılardan önce,
+eşitlikte `start_date` yenisi önce), `getProgramSessionsSummary` (bir programın haftalık grid için
+hafif seans özeti — tam ağaç çeken `getDaySessions`'tan farklı). `get_athlete_programs` RPC çağrısı
+BİLEREK bu dosyaya sarmalanmadı — repo genelinde `.rpc()` hiçbir zaman `packages/db/queries` içinde
+çağrılmıyor (her zaman UI bileşeninde, tam tipli client üzerinden), `DbClient` tipi de zaten `rpc`
+metodunu tanımlamıyor; bu yüzden çağrı `program/index.tsx`'te doğrudan `supabase.rpc(...)` olarak
+kaldı (mevcut konvansiyonla tutarlı, gerçek tip kontrolü korunuyor).
+
+Yeni `apps/mobile/components/ProgramTabStrip.tsx` — yatay kaydırılabilir sekme şeridi (dumb
+component, `tabs.length > 1` kontrolü çağıranda). `apps/mobile/app/(tabs)/program/index.tsx`
+yeniden yapılandırıldı: `programs[0]`'ı "aktif program" sayan eski mantık kaldırıldı, yerine
+`get_athlete_programs` RPC'sinden gelen listeyi bugün-tarih-aktif olacak şekilde filtreleyip
+(`isDateActive`) sıralayan (`sortAthletePrograms`) bir `activePrograms` + `activeTabIndex` state'i
+geldi. Sekme etiketi `discipline?.trim() || title`. Gün satırına dokununca artık `programId`
+route param olarak da taşınıyor (`router.push({ pathname: "/(tabs)/program/[day]", params: { day,
+programId }})`) — `[day].tsx` artık `getActiveProgramId` ile programı YENİDEN çözmek yerine bu
+param'ı doğrudan kullanıyor (`getActiveProgramId` SİLİNMEDİ, koç-klonu `[day].tsx`'in hâlâ canlı
+bir çağıranı var). Seçili sekme kalıcı saklanmıyor — mobil uygulamada zaten hiçbir yerde
+AsyncStorage/persist kullanılmadığı için (grep ile doğrulandı) bu, mevcut idiomla (`useState`)
+tutarlı; uygulama yeniden açılınca ilk sekmeye döner.
+
+#### Görev 3 — Mobil: süperset gruplaması
+
+Yeni `apps/mobile/lib/supersetGroups.ts` (`groupExercisesForRender`) — bir seansın (zaten
+`order_index`'e göre sıralı) egzersiz listesini `superset_group`'a göre gruplar, grup içinde
+`superset_order`'a göre sıralar. `superset_group === null` olanlar asla gruplanmaz (her biri kendi
+başına tekil birim); 2'den az üyeli "gruplar" da tekil render edilir. Birim sırası grubun en küçük
+`order_index`'ine göre belirlenir — seansın genel egzersiz sırası bozulmaz. Yeni
+`apps/mobile/components/SupersetGroup.tsx` — çerçeve + "X Grubu — Süperset (n egzersiz)" başlık
+etiketi (web'in `exercise-list.tsx:199`'daki terminolojisiyle tutarlı) + kartlar arası küçük bir
+bağlayıcı rozeti. `ExerciseCard.tsx`'e HİÇ dokunulmadı — yalnızca `[day].tsx`'in egzersiz render
+döngüsü, gruplanmış birimleri (`single`/`group`) `ExerciseCard`/`SupersetGroup` olarak dağıtacak
+şekilde değişti. Set/tamamlama etkileşimleri egzersiz bazında kaldı.
+
+#### Doğrulama
+
+`pnpm --filter web exec tsc --noEmit` + `pnpm --filter @athleteiq/db exec tsc --noEmit` +
+`pnpm --filter web build` (26 sayfa, mevcut uyarılar dışında temiz) + mobilde `npx tsc --noEmit`
++ `pnpm --filter @athleteiq/mobile lint` (`expo lint`, 0 hata) hepsi temiz. `get_advisors`
+(security + performance) migration sonrası yeni ERROR üretmedi; mevcut `SECURITY DEFINER` WARN
+kategorisi (tüm `security definer` fonksiyonlar için) migration öncesinde de vardı, bu partiyle
+ilgisiz.
+
+RPC davranışı Supabase Cloud'da (`nlmwcygmbbxmfpsubvmh`) gerçek veriye dokunmadan, izole bir test
+programıyla (`create_program_with_weeks` ile oluşturulup sonra silinen) doğrulandı: (1)
+`p_discipline` ile oluşturma → satırda doğru değer; (2) `update_program_week` ile discipline'ı
+değiştirme → doğru güncellendi; (3) yalnızca `notes`'u değiştirip discipline'ı (formun her zaman
+yaptığı gibi) aynı değerle yeniden gönderme → discipline DEĞİŞMEDEN kaldı (round-trip koruması,
+ayrı bir coalesce mantığına gerek olmadığını doğruladı); test programı silindi, `leftover=0`.
+
+Gerçek İbrahim Çolak / Mehmet Ayberk Koşak verisiyle `get_athlete_programs` doğrudan çağrılarak
+doğrulandı: test kurulumu olarak "aaaaaaaaaaa" takım programına "Artistik Cimnastik", "Müsabaka"
+1. haftaya "Kuvvet & Kondisyon" atandı ve 1. hafta geçici olarak yayınlandı (görev talimatının
+Görev 4 adım 1'i). İbrahim için RPC 3 yayınlanmış+arşivlenmemiş program döndürdü, bunlardan
+`isDateActive` ile Haziran'daki "Hipertrofi" (tarih aralığı bugünü kapsamıyor) elendi, kalan
+2'si (`sortAthletePrograms` ile) sporcu-kapsamlı "Müsabaka" önce, takım-kapsamlı "aaaaaaaaaaa"
+sonra sıralandı — beklenen sekme sırasıyla birebir eşleşti. Mehmet Ayberk için aynı RPC 2 program
+döndürdü, tarih filtresinden sonra yalnızca "aaaaaaaaaaa" kaldı (tek program → sekme şeridi
+render edilmeyecek regresyon senaryosu doğrulandı). Test sonunda "Müsabaka" 1. haftanın yayın
+durumu geri alındı (`is_published=false`); discipline atamaları (test kurulumunun asıl amacı,
+kalıcı bırakılması görev talimatınca beklenen) korundu. Orijinal 12 program/3 yarışma/3
+sporcu/5 auth hesabı sayıca dokunulmadan kaldı, SQL ile doğrulandı.
+
+`git diff` ile `apps/mobile/app/(tabs)/my-athletes/[athleteId]/program/index.tsx` ve `[day].tsx`'te
+sıfır değişiklik olduğu doğrulandı (kapsam dışı bırakma kararının gerçekten uygulandığının kanıtı).
+
+**Bu ortamda yapılamayan:** fiziksel mobil cihaz veya headless tarayıcı erişimi yok — sekme
+geçişinin/süperset çerçevesinin gerçek görsel doğrulaması (Görev 4'ün 2-4/6/11-13. adımları)
+yapılamadı. Kod/tip/SQL doğrulaması geçti; görsel UI doğrulaması kullanıcı tarafından fiziksel
+cihazda yapılmalı.
+
+---
 
 ### Parti 12 — Tonaj Hesabı, Program Silme/Arşivleme, Yarışma Düzenleme ✅ (2026-08-10)
 

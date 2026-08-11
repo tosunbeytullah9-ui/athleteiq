@@ -38,6 +38,13 @@ const PHASES = [
   { value: "peak", label: "Zirve" },
 ] as const;
 
+const DISCIPLINE_SUGGESTIONS = [
+  "Artistik Cimnastik",
+  "Kuvvet & Kondisyon",
+  "Atletik Performans",
+  "Fizyoterapi",
+] as const;
+
 const sessionSchema = z.object({
   day_of_week: z.number().int().min(1).max(7),
   session_type: z.enum(["strength", "conditioning", "technical", "recovery", "competition"]).optional(),
@@ -60,6 +67,7 @@ const programSchema = z.object({
   // reddi bug'ının start_date kısmı bu partiyle kapandı, bkz. PROGRESS.md).
   start_date: z.string().min(1, "Başlangıç tarihi gerekli"),
   phase: z.enum(["preparation", "competition", "transition", "peak"]).optional(),
+  discipline: z.string().optional(),
   notes: z.string().optional(),
   sessions: z.array(sessionSchema).default([]),
 });
@@ -172,6 +180,7 @@ export function NewProgramClient({
         p_weeks_count: data.weeks_count,
         p_block_start_date: data.start_date,
         p_sessions: buildSessionsPayload(data.sessions),
+        p_discipline: data.discipline?.trim() || undefined,
       });
 
       if (error) throw new Error(mapRpcError(error.message));
@@ -347,6 +356,22 @@ export function NewProgramClient({
                     <p className="text-xs text-destructive">{errors.weeks_count.message}</p>
                   )}
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="discipline">Branş</Label>
+                <Input
+                  id="discipline"
+                  list="discipline-suggestions"
+                  {...register("discipline")}
+                  placeholder="Örn: Artistik Cimnastik"
+                />
+                <datalist id="discipline-suggestions">
+                  {DISCIPLINE_SUGGESTIONS.map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+                <p className="text-xs text-muted-foreground">Sekmede görünecek, kısa tutun</p>
               </div>
 
               <div className="space-y-1.5">

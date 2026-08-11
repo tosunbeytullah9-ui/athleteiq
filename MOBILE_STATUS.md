@@ -1,5 +1,24 @@
 # MOBILE_STATUS.md — Mobil Uygulama Durum Tespiti (Sporcu + Koç/Admin salt-okunur)
 
+> **GÜNCELLEME 2026-08-10 (Parti 13):** Sporcu `(tabs)/program/*` ekranları artık çoklu program
+> destekliyor — `program/index.tsx` `get_athlete_programs` RPC'sini çağırıp bugün-tarih-aktif
+> (`start_date <= today <= end_date`) TÜM yayınlanmış+arşivlenmemiş programları çekiyor, birden
+> fazlaysa yeni `ProgramTabStrip.tsx` ile sekme şeridi gösteriyor (sporcu-kapsamlı önce, etiket
+> `discipline` doluysa o, boşsa `title`), tek program varsa şerit hiç render edilmiyor (regresyon
+> yok). `[day].tsx` artık `programId`'yi `getActiveProgramId` ile yeniden çözmek yerine
+> `index.tsx`'ten route param olarak alıyor — `getActiveProgramId` SİLİNMEDİ, koç-klonu
+> `[day].tsx`'in hâlâ canlı bir çağıranı var (aşağıya bkz.). Egzersiz kartları artık
+> `superset_group`/`superset_order`'a göre gruplanıp yeni `SupersetGroup.tsx` ile çerçeveleniyor
+> (`apps/mobile/lib/supersetGroups.ts`), `null` gruplar ve tek-üyeli gruplar tekil render ediliyor,
+> `ExerciseCard.tsx`'in kendisi değişmedi. **Bilinçli olarak dokunulmayan:** koçun sporcu
+> programını izlediği salt-okunur klon ekranlar (`my-athletes/[athleteId]/program/index.tsx` +
+> `[day].tsx`) — hâlâ eski tek-program mantığıyla çalışıyor, bu partide yeni özellik almadı
+> (kullanıcı onayıyla kapsam dışı bırakıldı, `git diff` ile sıfır değişiklik doğrulandı).
+> `tsc --noEmit` + `expo lint` temiz. **Fiziksel cihaz testi bu ortamda yapılamadı** (cihaz/
+> tarayıcı erişimi yok) — kod/tip/SQL doğrulaması geçti (gerçek İbrahim/Mehmet Ayberk verisiyle
+> `get_athlete_programs` sorgulanarak), görsel doğrulama kullanıcı tarafından yapılmalı. Detay:
+> PROGRESS.md § Parti 13.
+>
 > **GÜNCELLEME 2026-08-08 (Parti 7):** Mobil `ExerciseCard.tsx` artık `exercise_sets`'i join edip
 > set-bazlı reps/yük/RPE gösteriyor — Parti 2.2.D'den beri açık olan deprecated-kolon bağımlılığı
 > (`exercises.load_kg`/`load_percent`/`unit`/`sets`/`reps`/`duration_sec`) tamamen kaldırıldı.

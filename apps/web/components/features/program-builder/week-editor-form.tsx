@@ -68,6 +68,13 @@ const PHASES = [
   { value: "peak", label: "Zirve" },
 ] as const;
 
+const DISCIPLINE_SUGGESTIONS = [
+  "Artistik Cimnastik",
+  "Kuvvet & Kondisyon",
+  "Atletik Performans",
+  "Fizyoterapi",
+] as const;
+
 const sessionSchema = z.object({
   day_of_week: z.number().int().min(1).max(7),
   session_type: z.enum(["strength", "conditioning", "technical", "recovery", "competition"]).optional(),
@@ -84,6 +91,7 @@ const programSchema = z.object({
   title: z.string().min(1, "Program başlığı gerekli"),
   start_date: z.string().min(1, "Başlangıç tarihi gerekli"),
   phase: z.enum(["preparation", "competition", "transition", "peak"]).optional(),
+  discipline: z.string().optional(),
   notes: z.string().optional(),
   sessions: z.array(sessionSchema).default([]),
 });
@@ -235,6 +243,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
       title: program.title,
       start_date: program.start_date ?? undefined,
       phase: (program.phase as ProgramForm["phase"]) ?? undefined,
+      discipline: program.discipline ?? undefined,
       notes: program.notes ?? undefined,
       sessions: defaultSessions,
     },
@@ -302,6 +311,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
         p_start_date: data.start_date,
         p_end_date: deriveEndDate(data.start_date),
         p_sessions: buildSessionsPayload(data.sessions),
+        p_discipline: data.discipline?.trim() || undefined,
       });
 
       if (error) throw new Error(mapRpcError(error.message));
@@ -515,6 +525,22 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                     <p className="text-xs text-destructive">{errors.start_date.message}</p>
                   )}
                 </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="discipline">Branş</Label>
+                <Input
+                  id="discipline"
+                  list="discipline-suggestions"
+                  {...register("discipline")}
+                  placeholder="Örn: Artistik Cimnastik"
+                />
+                <datalist id="discipline-suggestions">
+                  {DISCIPLINE_SUGGESTIONS.map((d) => (
+                    <option key={d} value={d} />
+                  ))}
+                </datalist>
+                <p className="text-xs text-muted-foreground">Sekmede görünecek, kısa tutun</p>
               </div>
 
               <div className="space-y-1.5">

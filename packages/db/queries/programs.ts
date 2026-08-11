@@ -1,5 +1,5 @@
 import type { DbClient } from "./_client";
-import type { TablesInsert, TablesUpdate } from "../types";
+import type { TablesInsert, TablesUpdate, Tables } from "../types";
 
 export async function getPrograms(client: DbClient, orgId: string) {
   const { data, error } = await client
@@ -175,6 +175,49 @@ export async function getDaySessions(client: DbClient, programId: string, dayOfW
     .select(`*, exercises(*, exercise_sets(*))`)
     .eq("program_id", programId)
     .eq("day_of_week", dayOfWeek)
+    .order("order_index", { ascending: true });
+
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** Bugün itibarıyla tarih olarak aktif mi (start_date <= today <= end_date). */
+export function isDateActive(
+  program: Pick<Tables<"training_programs">, "start_date" | "end_date">,
+  todayISODate: string
+): boolean {
+  if (program.start_date && todayISODate < program.start_date) return false;
+  if (program.end_date && todayISODate > program.end_date) return false;
+  return true;
+}
+
+/** Sporcu-kapsamlı programlar takım-kapsamlılardan önce; eşitlikte start_date desc. */
+export function sortAthletePrograms(
+  programs: Tables<"training_programs">[]
+): Tables<"training_programs">[] {
+  return programs.slice().sort((a, b) => {
+    const aFirst = a.athlete_id != null ? 0 : 1;
+    const bFirst = b.athlete_id != null ? 0 : 1;
+    if (aFirst !== bFirst) return aFirst - bFirst;
+    return (b.start_date ?? "").localeCompare(a.start_date ?? "");
+  });
+}
+
+/** Bir programın seans özetini (egzersiz ağacı olmadan) çeker — haftalık genel bakış
+ * için, tam ağaç çeken getDaySessions/getProgramById'den daha hafif. */
+export async function getProgramSessionsSummary(
+  client: DbClient,
+  programId: string
+): Promise<
+  Pick<
+    Tables<"training_sessions">,
+    "id" | "day_of_week" | "session_type" | "title" | "duration_min" | "order_index"
+  >[]
+> {
+  const { data, error } = await client
+    .from("training_sessions")
+    .select("id, day_of_week, session_type, title, duration_min, order_index")
+    .eq("program_id", programId)
     .order("order_index", { ascending: true });
 
   if (error) throw error;
