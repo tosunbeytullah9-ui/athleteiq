@@ -113,6 +113,7 @@ Playwright (E2E testler)
 ```
 AthleteIQ/
 ├── .claude/
+│   ├── scheduled_tasks.lock
 │   └── settings.local.json
 ├── apps/
 │   ├── mobile/
@@ -167,10 +168,12 @@ AthleteIQ/
 │       ├── acwr.ts
 │       ├── athlete.test.ts
 │       ├── athlete.ts
+│       ├── auth.test.ts
 │       ├── auth.ts
 │       ├── exercise.test.ts
 │       ├── exercise.ts
 │       ├── index.ts
+│       ├── org-user.ts
 │       ├── organization.ts
 │       ├── package.json
 │       ├── program.ts
@@ -194,10 +197,12 @@ AthleteIQ/
 │   │   └── storage-version
 │   ├── functions/
 │   │   ├── create-athlete-account/
+│   │   ├── create-org-user/
 │   │   ├── grant-athlete-access/
 │   │   ├── invite-member/
 │   │   ├── polar-sync/
 │   │   ├── reset-athlete-password/
+│   │   ├── reset-user-password/
 │   │   └── whoop-webhook/
 │   ├── migrations/
 │   │   ├── 001_schema.sql
@@ -229,7 +234,9 @@ AthleteIQ/
 │   │   ├── 028_platform_exercises_admin_rls.sql
 │   │   ├── 029_program_archive.sql
 │   │   ├── 030_program_discipline.sql
-│   │   └── 031_1rm_team_scoped_rls.sql
+│   │   ├── 031_1rm_team_scoped_rls.sql
+│   │   ├── 032_profiles.sql
+│   │   └── 033_drop_memberships_insert_self.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -275,6 +282,7 @@ AthleteIQ/
 - **organizations** — Her müşteri (federasyon/kulüp) için bir tenant kaydı; plan (free/pro/enterprise) ve slug (URL prefix) burada tutulur (001_schema.sql).
 - **platform_exercises** — Platform genelinde salt-okunur, global egzersiz kütüphanesi (135 egzersiz, 16 hareket paterni — 006_exercise_seed.sql ile dolduruldu) (005_exercises.sql).
 - **polar_sync_state** — Polar'ın transaction-tabanlı senkronizasyon modelinde, kaynak tipi başına son commit edilen transaction ID'si (004_wearables.sql).
+- **profiles** — auth.users ile 1:1, org kapsamlı kullanıcı adı + görünen ad; sentetik email desenindeki ({username}@{org_slug}.athleteiq.app) org_id/username kaynağı, yalnızca service-role Edge Function'lar yazar (032_profiles.sql, Parti 16).
 - **program_blocks** — Birden fazla haftalık training_programs satırını ortak bir döneme (örn. "8 Haftalık Hazırlık Dönemi") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).
 - **readiness_scores** — wellness_checkins'ten türetilen, bireysel taban çizgisine dayalı readiness skoru cache'i; sadece service_role/Edge Function yazar, hesaplama motoru henüz aktif değil (şema hazır) (013_readiness_scores.sql).
 - **teams** — Bir organizasyona bağlı takım (discipline: artistic/rhythmic/trampoline/diving vb.) (001_schema.sql).
@@ -432,6 +440,45 @@ Herhangi bir plpgsql fonksiyonunda manuel yetkilendirme kontrolü yazılırken (
 ### 4.2 Tip Güvenliği Konvansiyonu — types.ts regenerasyonu
 
 Yeni bir tablo/kolon/RPC fonksiyonu eklendiğinde, `packages/db/types.ts` AYNI COMMIT İÇİNDE regenerate edilmeli (`supabase gen types`). Bunu sonraki bir partiye ertelemek, o aradaki tüm partilerde yeni eklenen alanların/fonksiyonların type-check tarafından doğrulanmadan geçmesine yol açar (Parti 3.B-3.E arası bu şekilde gecikti, bkz. PROGRESS.md).
+
+### 4.3 Kimlik Modeli — org kapsamlı kullanıcı adı, sentetik email deseni (Parti 16)
+
+**Kimlik org kapsamlıdır, global değil.** Sentetik email deseni:
+
+```
+{username}@{org_slug}.athleteiq.app
+
+beytullah.tosun@tgf.athleteiq.app
+beytullah.tosun@koc-universitesi.athleteiq.app   ← aynı username, farklı org, bağımsız hesap
+```
+
+Sonuçları:
+- Aynı `username` farklı org'larda bağımsız olarak var olabilir (`profiles` üzerindeki unique
+  index `(org_id, lower(username))` — org-scoped, global değil).
+- **Bir auth hesabı tam olarak bir org'a aittir.** Aynı kişi iki org'da çalışıyorsa iki ayrı
+  hesabı olur — org değiştirme/çoklu-org tek hesap desteği YOK, bilinçli bir tasarım kararı.
+- `platform_role: super_admin` bayrağı hesaba bağlıdır, org'a değil — `auth.users.raw_user_meta_data`'da
+  tutulur, hiçbir repo scripti bunu set etmez (yalnızca Supabase Dashboard/Admin API'den elle
+  atanır). **Süper admin kurtarma yolu yalnızca Supabase Dashboard'tur** — kod tabanında bu
+  bayrağı veren/sıfırlayan hiçbir UI/Edge Function yoktur.
+
+**Kimlik kaynağı — `profiles` tablosu** (`032_profiles.sql`): `id` (= `auth.users.id`), `org_id`,
+`username`, `full_name`. Yalnızca service-role Edge Function'lar (`create-org-user`) yazar/siler
+— INSERT/DELETE RLS politikası yok. Kullanıcı oluşturma artık "davet et" değil, **admin'in
+doğrudan kullanıcı adı+şifre ile hesap oluşturması**: `create-org-user` Edge Function'ı
+(`is_super_admin()` veya org admin çağırabilir, **koç çağıramaz**) `auth.users` + `profiles` +
+`memberships` (+ role=athlete ise `athletes`) satırlarını tek bir rollback zinciriyle oluşturur.
+Eski `invite-member` akışı emekliye ayrıldı (410 Gone döner) — davet edilen kullanıcı şifresiz
+oluşuyordu, şifre belirleme sayfası hiç yazılmamıştı, uçtan uca hiç çalışmamıştı.
+
+**Karma durum (bilinçli, geçiş dönemi):** Parti 16 öncesi oluşturulan sporcu hesapları
+(`ibrahim.colak@athleteiq.app` gibi) hâlâ ESKİ, org-slug'sız global sentetik email desenini
+kullanıyor (`athletes.username`, GLOBAL unique index — `022_add_athlete_username.sql`) — bu
+partide bilinçli olarak DEĞİŞTİRİLMEDİ (çalışan girişleri bozma riski). Web login formu
+(`resolveLoginIdentifier`, `packages/validators/auth.ts`) her iki deseni de destekler: bare
+username → eski global domain, `username@slug` kısayolu → yeni org-scoped domain, tam email →
+değişmeden geçer. `athletes.username` ve `profiles.username` şu an iki ayrı, senkronize
+edilmeyen depo — birleştirme Parti 18'de değerlendirilecek (bkz. BUGS.md).
 
 ---
 
@@ -938,7 +985,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-11
+Son otomatik senkron: 2026-08-13
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -983,23 +1030,33 @@ Son otomatik senkron: 2026-08-11
 - 029_program_archive.sql
 - 030_program_discipline.sql
 - 031_1rm_team_scoped_rls.sql
+- 032_profiles.sql
+- 033_drop_memberships_insert_self.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
-- **Edge Functions (Supabase MCP `list_edge_functions` ile doğrulandı, 2026-07-29):** dördü de cloud'a deploy edilmiş ve **ACTIVE**:
-  - `invite-member` — v5, ACTIVE
-  - `whoop-webhook` — v4, ACTIVE
-  - `polar-sync` — v4, ACTIVE
-  - `create-athlete-account` — v1, ACTIVE (Parti 4.B)
+- **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
+  `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
+  `reset-athlete-password`'ın deploy versiyonları bu listeye önceki partilerde eklenmemişti,
+  hâlâ ACTIVE ve kullanımda, bkz. §11 Çalışan Özellikler)
+  - `invite-member` — **RETİRE (Parti 16)**, her çağrıda 410 Gone döner, silinmedi (minimal-diff)
+  - `create-org-user` — yeni (Parti 16), ACTIVE — admin/koç/sporcu doğrudan kullanıcı adı+şifre ile oluşturma
+  - `reset-user-password` — yeni (Parti 16), ACTIVE — genel (admin/koç) şifre sıfırlama, `profiles` üzerinden çözer
+  - `create-athlete-account` — ACTIVE (Parti 4.B) — sporcuya özel, hâlâ paralel kullanımda
+  - `grant-athlete-access` / `reset-athlete-password` — ACTIVE (Parti 10) — sporcuya özel
+  - `whoop-webhook` / `polar-sync` — ACTIVE, wearable altyapısı (aktif sync henüz yok)
 
 ### Env Dosyaları
 - Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, WHOOP/Polar placeholders
 - Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
 ### Test Hesapları
-- **Admin (super_admin):** tosunbeytullah9@gmail.com | Şifre: AthleteIQ2026
-- **Coach:** belgeli/kalıcı bir coach test hesabı **yok** (Parti 4.E'de doğrulandı — org'daki tek gerçek membership yukarıdaki admin). Gerekirse Parti 4.E'nin kullandığı yöntemle geçici bir hesap oluşturun (service-role ile `auth.admin.createUser` + `memberships` satırı, TGF org/ACE takım, `role: coach`) ve iş bitince silin — kalıcı bir coach hesabı bilerek burada tutulmuyor (gerçek şifre CLAUDE.md'ye yazılmaz).
+- **Admin (super_admin), TGF:** tosunbeytullah9@gmail.com | Şifre: AthleteIQ2026 — Parti 16'da Koç Üniversitesi membership'i kaldırıldı, artık YALNIZCA TGF'de admin (kimlik org-kapsamlı olduğu için, bkz. §4.3).
+- **Admin, Koç Üniversitesi:** beytullah.tosun@koc-universitesi.athleteiq.app — Parti 16'da `create-org-user` ile oluşturuldu, ayrı bir auth hesabı (yukarıdakiyle aynı kişi ama org kapsamlı kimlik gereği ayrı kayıt). `platform_role: super_admin` bu hesapta YOK, yalnızca yukarıdaki TGF hesabında. Gerçek şifre CLAUDE.md'ye yazılmaz.
+- **Coach:** belgeli/kalıcı bir coach test hesabı **yok** (Parti 4.E'de doğrulandı — org'daki tek gerçek membership yukarıdaki admin). `parti8f-temp-coach@athleteiq.app` / `parti8f-temp-coach-empty@athleteiq.app` (TGF, korunacak test hesapları, Parti 16'da `profiles` satırları backfill edildi) kullanılabilir, gerçek şifreleri CLAUDE.md'ye yazılmaz. Gerekirse Parti 4.E'nin kullandığı yöntemle yeni bir geçici hesap oluşturun (service-role ile `auth.admin.createUser` + `memberships` satırı, TGF org/ACE takım, `role: coach`) ve iş bitince silin.
+- **`cosaswilan@gmail.com`** (eski, şifresiz/kırık davet akışının ürünü) Parti 16'da silindi — artık mevcut değil.
 
-### Çalışan Özellikler (2026-06-26 itibarıyla)
-- ✅ Auth: login (e-posta veya kullanıcı adı + şifre — Magic Link kaldırıldı, Parti 4.D), invite kabul, kullanıcı-adı tabanlı sporcu hesabı oluşturma (Parti 4.B/4.C), middleware (role-based routing)
+### Çalışan Özellikler (2026-06-26 itibarıyla, kimlik bölümü Parti 16'da güncellendi)
+- ✅ Auth: login (e-posta veya kullanıcı adı + şifre, org-scoped kısayol dahil — Magic Link kaldırıldı Parti 4.D, davet akışı kaldırıldı Parti 16), admin'in kullanıcıyı doğrudan oluşturması (`create-org-user`, Parti 16) + kullanıcı-adı tabanlı sporcu hesabı oluşturma (Parti 4.B/4.C, hâlâ paralel), middleware (role-based routing)
+- ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama (Parti 16)
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish
 - ✅ ACWR: log girişi + dashboard
@@ -1009,7 +1066,7 @@ Son otomatik senkron: 2026-08-11
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
 
 ### Bekleyen Özellikler
-- ⏳ Davet e-postası gerçek dış adreslere ulaşmıyor — Edge Functions'ın kendisi deploy edildi/ACTIVE (yukarıya bkz.), ama Supabase'in varsayılan SMTP'si yalnızca proje ekibi üyelerine gönderiyor ve saatte ~2 e-postayla sınırlı; gerçek sporcu/koç davetleri için custom SMTP (Dashboard → Auth → SMTP Settings) kurulmalı (bkz. BUGS.md)
+- ⏳ ~~Davet e-postası gerçek dış adreslere ulaşmıyor~~ — Parti 16'da davet akışının kendisi kaldırıldı (`invite-member` 410 döner), bu madde artık geçersiz. Custom SMTP kurulumu (Dashboard → Auth → SMTP Settings) yalnızca gelecekte bir email-doğrulama/şifre-sıfırlama-linki özelliği eklenirse gerekir.
 - ⏳ Realtime aboneliği (program publish → sporcu anlık görsün)
 - ⏳ Seed verisi genişletme (şu an minimal: 1 org, 2 takım, 1 sporcu)
 - ⏳ Egzersiz kütüphanesi (005_exercises.sql)

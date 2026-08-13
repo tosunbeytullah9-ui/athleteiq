@@ -3,13 +3,30 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import { createClient } from "@/lib/supabase/client";
 import { createOrgSchema, type CreateOrgInput } from "@athleteiq/validators/organization";
 import { createOrganization } from "@athleteiq/db/queries/organizations";
+import { suggestUsername, generateTempPassword } from "@athleteiq/validators/athlete";
+
+function CopyButton({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function handleCopy() {
+    await navigator.clipboard.writeText(value);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  return (
+    <Button type="button" variant="ghost" size="icon" onClick={handleCopy}>
+      {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+    </Button>
+  );
+}
 
 function slugify(str: string) {
   return str
@@ -29,13 +46,18 @@ function slugify(str: string) {
 export function CreateOrganizationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [createdOrg, setCreatedOrg] = useState<{ id: string; name: string } | null>(null);
+  const [createdOrg, setCreatedOrg] = useState<{ id: string; name: string; slug: string } | null>(
+    null
+  );
 
-  // İlk admini davet et (org oluşturulduktan sonraki mini-adım)
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [isInviting, setIsInviting] = useState(false);
-  const [inviteStep, setInviteStep] = useState<"pending" | "sent" | "skipped">("pending");
+  // İlk admini oluştur (org oluşturulduktan sonraki mini-adım) — invite-member
+  // 410 döndürdüğü için (Parti 16) create-org-user'a geçirildi.
+  const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [createError, setCreateError] = useState<string | null>(null);
+  const [isCreatingAdmin, setIsCreatingAdmin] = useState(false);
+  const [adminStep, setAdminStep] = useState<"pending" | "created" | "skipped">("pending");
 
   const {
     register,
@@ -54,7 +76,10 @@ export function CreateOrganizationForm() {
         name: data.name.trim(),
         slug: slugify(data.name),
       });
-      setCreatedOrg({ id: org.id, name: org.name });
+      setCreatedOrg({ id: org.id, name: org.name, slug: org.slug });
+      setFullName("");
+      setUsername("");
+      setPassword(generateTempPassword());
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (code === "23505") {
@@ -71,41 +96,43 @@ export function CreateOrganizationForm() {
     }
   }
 
-  async function onSendInvite(e: React.FormEvent) {
+  async function onCreateAdmin(e: React.FormEvent) {
     e.preventDefault();
     if (!createdOrg) return;
-    setInviteError(null);
+    setCreateError(null);
 
-    if (!inviteEmail) {
-      setInviteError("Email adresi zorunludur.");
+    if (!fullName || !username || !password) {
+      setCreateError("Ad soyad, kullanıcı adı ve şifre zorunludur.");
       return;
     }
 
-    setIsInviting(true);
+    setIsCreatingAdmin(true);
     try {
-      const res = await fetch("/api/auth/invite", {
+      const res = await fetch("/api/org-users/create", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          email: inviteEmail,
-          role: "admin",
           org_id: createdOrg.id,
+          role: "admin",
+          username,
+          password,
+          full_name: fullName,
         }),
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error ?? "Davet gönderilemedi.");
+        throw new Error(typeof data.error === "string" ? data.error : "Admin oluşturulamadı.");
       }
-      setInviteStep("sent");
+      setAdminStep("created");
     } catch (err: unknown) {
-      setInviteError(err instanceof Error ? err.message : "Davet gönderilemedi.");
+      setCreateError(err instanceof Error ? err.message : "Admin oluşturulamadı.");
     } finally {
-      setIsInviting(false);
+      setIsCreatingAdmin(false);
     }
   }
 
   function handleSkip() {
-    setInviteStep("skipped");
+    setAdminStep("skipped");
   }
 
   if (createdOrg) {
@@ -115,43 +142,91 @@ export function CreateOrganizationForm() {
           ✅ &quot;{createdOrg.name}&quot; oluşturuldu.
         </p>
 
-        {inviteStep === "pending" && (
-          <form onSubmit={onSendInvite} className="space-y-3 border-t pt-4">
-            <p className="text-sm font-medium">İlk Adminini Davet Et</p>
+        {adminStep === "pending" && (
+          <form onSubmit={onCreateAdmin} className="space-y-3 border-t pt-4">
+            <p className="text-sm font-medium">İlk Adminini Oluştur</p>
             <div className="space-y-1.5">
-              <Label htmlFor="invite-email">Email Adresi *</Label>
+              <Label htmlFor="admin-full-name">Ad Soyad *</Label>
               <Input
-                id="invite-email"
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="admin@example.com"
+                id="admin-full-name"
+                value={fullName}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setFullName(value);
+                  setUsername((prev) =>
+                    prev === suggestUsername(fullName) ? suggestUsername(value) : prev
+                  );
+                }}
+                placeholder="Ahmet Yılmaz"
               />
             </div>
-            {inviteError && (
-              <p className="text-xs text-destructive">{inviteError}</p>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-username">Kullanıcı adı *</Label>
+              <Input
+                id="admin-username"
+                autoComplete="off"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Giriş kimliği: {username || "kullaniciadi"}@{createdOrg.slug}.athleteiq.app
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="admin-password">Şifre *</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="admin-password"
+                  autoComplete="off"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+                <CopyButton value={password} />
+              </div>
+            </div>
+            {createError && (
+              <p className="text-xs text-destructive">{createError}</p>
             )}
             <div className="flex gap-2">
-              <Button type="submit" disabled={isInviting} size="sm">
-                {isInviting ? "Gönderiliyor..." : "Davet Gönder"}
+              <Button type="submit" disabled={isCreatingAdmin} size="sm">
+                {isCreatingAdmin ? "Oluşturuluyor..." : "Admin Oluştur"}
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={handleSkip}>
-                Şimdilik atla, sonra davet ederim
+                Şimdilik atla, sonra oluştururum
               </Button>
             </div>
           </form>
         )}
 
-        {inviteStep === "sent" && (
-          <p className="text-sm text-muted-foreground flex items-center gap-1 border-t pt-4">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            {inviteEmail} adresine davet gönderildi.
-          </p>
+        {adminStep === "created" && (
+          <div className="space-y-3 border-t pt-4">
+            <p className="text-sm font-medium flex items-center gap-1">
+              <Check className="h-4 w-4 text-green-600" />
+              İlk admin oluşturuldu.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Giriş kimliği (email)</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={`${username}@${createdOrg.slug}.athleteiq.app`} />
+                <CopyButton value={`${username}@${createdOrg.slug}.athleteiq.app`} />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Şifre</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={password} />
+                <CopyButton value={password} />
+              </div>
+            </div>
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Bu şifre bir daha gösterilmeyecek — admine şimdi iletin.
+            </p>
+          </div>
         )}
 
-        {inviteStep === "skipped" && (
+        {adminStep === "skipped" && (
           <p className="text-sm text-muted-foreground border-t pt-4">
-            İlk admin daveti atlandı. Organizasyon davetsiz oluşturuldu.
+            İlk admin oluşturma atlandı. Organizasyon admin&apos;siz oluşturuldu.
           </p>
         )}
       </div>

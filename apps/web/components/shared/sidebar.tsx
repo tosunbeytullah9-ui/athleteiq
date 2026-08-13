@@ -15,6 +15,7 @@ import {
   Activity,
   Layers,
   Sunrise,
+  UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserContext } from "@/lib/hooks/useUserContext";
@@ -35,6 +36,7 @@ const navItems: {
   { href: "/competitions", label: "Yarışmalar", icon: Trophy, roles: ["admin", "coach"] },
   { href: "/tests", label: "Testler", icon: TestTube2, roles: ["admin", "coach"] },
   { href: "/wearables", label: "Wearable", icon: Watch, roles: ["admin", "coach"] },
+  { href: "/settings/users", label: "Kullanıcılar", icon: UserCog, roles: ["admin"] },
   { href: "/settings", label: "Ayarlar", icon: Settings, roles: ["admin"] },
 ];
 

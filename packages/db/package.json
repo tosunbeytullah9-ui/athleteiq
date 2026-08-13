@@ -16,7 +16,8 @@
     "./queries/memberships": "./queries/memberships.ts",
     "./queries/exercises": "./queries/exercises.ts",
     "./queries/organizations": "./queries/organizations.ts",
-    "./queries/wellness": "./queries/wellness.ts"
+    "./queries/wellness": "./queries/wellness.ts",
+    "./queries/profiles": "./queries/profiles.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

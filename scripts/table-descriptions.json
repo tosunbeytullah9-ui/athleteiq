@@ -13,6 +13,7 @@
   "organizations": "Her müşteri (federasyon/kulüp) için bir tenant kaydı; plan (free/pro/enterprise) ve slug (URL prefix) burada tutulur (001_schema.sql).",
   "platform_exercises": "Platform genelinde salt-okunur, global egzersiz kütüphanesi (135 egzersiz, 16 hareket paterni — 006_exercise_seed.sql ile dolduruldu) (005_exercises.sql).",
   "polar_sync_state": "Polar'ın transaction-tabanlı senkronizasyon modelinde, kaynak tipi başına son commit edilen transaction ID'si (004_wearables.sql).",
+  "profiles": "auth.users ile 1:1, org kapsamlı kullanıcı adı + görünen ad; sentetik email desenindeki ({username}@{org_slug}.athleteiq.app) org_id/username kaynağı, yalnızca service-role Edge Function'lar yazar (032_profiles.sql, Parti 16).",
   "program_blocks": "Birden fazla haftalık training_programs satırını ortak bir döneme (örn. \"8 Haftalık Hazırlık Dönemi\") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).",
   "readiness_scores": "wellness_checkins'ten türetilen, bireysel taban çizgisine dayalı readiness skoru cache'i; sadece service_role/Edge Function yazar, hesaplama motoru henüz aktif değil (şema hazır) (013_readiness_scores.sql).",
   "teams": "Bir organizasyona bağlı takım (discipline: artistic/rhythmic/trampoline/diving vb.) (001_schema.sql).",

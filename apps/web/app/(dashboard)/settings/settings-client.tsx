@@ -3,13 +3,12 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Trash2, Users, Building2, Mail, CheckCircle } from "lucide-react";
+import { Plus, Trash2, Users, Building2 } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { Badge } from "@athleteiq/ui/components/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { deleteTeam } from "@athleteiq/db/queries/teams";
 import { createTeamSchema, type CreateTeamInput } from "@athleteiq/validators/team";
@@ -56,54 +55,6 @@ export function SettingsClient({ orgId, org, teams: initialTeams }: Props) {
   } = useForm<CreateTeamInput>({
     resolver: zodResolver(createTeamSchema),
   });
-
-  // Davet formu
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"coach" | "athlete" | "admin">("athlete");
-  const [inviteTeamId, setInviteTeamId] = useState("");
-  const [inviteError, setInviteError] = useState<string | null>(null);
-  const [inviteSuccess, setInviteSuccess] = useState<string | null>(null);
-  const [isInviting, setIsInviting] = useState(false);
-
-  async function onSendInvite(e: React.FormEvent) {
-    e.preventDefault();
-    setInviteError(null);
-    setInviteSuccess(null);
-
-    if (!inviteEmail) {
-      setInviteError("Email adresi zorunludur.");
-      return;
-    }
-    if (inviteRole === "coach" && !inviteTeamId) {
-      setInviteError("Koç için takım seçimi zorunludur.");
-      return;
-    }
-
-    setIsInviting(true);
-    try {
-      const res = await fetch("/api/auth/invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: inviteEmail,
-          role: inviteRole,
-          org_id: orgId,
-          team_id: inviteTeamId || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error ?? "Davet gönderilemedi.");
-      }
-      setInviteSuccess(`${inviteEmail} adresine davet gönderildi.`);
-      setInviteEmail("");
-      setInviteTeamId("");
-    } catch (err: unknown) {
-      setInviteError(err instanceof Error ? err.message : "Davet gönderilemedi.");
-    } finally {
-      setIsInviting(false);
-    }
-  }
 
   async function onCreateTeam(data: CreateTeamInput) {
     setSubmitError(null);
@@ -173,77 +124,6 @@ export function SettingsClient({ orgId, org, teams: initialTeams }: Props) {
           ) : (
             <p className="text-sm text-muted-foreground">Organizasyon bilgisi yüklenemedi.</p>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Üye Davet Et */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Mail className="h-4 w-4" />
-            Üye Davet Et
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSendInvite} className="space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="invite-email">Email Adresi *</Label>
-              <Input
-                id="invite-email"
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="sporcu@example.com"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Rol *</Label>
-                <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as typeof inviteRole)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="athlete">Sporcu</SelectItem>
-                    <SelectItem value="coach">Koç</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-1.5">
-                <Label>Takım {inviteRole === "coach" ? "*" : "(opsiyonel)"}</Label>
-                <Select value={inviteTeamId} onValueChange={setInviteTeamId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Takım seç" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teams.map((team) => (
-                      <SelectItem key={team.id} value={team.id}>
-                        {team.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            {inviteError && (
-              <p className="text-xs text-destructive">{inviteError}</p>
-            )}
-            {inviteSuccess && (
-              <p className="text-xs text-green-600 flex items-center gap-1">
-                <CheckCircle className="h-3 w-3" />
-                {inviteSuccess}
-              </p>
-            )}
-
-            <Button type="submit" disabled={isInviting} size="sm">
-              <Mail className="h-4 w-4" />
-              {isInviting ? "Gönderiliyor..." : "Davet Gönder"}
-            </Button>
-          </form>
         </CardContent>
       </Card>
 

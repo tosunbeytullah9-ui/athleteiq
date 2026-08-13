@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { loginSchema } from "@athleteiq/validators";
+import { loginSchema, resolveLoginIdentifier } from "@athleteiq/validators";
 import type { LoginInput } from "@athleteiq/validators";
 
 export function LoginForm() {
@@ -25,9 +25,7 @@ export function LoginForm() {
   async function onSubmit(values: LoginInput) {
     setServerError(null);
     setIsSubmitting(true);
-    const identifier = values.identifier.includes("@")
-      ? values.identifier
-      : `${values.identifier.toLowerCase()}@athleteiq.app`;
+    const identifier = resolveLoginIdentifier(values.identifier);
     const { error } = await supabase.auth.signInWithPassword({
       email: identifier,
       password: values.password,

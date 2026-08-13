@@ -1,6 +1,21 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-11 (**Parti 15 — 1RM Kayıt Yönetimi** — `athlete_1rm_records`
+> Son güncelleme: 2026-08-13 (**Parti 16 — Kimlik Temeli** — org kapsamlı `profiles` tablosu
+> (`032_profiles.sql`) + org-scoped sentetik email deseni (`{username}@{org_slug}.athleteiq.app`),
+> `create-org-user` Edge Function'ı (admin/koç/sporcu'yu doğrudan kullanıcı adı+şifre ile
+> oluşturuyor, hiç uçtan uca çalışmamış `invite-member` davet akışının yerini alıyor —
+> o fonksiyon artık 410 Gone döndürüyor), genel `reset-user-password` Edge Function'ı,
+> web'de yeni `/settings/users` "Kullanıcılar" ekranı, login formuna org-scoped kısayol
+> desteği (`ahmet.yilmaz@tgf` → `ahmet.yilmaz@tgf.athleteiq.app`), `memberships_insert_self`
+> koç yetki açığının kapatılması (`033_drop_memberships_insert_self.sql`), ve Görev 6
+> backfill/temizlik (1 kırık test hesabı silindi, 5 mevcut kullanıcı için `profiles` satırı
+> dolduruldu, Koç Üniversitesi için ayrı bir admin hesabı oluşturulup tosunbeytullah9'un
+> o org'daki membership'i kullanıcı onayıyla kaldırıldı — kimlik artık "bir hesap = bir org").
+> Canlı doğrulama: yeni koç oluşturma + org-scoped benzersizlik + aynı org'da 409 + login
+> kısayolu + `create-org-user`'a coach JWT'siyle 403 + `invite-member`'a her payload'da 410
+> uçtan uca test edildi; İbrahim/Mehmet Ayberk regresyonsuz. Type-check + lint + web build
+> (32 sayfa) temiz. Detay: § Parti 16)
+> Önceki: 2026-08-11 (**Parti 15 — 1RM Kayıt Yönetimi** — `athlete_1rm_records`
 > koç RLS politikalarına takım kapsamı eklendi (`031_1rm_team_scoped_rls.sql`, Parti 8.E'nin
 > ertelediği bulguyu kapattı), sporcu detay sayfasına yeni "1RM Kayıtları" sekmesi (arama
 > bazlı katalog seçimi, geçmiş, edit/sil), tek bir paylaşılan `normalizeExerciseName`
@@ -350,6 +365,168 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 16 — Kimlik Temeli ✅ (2026-08-13)
+
+#### Kapsam
+
+Koç/admin isimleri hiçbir yerde güvenilir gösterilemiyordu (`profiles` yoktu — Parti 13'ün
+açık bulgusu), ve mevcut davet akışı (`invite-member`) hiç uçtan uca çalışmamıştı — davet
+edilen kullanıcı şifresiz oluşuyordu, şifre belirleme sayfası hiç yazılmamıştı. Bu parti
+"davet et" modelini tamamen terk edip admin'in kullanıcıyı doğrudan kullanıcı adı+şifre ile
+oluşturduğu bir modele geçti — mevcut `create-athlete-account`/`grant-athlete-access` (yalnızca
+sporcu için) deseni admin/koç/sporcu'nun hepsini kapsayacak şekilde genelleştirildi. Kimlik
+org kapsamlı hale getirildi: `{username}@{org_slug}.athleteiq.app`, bir auth hesabı tam olarak
+bir org'a ait (iki org'da çalışan biri iki ayrı hesaba sahip olur).
+
+#### Değişiklikler
+
+- **`supabase/migrations/032_profiles.sql`** (yeni migration): `profiles (id references
+  auth.users cascade, org_id, username, full_name, created_at, updated_at)`, org-scoped
+  case-insensitive unique index (`(org_id, lower(username))` — `athletes.username`'in GLOBAL
+  index'inden [022] bilinçli olarak ayrı bir namespace), `profiles_updated_at` trigger
+  (mevcut `update_updated_at()` fonksiyonuna bind edildi, yeniden tanımlanmadı).
+  `profiles_select` (super_admin, kendi satırı, veya aynı org'da herhangi bir membership'i
+  olan herkes) + `profiles_update` (super_admin veya org admin) RLS — INSERT/DELETE
+  politikası BİLİNÇLİ olarak yok, kayıtlar yalnızca service-role Edge Function'lar yazar.
+- **`supabase/migrations/033_drop_memberships_insert_self.sql`** (yeni migration):
+  `memberships_insert_self` (008_rls_signup.sql, artık kaldırılmış self-serve signup
+  sihirbazı içindi) drop edildi. Önce doğrulandı: politikanın tehlikeli dalı zaten
+  024_revert_signup_self_serve_rls.sql'de kapatılmıştı, kalan hâli (`is_super_admin() OR
+  my_role(org_id) IN ('admin','coach')`) `memberships_insert`'ten (yalnızca admin) daha
+  geniş bir ikinci permissive politikaydı — bir coach doğrudan Supabase client SDK'sıyla
+  kendi org'unda kendine `admin` rolü verebiliyordu. Hiçbir çalışan uygulama akışı bu dala
+  bağımlı değildi. Detay: BUGS.md § Orta.
+- **`packages/db/types.ts`**: `supabase gen types typescript --linked` ile regenerate edildi
+  (aynı commit — CLAUDE.md §4.2 gereği). Yerel Docker/`supabase db reset` bu ortamda
+  kullanılamadığı için (`Docker Desktop` yok) `--local` yerine `--linked` kullanıldı.
+- **`packages/db/queries/profiles.ts`** (yeni): `getProfile`/`getProfilesByOrg`. Barrel
+  (`queries/index.ts`) + `package.json` exports map'ine eklendi (Parti 14 dersi — ikisi de
+  gerekli, yalnızca barrel yetmiyor).
+- **`packages/validators/org-user.ts`** (yeni): `createOrgUserSchema` (rol-koşullu `team_id`
+  zorunluluğu — coach/athlete zorunlu, admin yasak — `.superRefine` ile, `createAthleteSchema`
+  deseninden esinlenildi), `resetUserPasswordSchema`. Barrel + exports map'e eklendi.
+- **`packages/validators/auth.ts`**: `resolveLoginIdentifier(raw)` eklendi — login formundaki
+  serbest metni gerçek/sentetik email'e çözer: "@" yoksa eski global domain eklenir (geriye
+  dönük uyumluluk, mevcut sporcu hesapları), "@" var ve domain'de "." yoksa (`ahmet.yilmaz@tgf`
+  kısayolu) `.athleteiq.app` eklenir, aksi halde (gerçek email veya tam sentetik email)
+  değiştirilmeden geçer. `packages/validators/auth.test.ts` (yeni, 6 test — 3 dal + edge case'ler).
+- **`supabase/functions/create-org-user/index.ts`** (yeni Edge Function): JWT doğrula → payload
+  doğrula (rol-bazlı `team_id` zorunluluğu/yasağı) → yetki (`is_super_admin()` OR org admin —
+  **koç çağıramaz**, `grant-athlete-access`'in yetki deseniyle aynı ama coach dalı YOK) → org
+  slug çek → sentetik email kur → `profiles` ön-kontrolü (409) → `auth.admin.createUser` →
+  `profiles` insert → `memberships` insert → role=athlete ise `athletes` insert (`athlete_fields`
+  payload'ından birth_date/gender/height_cm/weight_kg/position/notes — hepsi nullable). LIFO
+  rollback zinciri (`grant-athlete-access`'teki 2 adımlık desenin 3-4 adıma genelleştirilmiş
+  hali) — herhangi bir adım patlarsa önceki tüm adımlar ters sırada geri alınır, yetim
+  `auth.users`/`profiles`/`memberships` satırı bırakılmaz.
+- **`supabase/functions/reset-user-password/index.ts`** (yeni Edge Function):
+  `reset-athlete-password`'ın hemen hemen birebir aynısı, hedefi `athletes` yerine `profiles`'tan
+  çözer, yetki SADECE admin (koç yok — `reset-athlete-password`'dan farkı budur). Yalnızca
+  `profiles` satırı olan (yani `create-org-user` ile oluşturulmuş) kullanıcıları çözer; eski
+  akıştan gelen backfill edilmemiş sporcular için mevcut `reset-athlete-password` kullanılmaya
+  devam ediyor.
+- **`supabase/functions/invite-member/index.ts`**: OPTIONS/CORS kontrolünden hemen sonra,
+  her şeyden önce çalışan bir 410 Gone guard eklendi (dosyanın kendi üslubuna uyularak inline
+  `new Response`, `json()` helper'ı yok). Mevcut gövde minimal-diff için silinmedi (artık
+  ulaşılamaz kod — kolay geri alınabilirlik için bilinçli tercih).
+- **`apps/web/app/api/org-users/create/route.ts`** + **`reset-password/route.ts`** (yeni):
+  `api/auth/invite/route.ts`/`api/athletes/grant-login/route.ts` proxy deseninin aynısı.
+- **`apps/web/components/features/settings/create-org-user-modal.tsx`** (yeni):
+  `grant-access-modal.tsx`'in generate→display→CopyButton deseni. Rol admin/coach/athlete
+  (görev talimatı gereği üçü de) — athlete seçilince `add-athlete-modal.tsx`'ten taşınan
+  opsiyonel alanlar (doğum tarihi/cinsiyet/boy/kilo/pozisyon/notlar) görünür. `full_name`
+  girilince `suggestUsername()` ile canlı öneri, `generateTempPassword()` ile şifre önerisi.
+- **`apps/web/components/features/settings/reset-user-password-modal.tsx`** (yeni):
+  `reset-password-modal.tsx`'in birebir aynısı, `/api/org-users/reset-password`'a POST eder.
+- **`apps/web/app/(dashboard)/settings/users/page.tsx`** + **`users-client.tsx`** (yeni,
+  yeni route `/settings/users`): Server Component `getMembershipsByOrg` + `getProfilesByOrg`'u
+  paralel çekiyor — ikisi arasında doğrudan FK olmadığı için (ikisi de bağımsız olarak
+  `auth.users`'a referans veriyor) PostgREST embed edemiyor, `user_id`/`id` üzerinden JS'te
+  merge ediliyor. Gerçek giriş email'i `username+slug`'dan client-side hesaplanamıyor
+  (backfill edilen eski-desen kullanıcılar hâlâ eski domain'de) — `auth.admin.getUserById`
+  ile N+1 çekilip merge ediliyor (küçük org üye sayılarında kabul edilebilir, org büyürse
+  yeniden değerlendirilmeli). Middleware'in `/settings` guard'ı zaten prefix-match olduğu
+  için (`pathname.startsWith("/settings")`) yeni route için middleware değişikliği gerekmedi.
+- **`apps/web/components/shared/sidebar.tsx`**: `navItems`'a `/settings/users` "Kullanıcılar"
+  girdisi eklendi (`UserCog` ikonu — `Users` zaten "Sporcular" için kullanılıyordu).
+- **`apps/web/app/(auth)/login/login-form.tsx`**: identifier çözümleme inline ifadeden
+  `resolveLoginIdentifier()` çağrısına geçti.
+- **`apps/web/app/admin/organizations/new/create-organization-form.tsx`**: "İlk Adminini
+  Davet Et" adımı `create-org-user`'a geçirildi (görev talimatının açık listesinde yoktu —
+  `invite-member` 410 dönmeye başlayınca bu adım kırılacaktı, kullanıcıya soruldu, önerilen
+  seçenek onaylandı). `createdOrg` state'i `slug`'ı da taşıyacak şekilde genişledi
+  (`createOrganization()` zaten döndürüyordu, yalnızca destructure genişletildi). Başarı
+  görünümü artık "email gönderildi" yerine kimlik bilgileri + CopyButton gösteriyor.
+- **`apps/web/app/(dashboard)/settings/settings-client.tsx`**: "Üye Davet Et" Card'ı, ilgili
+  state ve `onSendInvite` tamamen kaldırıldı; kullanılmayan importlar (`Mail`, `CheckCircle`,
+  `Select*`) temizlendi. "Organizasyon Bilgileri" ve "Takımlar" kartlarına dokunulmadı.
+
+#### Doğrulama
+
+- Type-check: `@athleteiq/validators` (`tsc --noEmit` 0 hata), `@athleteiq/db` (0 hata),
+  web (`tsc --noEmit` 0 hata). `pnpm --filter @athleteiq/validators test` → **18/18 test
+  yeşil** (7 mevcut `athlete.test.ts` + 5 mevcut `exercise.test.ts` + 6 yeni `auth.test.ts`).
+  `pnpm --filter web lint` → 0 hata (24 önceden var olan uyarı, bu partiden bağımsız — bir
+  gerçek hata [`react/no-unescaped-entities`, yeni eklenen skip mesajında] anında düzeltildi).
+  `pnpm --filter web build` → **32 sayfa** (`/settings/users`, `/api/org-users/create`,
+  `/api/org-users/reset-password` dahil), sıfır derleme hatası.
+- **Canlı uçtan uca test** (Supabase Cloud `nlmwcygmbbxmfpsubvmh`, gerçek Auth REST + gerçek
+  JWT'ler, `tosunbeytullah9@gmail.com` süper admin oturumuyla): `create-org-user` ile TGF'de
+  kullanıcı adı `beytullah.tosun` şifresi bilinen bir hesap denemesi → aynı org'da tekrar
+  deneme `409 "Bu kullanıcı adı bu organizasyonda alınmış"`; aynı username Koç Üniversitesi'nde
+  (farklı org) denendiğinde `200` başarılı — org-scoped benzersizliğin asıl testi geçti.
+  Login kısayolu ucu ucuna doğrulandı: `resolveLoginIdentifier("beytullah.tosun@koc-universitesi")`
+  → `"beytullah.tosun@koc-universitesi.athleteiq.app"`, bu email+şifreyle gerçek
+  `signInWithPassword` başarılı oldu. `invite-member`'a payload'lı bir POST → `410`
+  (Türkçe mesajla). Migration `032`/`033` canlıya `supabase db push` ile uygulandı — bu
+  sırada, bu partiden ÖNCEDEN var olan bir migration-history sapması bulundu (remote'ta
+  029/030/031 yerel dosya adlarıyla değil, üç ayrı zaman damgalı sürümle kayıtlıydı —
+  önceki bir partide `db push` yerine başka bir yolla uygulanmış olmalı); PostgREST üzerinden
+  `training_programs.discipline`/`is_archived` kolonlarının zaten var olduğu doğrulanarak
+  (200 OK) içerik farkı olmadığı teyit edildi, `supabase migration repair` ile yalnızca
+  kayıt defteri hizalandı (SQL çalıştırılmadı), ardından `032`/`033` sorunsuz push edildi.
+- **Görev 6 backfill/temizlik** (her adım ayrı çalıştırıldı ve doğrulandı):
+  - **Adım 0 (keşif):** İbrahim'in gerçek `athletes.username`'i `ibrahim.colak` (varsayılmadı,
+    sorgulandı), Mehmet Ayberk'inki `mehmet.ayberk.kosak`. `cosaswilan@gmail.com`'un tek FK
+    bağımlısı `memberships.user_id` (1 satır, `ON DELETE CASCADE`) — diğer 8 kolon (
+    `training_programs.created_by` vb.) taranıp 0 bağımlı bulundu.
+  - **Adım 1:** `cosaswilan@gmail.com` `auth.admin.deleteUser` ile silindi, membership
+    cascade ile temizlendiği doğrulandı (0 kalan satır).
+  - **Adım 2:** 5 `profiles` satırı backfill edildi — `tosunbeytullah9@gmail.com` (TGF,
+    `beytullah.tosun`, "Beytullah Tosun" — kullanıcıya soruldu, uydurulmadı),
+    `parti8f-temp-coach`/`parti8f-temp-coach-empty` (TGF, username=email local-part, full_name
+    yer tutucu), `ibrahim.colak`/`mehmet.ayberk.kosak` (TGF, `athletes.username`/`full_name`
+    değerleriyle — İbrahim'in `full_name`'i DB'de büyük harf `İBRAHİM ÇOLAK`, olduğu gibi
+    kullanıldı). Türkçe karakterler (İ/Ç/ş/ö) bir `.mjs` dosyası üzerinden UTF-8 yazılarak
+    doğru şekilde geçti (Parti 10'un shell-text mangling dersi tekrarlanmadı).
+  - **Adım 3:** İkinci admin hesabı `create-org-user` ile oluşturuldu —
+    `beytullah.tosun@koc-universitesi.athleteiq.app`, `profiles`+`memberships` satırları
+    doğru (yeni, bağımsız bir `auth.users.id`).
+  - **HARD STOP:** Adım 4'ten önce kullanıcıdan açık onay alındı (AskUserQuestion) —
+    onaylandı.
+  - **Adım 4:** `tosunbeytullah9@gmail.com`'un Koç Üniversitesi membership'i silindi (silinen
+    satır tam olarak loglandı).
+  - **Adım 5:** `tosunbeytullah9@gmail.com`'un kalan tek membership'i TGF/admin olarak
+    doğrulandı; `platform_role: super_admin` yalnızca bu hesapta kaldığı, yeni Koç Üni
+    hesabına verilmediği doğrulandı.
+- **Regresyon:** İbrahim ve Mehmet Ayberk'in email'lerine dokunulmadı (mobilde giriş
+  regresyonsuz kalması bekleniyor — mobil login zaten tam email istiyor, bu partide mobil
+  login akışına hiç dokunulmadı). Parti 13/14/15 ekranlarına (program sekmeleri, wellness,
+  1RM) dosya bazında dokunulmadı.
+
+#### Kapsam dışı bırakılan (görev talimatı gereği)
+
+E-posta ile giriş kapatılmadı (Parti 18). Mevcut sporcuların sentetik email'leri
+değiştirilmedi (`ibrahim.colak@athleteiq.app`/`mehmet.ayberk.kosak@athleteiq.app` eski
+desende kaldı — BUGS.md'ye açık not olarak eklendi). `create-athlete-account`/
+`grant-athlete-access` fonksiyonlarına dokunulmadı — iki yol (eski sporcu-özel akış, yeni
+genel `create-org-user`) bilinçli olarak paralel bırakıldı, birleştirme Parti 18'de
+değerlendirilecek. `organizations` INSERT/UPDATE politikalarına dokunulmadı. Org değiştirici
+ekranı eklenmedi. `athletes.username` kolonu silinmedi — `profiles.username` ile paralel
+kalıyor, iki ayrı depo olduğu BUGS.md'ye açık not olarak eklendi.
+
+---
 
 ### Parti 15 — 1RM Kayıt Yönetimi ✅ (2026-08-11)
 

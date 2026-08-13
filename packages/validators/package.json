@@ -11,7 +11,8 @@
     "./team": "./team.ts",
     "./organization": "./organization.ts",
     "./wellness": "./wellness.ts",
-    "./exercise": "./exercise.ts"
+    "./exercise": "./exercise.ts",
+    "./org-user": "./org-user.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

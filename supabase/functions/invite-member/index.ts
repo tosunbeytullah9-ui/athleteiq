@@ -18,6 +18,16 @@ Deno.serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // RETİRE (Parti 16): davet akışı create-org-user Edge Function'ı lehine
+  // kaldırıldı. Davet edilen kullanıcı şifresiz oluşuyordu, şifre belirleme
+  // sayfası hiç yazılmamıştı, akış uçtan uca hiç çalışmamıştı (bkz. BUGS.md).
+  // Aşağıdaki gövde artık ULAŞILAMAZ — minimal diff / kolay geri alınabilirlik
+  // için bilinçli olarak silinmedi.
+  return new Response(
+    JSON.stringify({ error: "Davet akışı kullanımdan kaldırıldı. Kullanıcıyı doğrudan oluşturun." }),
+    { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+  );
+
   try {
     // Çağıran kullanıcının yetki doğrulaması
     const authHeader = req.headers.get("Authorization");

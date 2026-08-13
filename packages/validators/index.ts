@@ -6,3 +6,4 @@ export * from "./team";
 export * from "./organization";
 export * from "./wellness";
 export * from "./exercise";
+export * from "./org-user";
