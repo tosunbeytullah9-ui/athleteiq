@@ -26,7 +26,7 @@ import { acwrLogSchema, type AcwrLogInput } from "@athleteiq/validators/acwr";
 import type { Tables } from "@athleteiq/db/types";
 
 type AcwrLog = Tables<"acwr_logs">;
-type Athlete = { id: string; full_name: string; team_id: string };
+type Athlete = { id: string; full_name: string; team_id: string | null };
 
 interface Props {
   athletes: Athlete[];

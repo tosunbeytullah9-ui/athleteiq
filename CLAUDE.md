@@ -113,7 +113,6 @@ Playwright (E2E testler)
 ```
 AthleteIQ/
 ├── .claude/
-│   ├── scheduled_tasks.lock
 │   └── settings.local.json
 ├── apps/
 │   ├── mobile/
@@ -236,7 +235,11 @@ AthleteIQ/
 │   │   ├── 030_program_discipline.sql
 │   │   ├── 031_1rm_team_scoped_rls.sql
 │   │   ├── 032_profiles.sql
-│   │   └── 033_drop_memberships_insert_self.sql
+│   │   ├── 033_drop_memberships_insert_self.sql
+│   │   ├── 034_teams_rls_fix.sql
+│   │   ├── 035_teams_metadata.sql
+│   │   ├── 036_athletes_team_id_nullable.sql
+│   │   └── 037_organizations_update_policy.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -985,7 +988,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-13
+Son otomatik senkron: 2026-08-15
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1032,6 +1035,10 @@ Son otomatik senkron: 2026-08-13
 - 031_1rm_team_scoped_rls.sql
 - 032_profiles.sql
 - 033_drop_memberships_insert_self.sql
+- 034_teams_rls_fix.sql
+- 035_teams_metadata.sql
+- 036_athletes_team_id_nullable.sql
+- 037_organizations_update_policy.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/

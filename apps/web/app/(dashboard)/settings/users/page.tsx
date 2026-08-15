@@ -49,8 +49,10 @@ export default async function SettingsUsersPage() {
   );
 
   const users = memberships.map((m) => ({
+    membership_id: m.id,
     user_id: m.user_id,
     role: m.role,
+    team_id: m.team_id,
     team_name: m.teams?.name ?? null,
     joined_at: m.joined_at,
     profile: profileMap.get(m.user_id) ?? null,

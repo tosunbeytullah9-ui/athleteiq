@@ -1,6 +1,19 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-13 (**Parti 16 — Kimlik Temeli** — org kapsamlı `profiles` tablosu
+> Son güncelleme: 2026-08-15 (**Parti 17 — Organizasyon ve Takım Yönetimi** —
+> `teams_insert`'in coach yetki açığı (`034_teams_rls_fix.sql`, `memberships_insert_self`
+> deseninin mirror'ı) kapatıldı; org admini artık kendi organizasyonunu düzenleyebiliyor
+> (`orgs_update` genişletildi + `slug`/`plan` için BEFORE UPDATE trigger koruması,
+> `037_organizations_update_policy.sql`); takım yönetimi (`updated_at`/org-bazlı benzersiz
+> isim, sayımlı liste, düzenleme, güvenli silme onayı) ve koç↔takım atama arayüzü eklendi.
+> Planlama sırasında görev talimatının kendi varsayımıyla çelişen gerçek bir şema hatası
+> bulundu — `athletes.team_id` `NOT NULL` idi ama FK'si `ON DELETE SET NULL`, takım silme
+> "sporcu takımsız kalır" yerine ham bir NOT NULL ihlali fırlatıyordu — kullanıcı onayıyla
+> `036_athletes_team_id_nullable.sql` ile düzeltildi. Canlı doğrulama (gerçek JWT'ler,
+> geçici hesaplarla): 13/13 RLS/trigger/constraint kontrolü geçti; tarayıcı aracı bu ortamda
+> mevcut olmadığı için gerçek `/settings` arayüzü uçtan uca tıklanarak test edilemedi (açıkça
+> belirtildi). Type-check 6/6 paket + web build (30 sayfa) temiz. Detay: § Parti 17)
+> Önceki: 2026-08-13 (**Parti 16 — Kimlik Temeli** — org kapsamlı `profiles` tablosu
 > (`032_profiles.sql`) + org-scoped sentetik email deseni (`{username}@{org_slug}.athleteiq.app`),
 > `create-org-user` Edge Function'ı (admin/koç/sporcu'yu doğrudan kullanıcı adı+şifre ile
 > oluşturuyor, hiç uçtan uca çalışmamış `invite-member` davet akışının yerini alıyor —
@@ -525,6 +538,130 @@ genel `create-org-user`) bilinçli olarak paralel bırakıldı, birleştirme Par
 değerlendirilecek. `organizations` INSERT/UPDATE politikalarına dokunulmadı. Org değiştirici
 ekranı eklenmedi. `athletes.username` kolonu silinmedi — `profiles.username` ile paralel
 kalıyor, iki ayrı depo olduğu BUGS.md'ye açık not olarak eklendi.
+
+---
+
+### Parti 17 — Organizasyon ve Takım Yönetimi ✅ (2026-08-15)
+
+#### Kapsam
+
+Parti 16'nın kapattığı `memberships_insert_self` koç yetki açığıyla aynı sınıftan bir ikinci
+bulgu (`teams_insert`'in coach dalı) kapatıldı, ve o partide bilinçli olarak dokunulmayan
+"organizasyon UPDATE politikaları" ile "org değiştirici ekranı" bu partide ele alındı: org
+admini artık kendi organizasyonunu düzenleyebiliyor, takım CRUD'u (sayım + güvenli silme) ve
+koç↔takım atama arayüzü eklendi.
+
+Planlama sırasında görev talimatının kendi "doğrulanmış mevcut durum" varsayımıyla çelişen
+gerçek bir şema hatası bulundu: `athletes.team_id` `NOT NULL` idi ama FK'si `ON DELETE SET
+NULL` — takım silme, "sporcu takımsız kalır" davranışı yerine ham bir Postgres NOT NULL
+ihlali fırlatıyordu. Kullanıcıya soruldu (AskUserQuestion, plan onayından önce), kısıtı
+gevşetme (CASCADE zincirine dokunmadan) onaylandı. Aynı şekilde, `orgs_update`'i org
+adminine genişletmenin kolon-seviyesinde bir koruma sağlamadığı (RLS satır-seviyesinde
+çalışır — bir org admini formu atlayıp `slug`/`plan`'ı doğrudan API çağrısıyla değiştirebilirdi)
+ve `memberships`'te hiç UPDATE RLS politikası olmadığı (Görev 5'in koç-takım atama akışı için)
+bulundu, ikisi de kullanıcı onayıyla çözüldü (sırasıyla: BEFORE UPDATE trigger, service-role
+API route — RLS politikası eklemeden).
+
+#### Değişiklikler
+
+- **`supabase/migrations/034_teams_rls_fix.sql`** (yeni migration): `teams_insert`
+  (`008_rls_signup.sql`, coach dalı: `my_role(org_id) in ('admin','coach')`) drop edildi —
+  `memberships_insert_self`ile birebir aynı desen, `033`'ün mirror'ı. Önce doğrulandı: canlı
+  kod tabanındaki tek INSERT yolu (`apps/web/app/api/teams/route.ts`) zaten service-role
+  client + kendi `["admin","coach"].includes(role)` kontrolüyle çalışıyor, bu RLS politikasına
+  hiç tabi değil — coach dalı hiçbir çalışan akış tarafından kullanılmıyordu. `teams_write`
+  (zaten admin-only, `for all`) ve `teams_select` `coalesce(..., false)` ile yeniden yazıldı
+  (CLAUDE.md §4.1 konvansiyonu).
+- **`supabase/migrations/035_teams_metadata.sql`** (yeni migration): `teams.updated_at`
+  (+ mevcut `update_updated_at()` fonksiyonuna bağlı trigger) ve org-bazlı case-insensitive
+  benzersiz index (`(org_id, lower(name))`) eklendi. Uygulamadan önce mükerrer isim kontrolü
+  yapıldı (5 mevcut takımın hepsi kendi org'unda benzersizdi).
+- **`supabase/migrations/036_athletes_team_id_nullable.sql`** (yeni migration):
+  `athletes.team_id`'den `NOT NULL` kaldırıldı — yukarıdaki şema hatasının düzeltmesi, kullanıcı
+  onayıyla (planlama sırasında AskUserQuestion). Kod tabanının 4 farklı yerinde (`acwr-client.tsx`,
+  `programs-client.tsx`, `new-program-client.tsx`, `edit-program-client.tsx`,
+  `week-editor-form.tsx`) `team_id: string` şeklinde dar tipli sporcu prop'ları vardı — hepsi
+  `team_id: string | null`'a genişletildi (tip hatası olarak `tsc` tarafından yakalandı).
+- **`supabase/migrations/037_organizations_update_policy.sql`** (yeni migration): `orgs_update`
+  (önceden yalnızca `is_super_admin()`) org adminine genişletildi
+  (`is_super_admin() or my_role(id)='admin'`, `coalesce` ile). RLS satır-seviyesinde çalıştığı
+  için kolon-seviyesi bir koruma sağlamıyor — `protect_org_admin_fields()` BEFORE UPDATE
+  trigger'ı eklendi: çağıran süper admin değilse `slug`/`plan` değişikliği reddediliyor
+  (`raise exception`), UI'ı atlayan bir API çağrısı da kapsanıyor.
+- **`packages/db/types.ts`**: `supabase gen types typescript --linked` ile regenerate edildi
+  (aynı commit — CLAUDE.md §4.2).
+- **`packages/db/queries/teams.ts`**: `updateTeam` (mevcut `updateProgram` deseni) ve
+  `getTeamCounts(client, orgId)` eklendi — org'daki `athletes`/`memberships`/
+  `training_programs`/`competitions`'ı `team_id` bazında tek geçişte sayıp bir
+  `Map<teamId, TeamCounts>` döndürüyor; hem takım listesi hem silme onay diyaloğu bu ortak
+  kaynağı kullanıyor.
+- **`packages/db/queries/organizations.ts`**: `updateOrganization` eklendi (aynı desen).
+- **`packages/validators/organization.ts`**: `updateOrgSchema` (name/logo_url) ve
+  `updateOrgSlugPlanSchema` (slug/plan, yalnızca süper admin yolunda kullanılıyor) eklendi.
+  `team.ts`'deki mevcut `createTeamSchema`/`updateTeamSchema`'ya dokunulmadı.
+- **`apps/web/app/api/memberships/[id]/team/route.ts`** (yeni, Görev 5): `PATCH` — mevcut
+  `/api/teams` route'unun kimlik doğrulama şeklini birebir taşıyor (cookie → session →
+  service-role ile çağıranın org/rol'ünü bul), ek olarak hedef membership'in çağıranla aynı
+  org'da olduğunu ve yeni `team_id`'nin (varsa) aynı org'a ait olduğunu doğruluyor (çapraz-org
+  atama engeli). `memberships` üzerinde yeni bir RLS politikası eklenmedi — kullanıcı onayıyla,
+  bu route service-role ile RLS'i tamamen by-pass ediyor (kendi yetki kontrolünü kendi yapıyor).
+- **`apps/web/app/(dashboard)/settings/page.tsx`** + **`settings-client.tsx`** (Görev 3 & 4):
+  "Organizasyon Bilgileri" kartı salt-okunurdan düzenlenebilir forma çevrildi — `name`/
+  `logo_url` her admin için, `slug` org admini için salt-okunur (+ neden açıklaması),
+  süper admin için düzenlenebilir (+ "N kullanıcının giriş kimliği eski slug'da kalacak"
+  uyarısı, `profiles` sayısından), `plan` org admini için `Badge`, süper admin için `<select>`.
+  "Takımlar" kartı sayım (sporcu/koç/program) gösterecek şekilde genişletildi, her satıra
+  düzenleme (yeni `edit-team-modal.tsx`, radix Dialog + RHF, mevcut `create-org-user-modal.tsx`
+  deseni) ve silme eklendi. Takım oluşturma/düzenleme formlarına branş `<datalist>` önerileri
+  eklendi (görev talimatındaki 6 öneri).
+- **`apps/web/components/features/settings/delete-team-dialog.tsx`** (yeni): mevcut
+  `delete-confirm-dialog.tsx` görsel kabuğu üzerine, `getTeamCounts`'tan gelen gerçek sayılarla
+  etki listesi (program/sporcu/koç/yarışma — sabit metin yok) + program sayısı > 0 ise takım
+  adını yazma zorunluluğu (buton disabled).
+- **`apps/web/app/(dashboard)/athletes/athletes-client.tsx`**: takımsız (`team_id: null`)
+  sporcular için "Takımsız" rozeti eklendi — aynı zamanda `teamMap[athlete.team_id]`'nin artık
+  nullable bir anahtarla indekslenmesinden doğan bir tip hatasını da düzeltti.
+- **`apps/web/app/(dashboard)/settings/users/page.tsx`** + **`users-client.tsx`** (Görev 5):
+  `OrgUser`'a `membership_id`/`team_id` eklendi; koç satırlarına, `/api/memberships/[id]/team`'e
+  PATCH atan yeni bir inline `<select>` (`CoachTeamSelect`) eklendi.
+
+#### Doğrulama
+
+- Type-check: `pnpm turbo run type-check` — 6/6 paket temiz (ilk denemede migration'ın
+  `athletes.team_id`'yi nullable yapması 6 dosyada zincirleme tip hatası açtı, hepsi
+  düzeltildi). `pnpm --filter web build` → 30 sayfa, sıfır derleme hatası (yeni
+  `/api/memberships/[id]/team` route'u dahil), yeni dosyalarda sıfır yeni ESLint uyarısı.
+- **Canlı doğrulama** (Supabase Cloud `nlmwcygmbbxmfpsubvmh`, gerçek Auth REST + gerçek
+  JWT'ler — geçici coach/org-admin/super-admin hesapları oluşturulup iş bitince silindi):
+  13/13 kontrol geçti — (1) coach'un `teams`'e doğrudan INSERT denemesi `42501` ile reddedildi
+  (Görev 1'in asıl testi), coach'un kendi org'undaki `teams`'i SELECT etmesi regresyonsuz
+  çalışıyor; (2) org admini kendi org'unu yeniden adlandırabiliyor; (3) org admini `slug`
+  değiştirmeye çalışınca trigger `P0001` ile reddediyor ("Slug yalnızca süper admin..."),
+  aynısı `plan` için; (4) org admini başka bir org'a (TGF) dokunamıyor (0 satır etkilendi —
+  izolasyon); (5) süper admin bayraklı geçici hesap `slug`/`plan`'ı başarıyla değiştirebiliyor;
+  (6) aynı org'da küçük/büyük harf duyarsız mükerrer takım adı `23505` ile reddediliyor;
+  (7) `teams.updated_at` trigger'ı UPDATE'te değişiyor; (8) sporcusu olan bir takımı silmek
+  artık hatasız çalışıyor, sporcunun `team_id`'si `null` oluyor, sporcunun kendisi silinmiyor
+  (şema düzeltmesinin asıl testi). Test verisi (geçici kullanıcılar/membership/takım/sporcu)
+  temizlendi, org/takım/üyelik/sporcu/program sayıları orijinaline döndüğü SQL ile doğrulandı.
+  ACE/ACK takımlarına dokunulmadı.
+- **Doğrulanamayan kapsam (dürüstçe belirtilmeli):** Bu ortamda tarayıcı aracı yok — yukarıdaki
+  canlı testler REST API + gerçek JWT ile RLS/trigger/constraint katmanını doğrudan hedef aldı
+  (en kritik, en hataya-açık katman), ama gerçek `/settings` arayüzünün tarayıcıda tıklanarak
+  test edilmesi (form alanlarının doğru gizlenmesi/salt-okunur olması, modal akışları, toast
+  bildirimleri) yapılmadı. `/api/memberships/[id]/team` ve `/api/teams` route'ları middleware
+  seviyesinde (oturumsuz istek → `/login`'e redirect) doğrulandı ama uçtan uca gerçek bir
+  tarayıcı oturumu cookie'siyle çağrılmadı — kod, kanıtlanmış `/api/teams` deseninin birebir
+  aynısını izliyor. Parti 13/14/15/16 ekranlarına dosya bazında dokunulmadı (regresyon riski
+  düşük) ama kendileri yeniden çalıştırılmadı.
+
+#### Kapsam dışı bırakılan (görev talimatı gereği)
+
+Organizasyon silme arayüzü eklenmedi (yalnızca Supabase Dashboard, bilinçli). Org admini için
+slug düzenleme izni verilmedi. Slug değişikliğinde mevcut kullanıcı e-postaları otomatik
+güncellenmedi (BUGS.md'ye açık madde). E-posta ile giriş kapatılmadı (Parti 18). `athletes`
+tablosunun CASCADE zincirine dokunulmadı (yalnızca `team_id` NOT NULL kısıtı gevşetildi, ayrı
+onaylanmış bir bulgu). ACE/ACK takımları silinmedi.
 
 ---
 

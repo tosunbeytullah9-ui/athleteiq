@@ -26,7 +26,7 @@ interface Props {
   initialProgramId: string;
   orgId: string;
   teams: { id: string; name: string }[];
-  athletes: { id: string; full_name: string; team_id: string }[];
+  athletes: { id: string; full_name: string; team_id: string | null }[];
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];
   categories?: OrgExerciseCategory[];

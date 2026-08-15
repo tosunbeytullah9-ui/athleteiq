@@ -178,7 +178,7 @@ export type Database = {
           notes: string | null
           org_id: string
           position: string | null
-          team_id: string
+          team_id: string | null
           updated_at: string | null
           user_id: string | null
           username: string | null
@@ -196,7 +196,7 @@ export type Database = {
           notes?: string | null
           org_id: string
           position?: string | null
-          team_id: string
+          team_id?: string | null
           updated_at?: string | null
           user_id?: string | null
           username?: string | null
@@ -214,7 +214,7 @@ export type Database = {
           notes?: string | null
           org_id?: string
           position?: string | null
-          team_id?: string
+          team_id?: string | null
           updated_at?: string | null
           user_id?: string | null
           username?: string | null
@@ -927,6 +927,7 @@ export type Database = {
           id: string
           name: string
           org_id: string
+          updated_at: string
         }
         Insert: {
           created_at?: string | null
@@ -934,6 +935,7 @@ export type Database = {
           id?: string
           name: string
           org_id: string
+          updated_at?: string
         }
         Update: {
           created_at?: string | null
@@ -941,6 +943,7 @@ export type Database = {
           id?: string
           name?: string
           org_id?: string
+          updated_at?: string
         }
         Relationships: [
           {

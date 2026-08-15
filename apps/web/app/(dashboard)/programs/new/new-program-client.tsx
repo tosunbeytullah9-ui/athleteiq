@@ -77,7 +77,7 @@ type ProgramForm = z.infer<typeof programSchema>;
 interface Props {
   orgId: string;
   teams: { id: string; name: string }[];
-  athletes: { id: string; full_name: string; team_id: string }[];
+  athletes: { id: string; full_name: string; team_id: string | null }[];
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];
   categories?: OrgExerciseCategory[];

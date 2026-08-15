@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
+import { getTeamCounts } from "@athleteiq/db/queries";
 import { SettingsClient } from "./settings-client";
 
 export default async function SettingsPage() {
@@ -20,9 +21,11 @@ export default async function SettingsPage() {
     { auth: { persistSession: false } }
   );
 
-  const [teamsResult, orgResult] = await Promise.all([
+  const [teamsResult, orgResult, teamCounts, orgUserCountResult] = await Promise.all([
     admin.from("teams").select("*").eq("org_id", orgId).order("name"),
     admin.from("organizations").select("id, name, slug, plan, logo_url").eq("id", orgId).single(),
+    getTeamCounts(admin, orgId),
+    admin.from("profiles").select("id", { count: "exact", head: true }).eq("org_id", orgId),
   ]);
 
   return (
@@ -30,6 +33,8 @@ export default async function SettingsPage() {
       orgId={orgId}
       org={orgResult.data}
       teams={teamsResult.data ?? []}
+      teamCounts={Object.fromEntries(teamCounts)}
+      orgUserCount={orgUserCountResult.count ?? 0}
     />
   );
 }

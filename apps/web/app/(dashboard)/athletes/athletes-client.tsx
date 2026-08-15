@@ -152,7 +152,13 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {teamMap[athlete.team_id] ?? "—"}
+                    {athlete.team_id ? (
+                      teamMap[athlete.team_id] ?? "—"
+                    ) : (
+                      <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
+                        Takımsız
+                      </Badge>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {calculateAge(athlete.birth_date)}

@@ -34,7 +34,7 @@ export default async function NewProgramPage() {
     getOrgCategories(supabase, orgId),
   ]);
 
-  const athletes: { id: string; full_name: string; team_id: string }[] =
+  const athletes: { id: string; full_name: string; team_id: string | null }[] =
     athletesResult.data ?? [];
   // getAthleteMaxes tek bir athleteId alıyor (org-wide eşdeğeri yok) —
   // her sporcu için ayrı çağrılıp birleştiriliyor (bkz. PROGRESS.md Parti 2.2.E).

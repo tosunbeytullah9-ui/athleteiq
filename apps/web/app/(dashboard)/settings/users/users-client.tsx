@@ -1,15 +1,19 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Users as UsersIcon } from "lucide-react";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { CreateOrgUserModal } from "@/components/features/settings/create-org-user-modal";
 import { ResetUserPasswordModal } from "@/components/features/settings/reset-user-password-modal";
+import { toast } from "@/components/ui/use-toast";
 
 interface OrgUser {
+  membership_id: string;
   user_id: string;
   role: string;
+  team_id: string | null;
   team_name: string | null;
   joined_at: string | null;
   profile: { username: string; full_name: string } | null;
@@ -28,6 +32,59 @@ const ROLE_LABELS: Record<string, string> = {
   coach: "Koç",
   athlete: "Sporcu",
 };
+
+function CoachTeamSelect({
+  membershipId,
+  teamId,
+  teams,
+  onSuccess,
+}: {
+  membershipId: string;
+  teamId: string | null;
+  teams: { id: string; name: string }[];
+  onSuccess: () => void;
+}) {
+  const [isSaving, setIsSaving] = useState(false);
+
+  async function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextTeamId = e.target.value || null;
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/memberships/${membershipId}/team`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId: nextTeamId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error ?? "Takım ataması güncellenemedi");
+      onSuccess();
+    } catch (err: unknown) {
+      toast({
+        title: "Takım ataması güncellenemedi",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  return (
+    <select
+      value={teamId ?? ""}
+      onChange={handleChange}
+      disabled={isSaving}
+      className="flex h-8 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+    >
+      <option value="">Takımsız</option>
+      {teams.map((t) => (
+        <option key={t.id} value={t.id}>
+          {t.name}
+        </option>
+      ))}
+    </select>
+  );
+}
 
 export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
   const router = useRouter();
@@ -80,6 +137,14 @@ export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <Badge variant="secondary">{ROLE_LABELS[u.role] ?? u.role}</Badge>
+                    {u.role === "coach" && (
+                      <CoachTeamSelect
+                        membershipId={u.membership_id}
+                        teamId={u.team_id}
+                        teams={teams}
+                        onSuccess={() => router.refresh()}
+                      />
+                    )}
                     {u.profile && (
                       <ResetUserPasswordModal
                         user={{

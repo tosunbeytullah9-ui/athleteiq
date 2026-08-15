@@ -22,7 +22,7 @@ type Program = Tables<"training_programs"> & {
 interface Props {
   programs: Program[];
   teams: { id: string; name: string }[];
-  athletes: { id: string; full_name: string; team_id: string }[];
+  athletes: { id: string; full_name: string; team_id: string | null }[];
 }
 
 const PHASE_LABELS: Record<string, string> = {
