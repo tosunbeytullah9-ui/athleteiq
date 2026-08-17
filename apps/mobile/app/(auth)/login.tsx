@@ -12,69 +12,41 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-
-type Mode = "password" | "magic";
+import { resolveLoginIdentifier } from "@athleteiq/validators";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { session } = useAuth();
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
-  const [mode, setMode] = useState<Mode>("password");
   const [loading, setLoading] = useState(false);
-  const [magicSent, setMagicSent] = useState(false);
 
   useEffect(() => {
     if (session) router.replace("/");
   }, [session, router]);
 
   async function handlePasswordLogin() {
-    if (!email || !password) {
-      Alert.alert("Hata", "E-posta ve şifre gerekli.");
+    if (!identifier || !password) {
+      Alert.alert("Hata", "Kullanıcı adı ve şifre gerekli.");
+      return;
+    }
+    const resolved = resolveLoginIdentifier(identifier);
+    if (!resolved.ok) {
+      Alert.alert(
+        "Hata",
+        resolved.reason === "email_rejected"
+          ? "E-posta ile giriş kaldırıldı. Kullanıcı adınızı kullanici@organizasyon biçiminde girin."
+          : "Kullanıcı adınızı kullanici@organizasyon biçiminde girin."
+      );
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) Alert.alert("Giriş hatası", error.message);
-  }
-
-  async function handleMagicLink() {
-    if (!email) {
-      Alert.alert("Hata", "E-posta adresi gerekli.");
-      return;
-    }
-    setLoading(true);
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false },
+    const { error } = await supabase.auth.signInWithPassword({
+      email: resolved.email,
+      password,
     });
     setLoading(false);
-    if (error) {
-      Alert.alert("Hata", error.message);
-    } else {
-      setMagicSent(true);
-    }
-  }
-
-  if (magicSent) {
-    return (
-      <View className="flex-1 items-center justify-center p-8 bg-white">
-        <Text className="text-4xl mb-4">📬</Text>
-        <Text className="text-xl font-bold text-center text-gray-900">
-          Bağlantı gönderildi!
-        </Text>
-        <Text className="mt-2 text-center text-gray-500">
-          {email} adresine giriş bağlantısı gönderdik. E-postanızı kontrol edin.
-        </Text>
-        <TouchableOpacity
-          className="mt-6"
-          onPress={() => setMagicSent(false)}
-        >
-          <Text className="text-blue-700 font-medium">Geri dön</Text>
-        </TouchableOpacity>
-      </View>
-    );
+    if (error) Alert.alert("Giriş hatası", "Kullanıcı adı veya şifre hatalı");
   }
 
   return (
@@ -92,82 +64,48 @@ export default function LoginScreen() {
           <Text className="mt-1 text-gray-500">Sporcu platformuna giriş yapın</Text>
         </View>
 
-        {/* Email */}
-        <Text className="text-sm font-medium text-gray-700 mb-1">E-posta</Text>
+        {/* Kullanıcı adı */}
+        <Text className="text-sm font-medium text-gray-700 mb-1">Kullanıcı adı</Text>
         <TextInput
-          className="border border-gray-300 rounded-xl px-4 py-3 text-gray-900 mb-4"
-          placeholder="sporcu@example.com"
-          keyboardType="email-address"
+          className="border border-gray-300 rounded-xl px-4 py-3 text-gray-900"
+          placeholder="ahmet.yilmaz@tgf"
           autoCapitalize="none"
-          autoComplete="email"
-          value={email}
-          onChangeText={setEmail}
+          autoComplete="username"
+          value={identifier}
+          onChangeText={setIdentifier}
         />
+        <Text className="text-xs text-gray-500 mb-4">
+          Kullanıcı adınız ve organizasyon kodunuz. Bilmiyorsanız yöneticinizle iletişime
+          geçin.
+        </Text>
 
-        {mode === "password" && (
-          <>
-            <Text className="text-sm font-medium text-gray-700 mb-1">Şifre</Text>
-            <TextInput
-              className="border border-gray-300 rounded-xl px-4 py-3 text-gray-900 mb-6"
-              placeholder="••••••••"
-              secureTextEntry
-              autoComplete="password"
-              value={password}
-              onChangeText={setPassword}
-            />
-            <TouchableOpacity
-              className="rounded-xl py-4 items-center"
-              style={{ backgroundColor: "#534AB7" }}
-              onPress={handlePasswordLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-white font-semibold text-base">
-                  Giriş Yap
-                </Text>
-              )}
-            </TouchableOpacity>
+        <Text className="text-sm font-medium text-gray-700 mb-1">Şifre</Text>
+        <TextInput
+          className="border border-gray-300 rounded-xl px-4 py-3 text-gray-900 mb-6"
+          placeholder="••••••••"
+          secureTextEntry
+          autoComplete="password"
+          value={password}
+          onChangeText={setPassword}
+        />
+        <TouchableOpacity
+          className="rounded-xl py-4 items-center"
+          style={{ backgroundColor: "#534AB7" }}
+          onPress={handlePasswordLogin}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text className="text-white font-semibold text-base">
+              Giriş Yap
+            </Text>
+          )}
+        </TouchableOpacity>
 
-            <TouchableOpacity
-              className="mt-4 items-center"
-              onPress={() => setMode("magic")}
-            >
-              <Text className="text-sm" style={{ color: "#534AB7" }}>
-                Şifresiz giriş (magic link)
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
-
-        {mode === "magic" && (
-          <>
-            <TouchableOpacity
-              className="rounded-xl py-4 items-center mb-4"
-              style={{ backgroundColor: "#534AB7" }}
-              onPress={handleMagicLink}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text className="text-white font-semibold text-base">
-                  Magic Link Gönder
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              className="items-center"
-              onPress={() => setMode("password")}
-            >
-              <Text className="text-sm" style={{ color: "#534AB7" }}>
-                Şifre ile giriş yap
-              </Text>
-            </TouchableOpacity>
-          </>
-        )}
+        <Text className="mt-4 text-center text-xs text-gray-500">
+          Şifrenizi unuttuysanız yöneticinizle iletişime geçin.
+        </Text>
       </View>
     </KeyboardAvoidingView>
   );

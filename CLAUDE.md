@@ -444,7 +444,7 @@ Herhangi bir plpgsql fonksiyonunda manuel yetkilendirme kontrolü yazılırken (
 
 Yeni bir tablo/kolon/RPC fonksiyonu eklendiğinde, `packages/db/types.ts` AYNI COMMIT İÇİNDE regenerate edilmeli (`supabase gen types`). Bunu sonraki bir partiye ertelemek, o aradaki tüm partilerde yeni eklenen alanların/fonksiyonların type-check tarafından doğrulanmadan geçmesine yol açar (Parti 3.B-3.E arası bu şekilde gecikti, bkz. PROGRESS.md).
 
-### 4.3 Kimlik Modeli — org kapsamlı kullanıcı adı, sentetik email deseni (Parti 16)
+### 4.3 Kimlik Modeli — org kapsamlı kullanıcı adı, sentetik email deseni (Parti 16, Parti 18'de tek desene indirildi)
 
 **Kimlik org kapsamlıdır, global değil.** Sentetik email deseni:
 
@@ -474,14 +474,24 @@ doğrudan kullanıcı adı+şifre ile hesap oluşturması**: `create-org-user` E
 Eski `invite-member` akışı emekliye ayrıldı (410 Gone döner) — davet edilen kullanıcı şifresiz
 oluşuyordu, şifre belirleme sayfası hiç yazılmamıştı, uçtan uca hiç çalışmamıştı.
 
-**Karma durum (bilinçli, geçiş dönemi):** Parti 16 öncesi oluşturulan sporcu hesapları
-(`ibrahim.colak@athleteiq.app` gibi) hâlâ ESKİ, org-slug'sız global sentetik email desenini
-kullanıyor (`athletes.username`, GLOBAL unique index — `022_add_athlete_username.sql`) — bu
-partide bilinçli olarak DEĞİŞTİRİLMEDİ (çalışan girişleri bozma riski). Web login formu
-(`resolveLoginIdentifier`, `packages/validators/auth.ts`) her iki deseni de destekler: bare
-username → eski global domain, `username@slug` kısayolu → yeni org-scoped domain, tam email →
-değişmeden geçer. `athletes.username` ve `profiles.username` şu an iki ayrı, senkronize
-edilmeyen depo — birleştirme Parti 18'de değerlendirilecek (bkz. BUGS.md).
+**Tek giriş deseni, e-posta ile giriş kalıcı olarak kapatıldı (Parti 18):** Parti 16'nın
+bıraktığı karma durum (eski hesaplar slug'sız global domainde, yeniler org-scoped domainde)
+Parti 18'de kapatıldı — kalan 5 hesap (`tosunbeytullah9@gmail.com` dahil) `profiles`
+tablosundan hesaplanan hedef email'e (`{username}@{org_slug}.athleteiq.app`) taşındı,
+şifreler değişmedi. `resolveLoginIdentifier` (`packages/validators/auth.ts`) artık tek biçim
+kabul ediyor — `kullanici@slug` kısayolu. Bare username (`@` yok) ve nokta içeren her domain
+(gerçek e-posta veya tam yazılmış sentetik email) reddedilir; e-posta ile giriş ve e-posta ile
+şifre sıfırlama (zaten hiç var olmayan bir akış — bkz. aşağıdaki şifre sıfırlama zinciri)
+kalıcı olarak kapatıldı. `athletes.username` ve `profiles.username` hâlâ iki ayrı,
+senkronize edilmeyen depo — bu birleştirme Parti 18'de YAPILMADI, ileri bir partiye kaldı
+(bkz. BUGS.md).
+
+**Şifre sıfırlama zinciri (e-posta tabanlı self-servis yok):** sporcu → koçuna/adminine
+sorar, koç → org adminine sorar, admin → süper admine sorar (hepsi `updateUserById` ile elle
+sıfırlama, `apps/web/components/features/athletes/reset-password-modal.tsx` /
+`.../settings/reset-user-password-modal.tsx`), **süper admin → yalnızca Supabase Dashboard**
+(kod tabanında süper admin için hiçbir sıfırlama yolu yok, §4.3 yukarıdaki "Süper admin
+kurtarma yolu" notuyla aynı kısıt).
 
 ---
 
@@ -988,7 +998,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-15
+Son otomatik senkron: 2026-08-17
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1056,13 +1066,21 @@ Son otomatik senkron: 2026-08-15
 - Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
 ### Test Hesapları
-- **Admin (super_admin), TGF:** tosunbeytullah9@gmail.com | Şifre: AthleteIQ2026 — Parti 16'da Koç Üniversitesi membership'i kaldırıldı, artık YALNIZCA TGF'de admin (kimlik org-kapsamlı olduğu için, bkz. §4.3).
+- **Admin (super_admin), TGF:** giriş kimliği `beytullah.tosun@tgf` (tam sentetik email:
+  `beytullah.tosun@tgf.athleteiq.app`) | Şifre değişmedi (AthleteIQ2026) — Parti 18'de
+  `tosunbeytullah9@gmail.com`'dan bu kimliğe taşındı (bkz. §4.3), Parti 16'da Koç Üniversitesi
+  membership'i kaldırılmıştı, artık YALNIZCA TGF'de admin.
 - **Admin, Koç Üniversitesi:** beytullah.tosun@koc-universitesi.athleteiq.app — Parti 16'da `create-org-user` ile oluşturuldu, ayrı bir auth hesabı (yukarıdakiyle aynı kişi ama org kapsamlı kimlik gereği ayrı kayıt). `platform_role: super_admin` bu hesapta YOK, yalnızca yukarıdaki TGF hesabında. Gerçek şifre CLAUDE.md'ye yazılmaz.
-- **Coach:** belgeli/kalıcı bir coach test hesabı **yok** (Parti 4.E'de doğrulandı — org'daki tek gerçek membership yukarıdaki admin). `parti8f-temp-coach@athleteiq.app` / `parti8f-temp-coach-empty@athleteiq.app` (TGF, korunacak test hesapları, Parti 16'da `profiles` satırları backfill edildi) kullanılabilir, gerçek şifreleri CLAUDE.md'ye yazılmaz. Gerekirse Parti 4.E'nin kullandığı yöntemle yeni bir geçici hesap oluşturun (service-role ile `auth.admin.createUser` + `memberships` satırı, TGF org/ACE takım, `role: coach`) ve iş bitince silin.
+- **Coach:** belgeli/kalıcı bir coach test hesabı **yok** (Parti 4.E'de doğrulandı — org'daki tek gerçek membership yukarıdaki admin). `parti8f-temp-coach@tgf` / `parti8f-temp-coach-empty@tgf` (TGF, korunacak test hesapları, Parti 16'da `profiles` satırları backfill edildi, Parti 18'de org-scoped email desenine taşındı) kullanılabilir, gerçek şifreleri CLAUDE.md'ye yazılmaz. Gerekirse Parti 4.E'nin kullandığı yöntemle yeni bir geçici hesap oluşturun (service-role ile `auth.admin.createUser` + `memberships` satırı, TGF org/ACE takım, `role: coach`) ve iş bitince silin.
 - **`cosaswilan@gmail.com`** (eski, şifresiz/kırık davet akışının ürünü) Parti 16'da silindi — artık mevcut değil.
 
-### Çalışan Özellikler (2026-06-26 itibarıyla, kimlik bölümü Parti 16'da güncellendi)
-- ✅ Auth: login (e-posta veya kullanıcı adı + şifre, org-scoped kısayol dahil — Magic Link kaldırıldı Parti 4.D, davet akışı kaldırıldı Parti 16), admin'in kullanıcıyı doğrudan oluşturması (`create-org-user`, Parti 16) + kullanıcı-adı tabanlı sporcu hesabı oluşturma (Parti 4.B/4.C, hâlâ paralel), middleware (role-based routing)
+### Çalışan Özellikler (2026-06-26 itibarıyla, kimlik bölümü Parti 16'da güncellendi, giriş deseni Parti 18'de tekleştirildi)
+- ✅ Auth: login (yalnızca kullanıcı adı + şifre, `kullanici@slug` org-scoped kısayolu —
+  e-posta ile giriş ve e-posta ile şifre sıfırlama Parti 18'de kalıcı olarak kapatıldı; mobil
+  "magic link" [şifresiz e-posta OTP] modu da aynı partide kaldırıldı, web Magic Link'i zaten
+  Parti 4.D'de kaldırmıştı; davet akışı Parti 16'da kaldırıldı), admin'in kullanıcıyı doğrudan
+  oluşturması (`create-org-user`, Parti 16) + kullanıcı-adı tabanlı sporcu hesabı oluşturma
+  (Parti 4.B/4.C, hâlâ paralel), middleware (role-based routing)
 - ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama (Parti 16)
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish

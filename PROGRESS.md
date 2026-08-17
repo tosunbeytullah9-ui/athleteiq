@@ -1,6 +1,21 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-15 (**Parti 17 — Organizasyon ve Takım Yönetimi** —
+> Son güncelleme: 2026-08-17 (**Parti 18 — E-posta Girişinin Kapatılması ve Kimlik
+> Deseninin Birleştirilmesi** — kalan 5 hesap (süper admin dahil, tek seferlik commit
+> edilmeyen bir service-role script'iyle) tek sentetik email desenine
+> (`{username}@{org_slug}.athleteiq.app`) taşındı; `resolveLoginIdentifier` tek dala
+> indirildi (yalnızca `kullanici@slug` kısayolu, gerçek e-posta ve bare username reddediliyor);
+> web + mobil login ekranları güncellendi; mobildeki, görev metninde geçmeyen ve email
+> migration'ından sonra işlevsiz kalacak "magic link" (e-posta OTP) modu kullanıcı
+> onayıyla kaldırıldı; e-posta ile şifre sıfırlamanın zaten hiç var olmadığı doğrulanıp
+> yerine statik yönlendirme metni eklendi. Süper admin adımından sonra kullanıcının gerçek
+> girişle doğruladığı zorunlu bir mola vardı. Canlı doğrulama: `listUsers` ile 8/8 hesap
+> tek desende, yanlış şifre REST'te `400 invalid_credentials`; koç/Koç Üni admin/İbrahim/
+> Mehmet Ayberk için gerçek şifreler bilinmediğinden uçtan uca başarılı giriş testi
+> yapılamadı (açıkça belirtildi, kod+email-eşleme doğrulamasıyla sınırlı kalındı). 18/18
+> validators testi + type-check + web build (30 sayfa) + web/mobile lint temiz (mobile'da
+> 1 önceden var olan, ilgisiz tip hatası hariç). Detay: § Parti 18)
+> Önceki: 2026-08-15 (**Parti 17 — Organizasyon ve Takım Yönetimi** —
 > `teams_insert`'in coach yetki açığı (`034_teams_rls_fix.sql`, `memberships_insert_self`
 > deseninin mirror'ı) kapatıldı; org admini artık kendi organizasyonunu düzenleyebiliyor
 > (`orgs_update` genişletildi + `slug`/`plan` için BEFORE UPDATE trigger koruması,
@@ -662,6 +677,112 @@ slug düzenleme izni verilmedi. Slug değişikliğinde mevcut kullanıcı e-post
 güncellenmedi (BUGS.md'ye açık madde). E-posta ile giriş kapatılmadı (Parti 18). `athletes`
 tablosunun CASCADE zincirine dokunulmadı (yalnızca `team_id` NOT NULL kısıtı gevşetildi, ayrı
 onaylanmış bir bulgu). ACE/ACK takımları silinmedi.
+
+---
+
+### Parti 18 — E-posta Girişinin Kapatılması ve Kimlik Deseninin Birleştirilmesi ✅ (2026-08-17)
+
+#### Kapsam
+
+Parti 16'nın bıraktığı karma kimlik durumu (bazı hesaplar eski global sentetik email
+deseninde `{username}@athleteiq.app`, bazıları yeni org-scoped desende
+`{username}@{org_slug}.athleteiq.app`) kapatıldı — BUGS.md'de Parti 16'dan beri ⚪ AÇIK
+duran "iki sentetik email deseni aynı anda geçerli" maddesi. Kalan 5 hesap tek desene
+taşındı, `resolveLoginIdentifier` artık yalnızca `kullanici@slug` kısayolunu kabul ediyor
+(bare username ve gerçek/tam-yazılmış e-postalar reddediliyor), web + mobil login ekranları
+buna göre güncellendi, e-posta ile şifre sıfırlamanın zaten hiç var olmadığı doğrulanıp
+yerine statik yönlendirme metni eklendi.
+
+**Görev metninde geçmeyen, araştırmada bulunan bir sapma:** `apps/mobile/app/(auth)/login.tsx`
+`resolveLoginIdentifier`'ı hiç kullanmıyordu — kendi ham `email` state'iyle çalışıyor ve
+ayrıca bağımsız bir "magic link" (e-posta OTP, `signInWithOtp`) modu taşıyordu. Kalan 5
+hesabın hepsi sentetik/ulaşılamaz email'e taşındıktan sonra bu mod tüm kullanıcılar için
+işlevsiz kalacaktı (hiçbir gerçek inbox'a e-posta gitmeyecek) — "e-posta ile giriş
+kapatıldı" hedefiyle doğrudan çelişiyordu. Kullanıcıya soruldu (AskUserQuestion, plan
+onayından önce), kaldırılması onaylandı.
+
+#### Değişiklikler
+
+- **Migration script (`apps/web/migrate-emails.mjs`, tek seferlik, commit edilmedi, iş
+  bitince silindi):** `scripts/docs-sync.mjs`'nin `loadRootEnv()` deseniyle root `.env`'i
+  parse ediyor, `create-org-user` Edge Function'ıyla aynı service-role client desenini
+  kuruyor (`createClient(url, serviceRoleKey, { auth: { persistSession: false } })`). Her
+  hesap için `profiles`'tan `username`/`org_id` okuyup `organizations.slug`'ı `org_id` ile
+  çekiyor (create-org-user'ın kendi deseni — slug hardcode edilmiyor), hedef email'i
+  hesaplayıp `auth.admin.updateUserById(id, { email, email_confirm: true })` çağırıyor.
+  İki batch'e bölündü: **Batch A** yalnızca süper admin (`tosunbeytullah9@gmail.com` →
+  `beytullah.tosun@tgf.athleteiq.app`), ardından **kullanıcının gerçek girişle doğruladığı
+  zorunlu bir mola** ("İşliyor çok güzel çalışıyor" onayı alındı), sonra **Batch B** kalan 4
+  hesap (`parti8f-temp-coach`, `parti8f-temp-coach-empty`, `ibrahim.colak`,
+  `mehmet.ayberk.kosak`, hepsi → `@tgf.athleteiq.app`). Şifreler hiçbir adımda değişmedi.
+- **`packages/validators/auth.ts`:** `resolveLoginIdentifier` artık `ResolvedIdentifier`
+  (`{ ok: true; email } | { ok: false; reason: "missing_org" | "email_rejected" }`)
+  döndürüyor — üç dal yerine iki: `@` yoksa `missing_org`, domain'de `.` varsa (gerçek
+  e-posta VEYA tam yazılmış sentetik email dahil) `email_rejected`, yalnızca
+  `kullanici@slug` kısayolu `ok: true` ile çözülüyor. Eski global domain fallback'i
+  tamamen silindi. `loginSchema`'nın boş-alan mesajı `"Kullanıcı adı girin"`'e güncellendi.
+- **`packages/validators/auth.test.ts`:** 6 test "artık reddediliyor" davranışına göre
+  yeniden yazıldı (silinen yok) — bare username, gerçek email, tam yazılmış sentetik email
+  ve eski global sentetik email artık `ok: false` bekliyor; org-scoped kısayol (büyük/küçük
+  harf duyarsız) `ok: true` bekliyor.
+- **`apps/web/app/(auth)/login/login-form.tsx`:** label `"Kullanıcı adı"`, placeholder
+  `"ahmet.yilmaz@tgf"`, alanın altına yardım metni. `onSubmit` artık `resolved.ok`'a göre
+  dallanıyor — `missing_org`/`email_rejected` için `signInWithPassword` hiç çağrılmadan
+  ilgili Türkçe mesaj gösteriliyor. Genel hata mesajı `"Kullanıcı adı veya şifre hatalı"`'ya
+  sadeleşti, hatayı tarayıcı konsoluna yazan `console.error` satırı silindi. Buton altına
+  statik "Şifrenizi unuttuysanız yöneticinizle iletişime geçin." metni eklendi.
+- **`apps/mobile/app/(auth)/login.tsx`:** `Mode` tipi, `mode`/`magicSent` state'leri,
+  `handleMagicLink`, "Bağlantı gönderildi!" ekranı ve iki mod-geçiş butonu tamamen
+  kaldırıldı — yalnızca şifre formu kaldı. `email` state'i `identifier`'a yeniden
+  adlandırıldı, artık `resolveLoginIdentifier` (`@athleteiq/validators`, zaten mobile'ın
+  bağımlılığıydı) çağırıyor. Label/placeholder/yardım metni web ile birebir aynı. Ham
+  Supabase hata mesajını (`error.message`) gösteren `Alert.alert` çağrısı web'le aynı
+  genel Türkçe mesaja sadeleşti. Buton altına web'le aynı statik şifre-sıfırlama metni
+  eklendi.
+- **Şifre sıfırlama araştırması:** `apps/web`/`apps/mobile` genelinde `resetPasswordForEmail`
+  çağıran veya "şifremi unuttum" bağlantısı sunan hiçbir kod bulunamadı (grep ile
+  doğrulandı) — kaldırılacak bir şey yoktu, görev yalnızca statik metin eklemekle
+  tamamlandı. `reset-password-modal.tsx`/`reset-user-password-modal.tsx` (admin/koçun
+  `updateUserById` ile elle sıfırlaması) farklı bir mekanizma, dokunulmadı.
+
+#### Doğrulama
+
+- `pnpm --filter @athleteiq/validators test` → **18/18 yeşil** (6 yeni `resolveLoginIdentifier`
+  davranışı + 7 mevcut `athlete.test.ts` + 5 mevcut `exercise.test.ts`).
+- Type-check: `@athleteiq/validators` 0 hata, web 0 hata, mobile'da **1 önceden var olan,
+  bu partiyle ilgisiz** hata (`app/(tabs)/my-athletes/[athleteId]/program/[day].tsx:56`,
+  `string | null` → `string`, dokunulmayan bir dosya — `git status` ile doğrulandı).
+  `pnpm --filter web lint` 0 hata (23 önceden var olan uyarı, bu partiden bağımsız).
+  `pnpm --filter mobile lint` 0 hata/uyarı. `pnpm --filter web build` → 30 sayfa, sıfır
+  derleme hatası.
+- **Canlı doğrulama** (Supabase Cloud `nlmwcygmbbxmfpsubvmh`, gerçek Auth REST + service-role
+  `listUsers`): migration sonrası `listUsers` ile TGF + Koç Üniversitesi'ndeki **8/8 hesabın**
+  tek desende (`{username}@{org_slug}.athleteiq.app`) olduğu ve eski email'lerin (özellikle
+  `tosunbeytullah9@gmail.com`) hiçbirinin kalmadığı doğrulandı. Süper admin yeni kimliğiyle
+  (`beytullah.tosun@tgf`) **kullanıcı tarafından gerçek bir tarayıcı girişiyle** doğrulandı
+  (Batch A ile Batch B arasındaki zorunlu molada). Yanlış şifre denemesi REST `password`
+  grant ile `400 invalid_credentials` döndürdü (UI'daki genel mesajın doğru yola bağlı
+  olduğunu doğruluyor). `create-org-user`'a bu partide dokunulmadı — kod okumasıyla
+  yeniden teyit edildi, org-scoped email deseni değişmeden üretmeye devam ediyor.
+- **Doğrulanamayan kapsam (dürüstçe belirtilmeli):** Coach/Koç Üniversitesi admin/İbrahim/
+  Mehmet Ayberk hesaplarının gerçek şifreleri bilinmiyor (proje konvansiyonu gereği
+  CLAUDE.md'ye yazılmıyor, yalnızca kullanıcıda) — bu yüzden `beytullah.tosun@koc-universitesi`,
+  `ibrahim.colak@tgf` (web VE mobil) ve `parti8f-temp-coach@tgf` için gerçek bir başarılı
+  `signInWithPassword` denemesi bu oturumda YAPILAMADI. Bunun yerine: (a) `resolveLoginIdentifier`
+  birim testleriyle kısayol çözümlemesinin doğru olduğu, (b) `listUsers` ile bu hesapların
+  `auth.users.email`'inin doğru hedef değerde olduğu, (c) mobile login'in artık web'le aynı
+  `resolveLoginIdentifier` + `signInWithPassword` çağrı yolunu kullandığı (kod düzeyinde
+  birebir aynı) doğrulandı — ama uçtan uca gerçek bir giriş denemesi değil. Şifreleri
+  değiştirmek/sıfırlamak görev talimatının açık yasağıydı, bu yüzden geçici bir bypass da
+  kurulmadı. Kullanıcının bu 4 hesapla ayrıca kendi doğrulamasını yapması önerilir.
+
+#### Kapsam dışı bırakılan (görev talimatı gereği)
+
+`athletes.username`/`profiles.username` çift depo birleştirmesi bu partide YAPILMADI (BUGS.md
+satır ~142'de ⚪ AÇIK olarak kaldı — Parti 16'nın notu bu partiye "değerlendirilecek" diye
+bırakmıştı, görev talimatı açıkça "athletes tablosuna dokunma" dediği için ayrı bir partiye
+kaldı). `create-org-user`'a dokunulmadı. `athletes` tablosuna dokunulmadı. Süper admin
+bayrağı (`platform_role`) taşınmadı, yalnızca aynı hesabın email'i değişti.
 
 ---
 

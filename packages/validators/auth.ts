@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const loginSchema = z.object({
-  identifier: z.string().min(1, "E-posta veya kullanıcı adı girin"),
+  identifier: z.string().min(1, "Kullanıcı adı girin"),
   password: z.string().min(1, "Şifre girin"),
 });
 
@@ -15,18 +15,24 @@ export const inviteMemberSchema = z.object({
 export type LoginInput = z.infer<typeof loginSchema>;
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
 
-// Login formundaki serbest metin girdiyi gerçek/sentetik bir email'e çözer.
-// Üç durum:
-//  1) "@" yok (bare username) → eski global sentetik domain: "athleteiq.app"
-//     (mevcut athletes.username tabanlı hesaplar için, Parti 16 öncesi davranış korunur)
-//  2) "@" var ama domain kısmında "." yok (örn. "ahmet.yilmaz@tgf") → org-scoped
-//     kısayol, ".athleteiq.app" eklenir → "ahmet.yilmaz@tgf.athleteiq.app"
-//  3) "@" var ve domain kısmında "." var (gerçek email veya zaten tam sentetik email)
-//     → değiştirilmeden kullanılır
-export function resolveLoginIdentifier(raw: string): string {
-  if (!raw.includes("@")) return `${raw.toLowerCase()}@athleteiq.app`;
-  const parts = raw.split("@");
+export type ResolvedIdentifier =
+  | { ok: true; email: string }
+  | { ok: false; reason: "missing_org" | "email_rejected" };
+
+// Login formundaki serbest metin girdiyi sentetik email'e çözer.
+// Tek geçerli biçim: "kullanici@slug" (org kısayolu) → "kullanici@slug.athleteiq.app".
+// İki ret durumu:
+//  - "missing_org": "@" yok (bare username) → hangi org olduğu belirsiz, artık desteklenmiyor
+//    (Parti 18 öncesi eski global "athleteiq.app" domain fallback'i buradaydı, kaldırıldı).
+//  - "email_rejected": domain kısmında "." var → gerçek e-posta veya tam yazılmış sentetik
+//    email (ör. "kullanici@slug.athleteiq.app") — e-posta ile giriş kalıcı olarak kapatıldı,
+//    tek kabul edilen biçim kısayoldur.
+export function resolveLoginIdentifier(raw: string): ResolvedIdentifier {
+  const trimmed = raw.trim();
+  if (!trimmed.includes("@")) return { ok: false, reason: "missing_org" };
+  const parts = trimmed.split("@");
   const domain = parts[1];
-  const isOrgShorthand = parts.length === 2 && !!domain && !domain.includes(".");
-  return isOrgShorthand ? `${raw}.athleteiq.app` : raw;
+  if (parts.length !== 2 || !domain) return { ok: false, reason: "missing_org" };
+  if (domain.includes(".")) return { ok: false, reason: "email_rejected" };
+  return { ok: true, email: `${trimmed.toLowerCase()}.athleteiq.app` };
 }
