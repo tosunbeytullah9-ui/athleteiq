@@ -1,6 +1,34 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-17 (**Parti 18 — E-posta Girişinin Kapatılması ve Kimlik
+> Son güncelleme: 2026-08-18 (**Parti 18-S — Deploy Öncesi Güvenlik Sertleştirmesi** — canlı
+> veritabanında bulunan 2 gerçek yetki açığı kapatıldı: `copy_program_tree` (SECURITY DEFINER,
+> sıfır yetki kontrolü, `/rest/v1/rpc/copy_program_tree` üzerinden herkese açık bir cross-tenant
+> okuma/yazma primitifi) — gövdesi `propagate_week_to_future`'ın dahili yardımcısı olduğu için
+> DEĞİŞTİRİLMEDİ, yalnızca `PUBLIC`/`anon`/`authenticated` rollerinden `EXECUTE` kaldırıldı
+> (dahili çağrı SECURITY DEFINER zincirinde owner yetkisiyle çalıştığı için bozulmadı);
+> `get_athlete_programs` (aynı sınıf açık, `anon`'a da açıktı) — `athletes_select` (002_rls.sql)
+> ile birebir aynı, team-scoped yetki koşulu eklendi (self VEYA super_admin VEYA org admin VEYA
+> KENDİ TAKIMINDAKİ coach), dönüş tipi/sıralama/filtreler değişmedi. Ayrıca 9
+> `SECURITY DEFINER` fonksiyonunun tamamından gereksiz `anon`/`PUBLIC` `EXECUTE` yetkisi
+> kaldırıldı (migration `parti_18s_secure_definer_functions`), `my_role`/`my_team_id`/
+> `is_super_admin`'in `authenticated` yetkisi RLS bağımlılığı nedeniyle KORUNDU. Ayrı bir açık
+> olarak `polar-sync` Edge Function'ı (service-role bağlamını sıfır doğrulamayla herkese açık
+> bırakıyordu, wearable entegrasyonu henüz aktif olmadığı için gövdesi zaten inert'ti) canlıdan
+> silindi (`supabase functions delete`) — düzeltilmedi, kaldırıldı; wearable sync'e sıra
+> geldiğinde doğru yetkilendirmeyle sıfırdan yazılacak. Next.js `^15.0.0` → kesin `15.5.19`'a
+> sabitlendi (kurulu sürüm zaten CVE-2025-29927'nin üstünde, caret aralığı riskliydi);
+> `next.config.ts`'e HSTS/X-Frame-Options/X-Content-Type-Options başlıkları eklendi (CSP
+> bilinçli olarak kapsam dışı bırakıldı — Supabase realtime + Next.js inline script'leriyle
+> ayrı bir iterasyon gerektiriyor). Canlı doğrulama: regresyon testi (admin/athlete RLS
+> sorguları permission-denied vermeden çalışıyor), 5 güvenlik senaryosu (cross-org coach → 0
+> satır, sporcu kendi kimliğiyle aynı satırlar, aynı-takım coach → satır dönüyor, farklı-takım
+> aynı-org coach → 0 satır, `copy_program_tree`'ye doğrudan authenticated çağrısı → permission
+> denied, `propagate_week_to_future` dahili zinciriyle hâlâ çalışıyor — geçici blok/program/
+> session/exercise/set test verisiyle canlıda üretilip doğrulanıp temizlendi, `leftover=0`),
+> `get_advisors` ile 9/9 `anon_security_definer_function_executable` uyarısının kapandığı
+> doğrulandı. `packages/db/types.ts` regenerasyonu gerekmedi (fonksiyon imzaları/dönüş tipleri
+> sabit kaldı, yalnızca gövde/yetki değişti). Detay: § Parti 18-S)
+> Önceki: 2026-08-17 (**Parti 18 — E-posta Girişinin Kapatılması ve Kimlik
 > Deseninin Birleştirilmesi** — kalan 5 hesap (süper admin dahil, tek seferlik commit
 > edilmeyen bir service-role script'iyle) tek sentetik email desenine
 > (`{username}@{org_slug}.athleteiq.app`) taşındı; `resolveLoginIdentifier` tek dala
@@ -783,6 +811,180 @@ satır ~142'de ⚪ AÇIK olarak kaldı — Parti 16'nın notu bu partiye "değer
 bırakmıştı, görev talimatı açıkça "athletes tablosuna dokunma" dediği için ayrı bir partiye
 kaldı). `create-org-user`'a dokunulmadı. `athletes` tablosuna dokunulmadı. Süper admin
 bayrağı (`platform_role`) taşınmadı, yalnızca aynı hesabın email'i değişti.
+
+---
+
+### Parti 18-S — Deploy Öncesi Güvenlik Sertleştirmesi ✅ (2026-08-18)
+
+#### Kapsam
+
+Vercel'e production deploy öncesi canlı veritabanı üzerinde yapılan bir güvenlik denetiminde
+bulunan 2 gerçek yetki açığı (`copy_program_tree`, `get_athlete_programs`), 1 gereksiz yetki
+genişletmesi (9 `SECURITY DEFINER` fonksiyonunda `anon` `EXECUTE`) ve 1 doğrulamasız Edge
+Function (`polar-sync`) kapatıldı. FAZ 1 (salt-okunur durum tespiti) ayrı bir turda yapıldı,
+bu parti yalnızca uygulama fazını (FAZ 2-4) kapsar.
+
+#### AÇIK 1 — `copy_program_tree(uuid, uuid)`
+
+`SECURITY DEFINER`, gövdesinde sıfır yetki kontrolü — `/rest/v1/rpc/copy_program_tree`
+üzerinden herkese açıktı. Saldırgan kendi programını hedef, başka bir org'un programını
+kaynak vererek kurbanın tüm antrenman ağacını (session→exercise→exercise_sets) kendi
+programına kopyalayıp sonra kendi RLS'i altında meşru olarak okuyabilirdi — RLS'i tamamen
+etkisiz kılan bir okuma primitifi, aynı yönde veri bozma için de kullanılabilirdi.
+
+**Kullanım analizi:** repo genelinde (`apps/web`, `apps/mobile`, `packages/`,
+`supabase/functions/`) hiçbir uygulama kodu bu fonksiyonu çağırmıyor. Tek çağıran yeri
+`propagate_week_to_future`'ın içinden `perform public.copy_program_tree(...)`
+(`021_propagate_week.sql:183`, `026_team_scoped_program_rpc.sql:410`) — SQL-to-SQL, dahili bir
+çağrı. Bu yüzden `DROP FUNCTION` yapılamadı (bağımlı fonksiyon kırılırdı).
+
+**Düzeltme:** gövdeye DOKUNULMADI. `PUBLIC`, `anon` VE `authenticated` rollerinin tamamından
+`EXECUTE` kaldırıldı. SECURITY DEFINER çağrı zincirinde EXECUTE kontrolü çağıranın değil
+tanımlayıcının (owner) rolüyle değerlendirildiği için, `propagate_week_to_future`'ın dahili
+çağrısı bozulmadı — yalnızca `/rest/v1/rpc/copy_program_tree` doğrudan uç noktası kapatıldı.
+
+#### AÇIK 2 — `get_athlete_programs(uuid)`
+
+`STABLE SECURITY DEFINER`, gövdesinde sıfır yetki kontrolü, `anon` rolüne de açıktı. Verilen
+sporcu UUID'si için o sporcunun ve tüm takımının yayınlanmış programlarını, çağıranın
+kimliğine bakmadan döndürüyordu.
+
+**Kullanım analizi:** mobil sporcu ekranından gerçekten çağrılıyor
+(`apps/mobile/app/(tabs)/program/index.tsx:61`, athlete'in kendi oturumuyla, parametre kendi
+`athlete.id`'si). Web'de hiç çağrılmıyor. Normal akışın "iyi niyetli" kullanımı fonksiyonun
+gerçek yüzeyini yansıtmıyordu — `anon` key ile veya farklı bir sporcunun ID'siyle çağrıldığında
+sızıntı canlıda doğrulandı.
+
+**Düzeltme:** `CREATE OR REPLACE` ile yetki koşulu eklendi. `athletes_select`
+(`002_rls.sql`) ile BİREBİR AYNI desen — coach dalı **team-scoped**:
+
+```sql
+and coalesce(
+  a.user_id = auth.uid()
+  or public.is_super_admin()
+  or public.my_role(a.org_id) = 'admin'
+  or (public.my_role(a.org_id) = 'coach' and a.team_id = public.my_team_id(a.org_id)),
+  false
+)
+```
+
+Görev talimatının kısa açıklaması "org'da admin veya coach rolü" diyordu (org-only) ama aynı
+talimat "mevcut `athletes_select` desenini birebir taklit et" de diyordu — ikisi çelişiyordu.
+Team-scoped seçildi çünkü `get_athlete_programs` `training_programs` satırları döndürüyor ve bu
+tablonun kendi RLS'i (Parti 8.E) coach'u zaten team-scoped kısıtlıyor; org-only yapılsaydı bu
+RPC, doğrudan tablo erişiminde Parti 8.E/15/17'de kapatılmış olan aynı sınıf sızıntıyı (coach
+başka takımın verisini görür) yeniden açardı. Kullanıcı onayıyla bu yorum uygulandı. Dönüş
+tipi (`SETOF public.training_programs`), sıralama (`start_date desc nulls last`),
+`is_published`/`is_archived` filtreleri DEĞİŞMEDİ — mobil istemci regresyonsuz çalışmaya devam
+ediyor.
+
+#### AÇIK 3 — 9 fonksiyonda gereksiz `anon`/`PUBLIC` EXECUTE
+
+`copy_program_tree`, `create_program_with_weeks`, `get_athlete_programs`,
+`insert_sessions_tree`, `is_super_admin`, `my_role`, `my_team_id`, `propagate_week_to_future`,
+`update_program_week` — tamamı `anon` rolüne açıktı (`get_advisors` ile doğrulandı).
+`REVOKE ... FROM anon` tek başına yeterli değil — Postgres'te fonksiyon oluşturulurken
+`EXECUTE` varsayılan olarak `PUBLIC`'e verilir, yalnızca `anon`'dan kaldırmak advisor
+uyarısını kapatmaz. Her ifade `FROM PUBLIC, anon` şeklinde yazıldı.
+
+**KRİTİK istisna:** `my_role`, `my_team_id`, `is_super_admin` RLS politikalarının İÇİNDEN
+çağrılıyor — sorguyu çalıştıran kullanıcının (authenticated) yetkileriyle değerlendiriliyor.
+Bu üçünden `authenticated`'ın `EXECUTE`'unu kaldırmak RLS'i her tabloda `permission denied`
+ile kırardı. `authenticated` yalnızca `copy_program_tree`'den kaldırıldı (AÇIK 1, dahili
+kullanım dışında hiç çağrılmamalı); diğer 8 fonksiyonda (`get_athlete_programs` dahil)
+`authenticated` KORUNDU.
+
+#### AÇIK 4 — `polar-sync` Edge Function
+
+`verify_jwt: false` VE gövdede hiçbir doğrulama (JWT, HMAC imza, cron secret) yoktu — herkes
+girişsiz `POST /functions/v1/polar-sync` ile service-role bağlamını tetikleyebiliyordu.
+`whoop-webhook`'un aksine (HMAC imza doğrulaması var, doğru desen) burada hiçbir doğrulama
+mekanizması kurulmamıştı. Gövde şu an inert (`wearable_connections`'ı okuyup logluyor, dış API
+çağrısı/yazma yok) çünkü wearable entegrasyonu CLAUDE.md §10 gereği bilinçli olarak
+ertelenmiş; ama açık kapı ŞU AN canlıda duruyordu ve Vercel deploy'unu beklemiyordu (Edge
+Function'lar bağımsız deploy edilir).
+
+**Düzeltme — patch değil, kaldırma:** kullanım analizi (`apps/web`, `apps/mobile`,
+`packages/`, diğer edge function'lar) hiçbir çağıran göstermedi. `supabase functions delete
+polar-sync --project-ref nlmwcygmbbxmfpsubvmh` ile canlıdan silindi, `supabase/functions/
+polar-sync/` dizini repodan kaldırıldı, `supabase/config.toml`'daki `[functions.polar-sync]`
+girdisi temizlendi. `supabase functions list` ile silme doğrulandı (7 fonksiyon kaldı).
+Wearable entegrasyonuna sıra geldiğinde doğru yetkilendirmeyle (cron secret veya webhook imza
+deseni) sıfırdan yazılacak.
+
+**Not (otomatik onay sınıflandırıcısı):** canlı `supabase functions delete` komutu ilk
+denemede otomatik izin sınıflandırıcısı tarafından bloklandı (geri alınamaz, production'ı
+etkileyen işlem) — kullanıcıya soruldu, "Bash komutunu tekrar dene" seçildi, ikinci denemede
+onaylanıp çalıştırıldı.
+
+#### Migration
+
+`supabase/migrations/` içine dosya EKLENMEDİ — `apply_migration` (Supabase MCP) doğrudan
+canlı projeye uygulandı, migration adı `parti_18s_secure_definer_functions` olarak Supabase
+tarafında kayıtlı (yerel migration dosyası olmadığı için `supabase db pull` ile senkronize
+edilmesi önerilir, bu partide yapılmadı — kapsam dışı).
+
+#### Doğrulama
+
+- **Regresyon (3.A, migration sonrası ilk iş):** admin JWT'siyle `training_programs` select →
+  12 satır (permission denied yok); athlete (İbrahim) JWT'siyle kendi programları → 3 satır
+  (permission denied yok). `my_role`/`my_team_id`/`is_super_admin`'in `authenticated` yetkisi
+  sağlam.
+- **Güvenlik senaryoları (canlı, gerçek kullanıcı UUID'leriyle, `request.jwt.claims` simüle
+  edilerek):**
+  1. TGF/ACE koçu (fc01ec53) → koc-universitesi sporcusu (Burak Gürel) için
+     `get_athlete_programs` → **0 satır** ✅ (cross-org)
+  2. İbrahim (kendi kimliği) → kendi `get_athlete_programs` → **3 satır**, migration öncesiyle
+     aynı ID'ler/sıra (Müsabaka, aaaaaaaaaaa, Hipertrofi) ✅
+  3. Aynı org+takım koçu (fc01ec53, ACE) → İbrahim (ACE) için → **3 satır** ✅ (regresyon yok)
+  3b. Aynı org, FARKLI takım koçu (98d0d96d, ACK) → İbrahim (ACE) için → **0 satır** ✅
+      (team-scoped tasarım kararının ek doğrulaması)
+  4. `authenticated` rolüyle doğrudan `copy_program_tree` çağrısı → **`42501 permission denied
+     for function copy_program_tree`** ✅
+  5. `propagate_week_to_future` — geçici test verisiyle (tgf/ACE org/takımında 2 haftalık
+     `program_blocks` + `training_programs` + 1 session/exercise/set) coach (fc01ec53) olarak
+     çağrıldı → başarılı (`{"program_id":"...week2...","week_index_in_block":2}`), dahili
+     `copy_program_tree` çağrısı session/exercise/set'i week2'ye doğru kopyaladı ✅. Test
+     verisi tamamen silindi (`leftover=0` — block/program/session/exercise/set 5 kategoride
+     doğrulandı).
+- **Advisor:** `get_advisors(security)` migration sonrası — 9/9
+  `anon_security_definer_function_executable` uyarısı KAPANDI. Kalan uyarılar: 8 fonksiyonun
+  `authenticated_security_definer_function_executable`'ı (beklenen/kasıtlı — bu fonksiyonlar
+  `authenticated` için tasarım gereği açık kalmalı) ve önceden var olan
+  `auth_leaked_password_protection` (FAZ 4 manuel adım, değişmedi).
+- `apps/web` `tsc --noEmit` → 0 hata (next.config.ts header değişikliği sonrası).
+- `packages/db/types.ts` regenerasyonu gerekmedi — hiçbir fonksiyon imzası/dönüş tipi/tablo
+  şeması değişmedi.
+
+#### Yapılmayanlar (görev talimatı gereği)
+
+`create_program_with_weeks`/`insert_sessions_tree`/`update_program_week`/
+`propagate_week_to_future`'ın gövdelerine dokunulmadı (zaten doğru yetkilendirilmiş). 5 Edge
+Function'a (`create-org-user`, `reset-user-password`, `create-athlete-account`,
+`grant-athlete-access`, `reset-athlete-password`) dokunulmadı (zaten doğru caller
+doğrulaması yapıyor). CSP eklenmedi (bilinçli — ayrı bir işe bırakıldı). Next.js sürümü
+15.2.3'ün altında OLMADIĞI için yükseltme yapılmadı, yalnızca caret kaldırılıp kesin sürüme
+sabitlendi.
+
+#### Manuel Aksiyonlar (kod değişikliği DEĞİL — kullanıcı panellerden yapacak)
+
+- Supabase → Authentication → Passwords → "Leaked password protection" etkinleştir (şu anda
+  kapalı; bu projede parolaları admin belirliyor, e-posta doğrulaması yok).
+- Supabase → Authentication → URL Configuration → Vercel production domain'ini redirect URL
+  olarak ekle (`*.vercel.app` gibi joker karakterli girdi EKLEME).
+- Vercel → Settings → Deployment Protection → Preview ortamı için koruma etkinleştir (preview
+  URL'leri varsayılan herkese açık ve aynı production veritabanına bağlanıyor).
+- Vercel → Settings → Environment Variables → service role key'in yalnızca Production
+  ortamında ve `NEXT_PUBLIC_` öneki OLMADAN tanımlı olduğunu doğrula.
+
+#### Kök Neden Notu
+
+İki açığın da (AÇIK 1, AÇIK 2) kök nedeni aynı: `SECURITY DEFINER` fonksiyon yazılırken yetki
+kontrolünün unutulması. Aynı Parti'de yazılan (021_propagate_week.sql) dört RPC'den ikisinde
+(`create_program_with_weeks`, `update_program_week` — önceki migration'lardan) doğru yapılmış,
+`copy_program_tree`'de "çağıran zaten kontrol ediyor" varsayımıyla atlanmış — tıpkı
+`insert_sessions_tree`'nin Parti 8.G'de bulunan aynı sınıf açığı gibi. CLAUDE.md §4.1'e kalıcı
+kural olarak eklendi (bkz. CLAUDE.md değişikliği).
 
 ---
 

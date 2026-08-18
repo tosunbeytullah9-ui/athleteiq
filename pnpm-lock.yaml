@@ -195,7 +195,7 @@ importers:
         specifier: ^0.400.0
         version: 0.400.0(react@19.2.7)
       next:
-        specifier: ^15.0.0
+        specifier: 15.5.19
         version: 15.5.19(@playwright/test@1.61.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       react:
         specifier: ^19.0.0

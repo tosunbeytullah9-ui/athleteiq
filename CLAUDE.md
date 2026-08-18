@@ -440,6 +440,19 @@ create policy "exercises_select" on exercises for select using (
 
 Herhangi bir plpgsql fonksiyonunda manuel yetkilendirme kontrolü yazılırken (`IF NOT (...) THEN RAISE EXCEPTION` deseni), koşul ifadesi MUTLAKA `coalesce(..., false)` ile sarılmalı. Ham `is_super_admin() OR my_role(org)=X OR ...` zinciri, org üyeliği olmayan kullanıcılar için `my_role()` NULL döndüğünde üç değerli mantık yüzünden sessizce bypass edilir (NOT NULL = NULL, hiçbir zaman true olmaz). Bu, Parti 3.C'de gerçek bir yetkisiz-erişim açığı olarak bulundu ve düzeltildi (bkz. PROGRESS.md § Parti 3.C).
 
+Her yeni `SECURITY DEFINER` fonksiyonu, gövdesinin ilk satırlarında `coalesce(..., false)` ile
+sarmalanmış bir yetki kontrolü İÇERMELİDİR. Yalnızca dahili yardımcı olarak kullanılacak
+`SECURITY DEFINER` fonksiyonlarından `PUBLIC`, `anon` ve `authenticated` rollerinin EXECUTE
+yetkisi kaldırılmalıdır. `my_role`, `my_team_id` ve `is_super_admin` fonksiyonları RLS
+politikaları içinden çağrıldığı için `authenticated` yetkileri ASLA kaldırılamaz. (Parti 18-S'te
+`copy_program_tree` ve `get_athlete_programs`'ın bu kuralı atladığı, ikisinin de gerçek
+cross-tenant açık olduğu bulundu ve kapatıldı — bkz. PROGRESS.md § Parti 18-S, BUGS.md Kritik.)
+
+`20260818073627_parti_18s_secure_definer_functions.sql` zaman damgalı adlandırma kullanır
+(diğerleri `034`–`037` sıralıdır). MCP ile doğrudan uygulandığı için sürüm otomatik atanmıştır
+ve `schema_migrations` kaydıyla eşleşmesi zorunlu olduğundan yeniden adlandırılamaz. Bundan
+sonraki migration'lar sıralı konvansiyona devam etmelidir.
+
 ### 4.2 Tip Güvenliği Konvansiyonu — types.ts regenerasyonu
 
 Yeni bir tablo/kolon/RPC fonksiyonu eklendiğinde, `packages/db/types.ts` AYNI COMMIT İÇİNDE regenerate edilmeli (`supabase gen types`). Bunu sonraki bir partiye ertelemek, o aradaki tüm partilerde yeni eklenen alanların/fonksiyonların type-check tarafından doğrulanmadan geçmesine yol açar (Parti 3.B-3.E arası bu şekilde gecikti, bkz. PROGRESS.md).
