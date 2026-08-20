@@ -3,5 +3,5 @@
   "framework": "nextjs",
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm turbo build --filter=@athleteiq/web",
-  "outputDirectory": "apps/web/.next"
+  "outputDirectory": ".next"
 }
