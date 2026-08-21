@@ -95,6 +95,18 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Geçersiz takım (org_id ile eşleşmiyor)" }, 400);
     }
 
+    // Org slug'ı çek — sentetik email'in kaynağı (create-org-user ile aynı desen,
+    // CLAUDE.md §4.3: {username}@{org_slug}.athleteiq.app)
+    const { data: org, error: orgError } = await supabaseAdmin
+      .from("organizations")
+      .select("slug")
+      .eq("id", org_id)
+      .maybeSingle();
+
+    if (orgError || !org) {
+      return json({ error: "Organizasyon bulunamadı" }, 404);
+    }
+
     // Çağıranın bu org'da (ve gerekirse bu takımda) yetkisi var mı?
     // athletes_insert RLS politikasıyla (002_rls.sql) birebir aynı kural:
     // super_admin, org admin, veya kendi takımına sporcu ekleyen coach.
@@ -150,7 +162,19 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Bu kullanıcı adı alınmış" }, 409);
     }
 
-    const syntheticEmail = `${username.toLowerCase()}@athleteiq.app`;
+    // profiles ön-kontrolü (org_id, lower(username)) — create-org-user ile aynı desen.
+    const { data: existingProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .eq("org_id", org_id)
+      .ilike("username", username)
+      .maybeSingle();
+
+    if (existingProfile) {
+      return json({ error: "Bu kullanıcı adı bu organizasyonda alınmış" }, 409);
+    }
+
+    const syntheticEmail = `${username.toLowerCase()}@${org.slug}.athleteiq.app`;
 
     // auth.users kaydı oluştur
     const { data: createdUser, error: createUserError } =
@@ -205,6 +229,29 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // profiles kaydı oluştur — create-org-user'ın yazdığı satırla aynı şema.
+    // Eksikliği, Kullanıcılar sayfasındaki "Şifre sıfırla" butonunun (yalnızca
+    // profile'ı olan kullanıcılar için render edilir) bu yoldan eklenen sporcular
+    // için hiç görünmemesine yol açıyordu.
+    const { error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .insert({ id: newUserId, org_id, username, full_name });
+
+    if (profileError) {
+      // ROLLBACK: athletes satırını ve auth hesabını geri al
+      await supabaseAdmin.from("athletes").delete().eq("id", athlete.id);
+      await supabaseAdmin.auth.admin.deleteUser(newUserId);
+      const isUniqueViolation = profileError.code === "23505";
+      return json(
+        {
+          error: isUniqueViolation
+            ? "Bu kullanıcı adı bu organizasyonda alınmış"
+            : profileError.message ?? "Profil kaydı oluşturulamadı",
+        },
+        isUniqueViolation ? 409 : 500
+      );
+    }
+
     // memberships kaydı oluştur — rol ataması burada gerçekleşir.
     // Bu olmadan kullanıcı giriş yapamaz (middleware "no_membership" ile reddeder).
     const { error: membershipError } = await supabaseAdmin
@@ -218,8 +265,9 @@ Deno.serve(async (req: Request) => {
       });
 
     if (membershipError) {
-      // ROLLBACK: hem athletes satırını hem de auth hesabını geri al —
+      // ROLLBACK: hem profiles/athletes satırlarını hem de auth hesabını geri al —
       // aksi halde giriş yapamayan yetim bir sporcu kaydı kalır.
+      await supabaseAdmin.from("profiles").delete().eq("id", newUserId);
       await supabaseAdmin.from("athletes").delete().eq("id", athlete.id);
       await supabaseAdmin.auth.admin.deleteUser(newUserId);
       return json(
@@ -228,7 +276,7 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    return json({ success: true, athlete, username }, 200);
+    return json({ success: true, athlete, username, email: syntheticEmail }, 200);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Bilinmeyen hata";
     console.error("create-athlete-account error:", message);

@@ -1,6 +1,26 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-18 (**Parti 18-S — Deploy Öncesi Güvenlik Sertleştirmesi** — canlı
+> Son güncelleme: 2026-08-21 (**Parti 19 — Sporcu Hesabı Kimlik Tutarsızlığı Düzeltmesi** —
+> kullanıcının "Sporcular" sayfasından "Giriş erişimi oluştur" toggle'ıyla eklediği bir sporcu
+> (nazli.savranbasi, TGF) hem giriş yapamıyor hem de Kullanıcılar sayfasında "Şifre sıfırla"
+> butonu görünmüyordu. Kök neden: `create-athlete-account` (Parti 4.B) Parti 18'in login'i
+> `kullanici@slug` kısayoluna tekilleştirip e-posta ile girişi kalıcı olarak kapattığı partide
+> güncellenmeden kalmış — hâlâ Parti 18-öncesi global sentetik email deseni
+> (`{username}@athleteiq.app`, org slug YOK) üretiyor ve hiçbir zaman `profiles` satırı
+> yazmıyordu, bu yüzden bu yoldan eklenen hesabın gerçek email'ine çözülebilecek hiçbir login
+> girdisi kalmamıştı (şifreden bağımsız, kalıcı bir giriş engeli) ve Kullanıcılar sayfasının
+> `{u.profile && <ResetUserPasswordModal/>}` koşulu hiç tetiklenmiyordu. `grant-athlete-access`
+> (Parti 10) kod incelemesinde aynı iki kusuru taşıdığı görüldü, henüz kimse kullanmamış olsa
+> da. Düzeltme: her iki Edge Function'a `create-org-user`'ın (Parti 16) zaten doğru çalışan
+> deseni taşındı (org slug sorgusu + org-scoped `syntheticEmail` + `profiles` insert + genişletilmiş
+> rollback zinciri), production'a deploy edildi. Canlıdaki tek etkilenmiş hesap elle düzeltildi:
+> eksik `profiles` satırı eklendi, `auth.users.email` (raw SQL değil, Parti 18'in kullandığı
+> Supabase Auth Admin REST API ile — `auth.identities.email` generated column olduğu için raw
+> SQL senkronsuz bırakırdı) doğru desene taşındı, şifreye dokunulmadı. Canlı doğrulama:
+> `auth.users.email`/`auth.identities.identity_data->>'email'`/`profiles.username` tutarlı ve
+> `resolveLoginIdentifier`'ın hedefiyle eşleşiyor; gerçek bir `signInWithPassword` denemesi
+> YAPILMADI (şifre kullanıcıda). Detay: § Parti 19)
+> Önceki: 2026-08-18 (**Parti 18-S — Deploy Öncesi Güvenlik Sertleştirmesi** — canlı
 > veritabanında bulunan 2 gerçek yetki açığı kapatıldı: `copy_program_tree` (SECURITY DEFINER,
 > sıfır yetki kontrolü, `/rest/v1/rpc/copy_program_tree` üzerinden herkese açık bir cross-tenant
 > okuma/yazma primitifi) — gövdesi `propagate_week_to_future`'ın dahili yardımcısı olduğu için
@@ -985,6 +1005,118 @@ kontrolünün unutulması. Aynı Parti'de yazılan (021_propagate_week.sql) dör
 `copy_program_tree`'de "çağıran zaten kontrol ediyor" varsayımıyla atlanmış — tıpkı
 `insert_sessions_tree`'nin Parti 8.G'de bulunan aynı sınıf açığı gibi. CLAUDE.md §4.1'e kalıcı
 kural olarak eklendi (bkz. CLAUDE.md değişikliği).
+
+---
+
+### Parti 19 — Sporcu Hesabı Kimlik Tutarsızlığı Düzeltmesi ✅ (2026-08-21)
+
+#### Kapsam
+
+Kullanıcı, "Sporcular" sayfasından "Giriş erişimi oluştur" toggle'ıyla yeni bir sporcu
+(Nazlı Savranbaşı, kullanıcı adı `nazli.savranbasi`, TGF) ekledikten sonra iki sorun bildirdi:
+(1) sporcu `nazli.savranbasi@tgf` + şifresiyle giriş yapamıyor ("Kullanıcı adı veya şifre
+hatalı"), (2) Kullanıcılar sayfasında (`/settings/users`) bu sporcu için "Şifre sıfırla"
+butonu hiç görünmüyor.
+
+#### Kök Neden
+
+`create-athlete-account` Edge Function'ı (Parti 4.B, 2026-07-27) Parti 18'in (2026-08-17)
+login'i tekleştirip e-posta ile girişi kalıcı olarak kapattığı partide GÜNCELLENMEMİŞ —
+PROGRESS.md § Parti 18 "Kapsam dışı bırakılan" notu bunu bilinçli bir erteleme olarak
+kaydetmişti ("`create-athlete-account`/`grant-athlete-access` fonksiyonlarına dokunulmadı...
+birleştirme Parti 18'de değerlendirilecek"), ama Parti 18-S güvenlik partisine kadar geri
+dönülmedi — bu arada fonksiyon üretimde aktif kalıp yeni sporcu hesapları üretmeye devam etti.
+
+İki bağımsız kusur:
+
+1. **Email deseni:** `syntheticEmail = \`${username}@athleteiq.app\`` (org slug YOK, Parti
+   18-öncesi global desen). `resolveLoginIdentifier` (`packages/validators/auth.ts:30-38`)
+   yalnızca `kullanici@slug` kısayolunu kabul edip bunu her zaman `{girdi}.athleteiq.app`'e
+   çözer, VE domain'inde nokta olan girdileri (`email_rejected`) reddeder. Sonuç: bu hesabın
+   gerçek email'ine (`nazli.savranbasi@athleteiq.app`, slug'sız — domain'i "athleteiq.app"
+   olduğu için nokta içeriyor) çözülebilecek HİÇBİR login girdisi yoktu — kısayol yanlış
+   email'e çözülüyor, tam email `email_rejected`'a düşüyor. Şifreden tamamen bağımsız, kalıcı
+   bir giriş engeliydi.
+2. **`profiles` satırı hiç yazılmıyor:** yalnızca `create-org-user` (Parti 16) `profiles`
+   insert'i yapıyor; `create-athlete-account` hiçbir zaman yapmadı. Kullanıcılar sayfası
+   (`apps/web/app/(dashboard)/settings/users/users-client.tsx:148`) "Şifre sıfırla" butonunu
+   `{u.profile && <ResetUserPasswordModal .../>}` ile koşullu render ediyor — `profile: null`
+   olduğu için buton hiç basılmıyordu. (Not: Sporcular sayfasındaki ayrı
+   `reset-password-modal.tsx` → `reset-athlete-password` Edge Function'ı `athletes.user_id`
+   üzerinden çalışır, `profiles`'a bağlı değildir — teoride oradan şifre sıfırlanabilirdi, ama
+   email sorunu çözülmeden bunun bir faydası olmazdı.)
+
+`grant-athlete-access` (Parti 10) — sporcuya SONRADAN erişim veren paralel yol — kod
+incelemesinde AYNI iki kusuru taşıdığı görüldü (`syntheticEmail` global desen, `profiles`
+insert'i yok). Henüz kimse bu yolla erişim vermemişti (bulgu, canlı veri değil) ama ilk
+kullanımda aynı hatayı üretecekti — kullanıcının "bu tutarsızlığı çöz" talebi kapsamında,
+tek bir hesabı yamalamak yerine kök nedeni her iki fonksiyonda da kapatmak tercih edildi.
+
+#### Düzeltme — Kod
+
+`supabase/functions/create-athlete-account/index.ts` ve
+`supabase/functions/grant-athlete-access/index.ts`, `create-org-user`'ın (Parti 16) zaten
+doğru çalışan deseni birebir taşınarak güncellendi:
+
+- Team/athlete doğrulamasının hemen ardına `organizations.slug` sorgusu eklendi (404
+  "Organizasyon bulunamadı" guard'ıyla).
+- `athletes` tablosundaki mevcut global-unique ön-kontrolün (`ilike`, DOKUNULMADI —
+  `athletes.username`'in 022'deki global mimarisi bu Parti'nin kapsamı dışı) hemen ardına,
+  `create-org-user`'daki ile birebir aynı `profiles` üzerinde org-scoped bir ön-kontrol
+  eklendi (409 "Bu kullanıcı adı bu organizasyonda alınmış").
+- `syntheticEmail` → `` `${username.toLowerCase()}@${org.slug}.athleteiq.app` ``.
+- `athletes` insert/update başarılı olduktan sonra `profiles` insert'i eklendi (`id`=yeni
+  `auth.users.id`, `org_id`, `username`, `full_name` — `athletes` satırıyla birebir aynı
+  değerler, iki depo bu satır için senkron kalsın diye).
+- Rollback zincirleri genişletildi: `profiles` insert'i başarısız olursa `athletes`+
+  `auth.users` geri alınır (LIFO); `memberships` insert'i başarısız olursa `profiles`+
+  `athletes`+`auth.users` geri alınır — hiçbir adımda yetim kayıt kalmıyor.
+
+`athletes.username`/`profiles.username` çift-depo mimarisine (BUGS.md'de ⚪ AÇIK, Parti 16'dan
+beri ertelenmiş) DOKUNULMADI — bu Parti yalnızca iki fonksiyonun yazdığı DEĞERLERİ senkron
+hale getirdi, iki ayrı kolonun kendisini birleştirmedi.
+
+Her iki fonksiyon Supabase MCP `deploy_edge_function` ile production'a deploy edildi
+(`create-athlete-account` v1→v2, `grant-athlete-access` v1→v2, ikisi de `status: ACTIVE`,
+`verify_jwt` değişmedi). Deploy öncesi `get_edge_function` ile canlıdaki v1 içeriğinin yerel
+repo dosyalarıyla birebir aynı olduğu doğrulandı (drift yok).
+
+#### Düzeltme — Veri (nazli.savranbasi)
+
+Mevcut kırık hesap, yeni kodun üreteceği durumla eşleşecek şekilde elle düzeltildi:
+
+1. Eksik `profiles` satırı eklendi: `id`=`a3f5f5f9-0ed8-43b8-aa7d-fd79f706a1a4`
+   (=`athletes.user_id`), `org_id`=TGF (`b6ad5c19-09e0-4116-9ce8-a31e0dba36f5`),
+   `username`=`nazli.savranbasi`, `full_name`=`Nazlı Savranbaşı`.
+2. `auth.users.email` **raw SQL DEĞİL**, Supabase Auth Admin REST API
+   (`PUT /auth/v1/admin/users/{id}`, Parti 18'in "gerçek Auth REST" ile 8 hesabı taşıdığı
+   yöntemin aynısı) ile `nazli.savranbasi@athleteiq.app` → `nazli.savranbasi@tgf.athleteiq.app`
+   olarak güncellendi. Raw SQL bilinçli olarak tercih edilmedi: `auth.identities.email`
+   Supabase'de `identity_data->>'email'`'den türeyen bir generated column — yalnızca
+   `auth.users.email`'i SQL ile güncellemek bu iki alanı senkronsuz bırakabilirdi. Şifreye
+   DOKUNULMADI (`updateUserById` yalnızca `email`/`email_confirm` alanlarıyla çağrıldı).
+
+#### Doğrulama
+
+Canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh`, düzeltme sonrası tek sorguyla: `auth.users.email`
+= `auth.identities.identity_data->>'email'` = `nazli.savranbasi@tgf.athleteiq.app`, `profiles.id`
+mevcut ve `profiles.username`=`athletes.username`=`nazli.savranbasi` — üçü de tutarlı ve
+`resolveLoginIdentifier("nazli.savranbasi@tgf")`'ün ürettiği hedefle birebir eşleşiyor.
+
+**Doğrulanamayan kapsam (dürüstçe belirtilmeli):** gerçek bir `signInWithPassword` denemesi bu
+partide YAPILMADI — şifre yalnızca kullanıcıda/sporcuda, proje konvansiyonu gereği
+(CLAUDE.md §11 "Test Hesapları") CLAUDE.md'ye yazılmıyor ve bu Parti şifre değiştirme/sıfırlama
+yapmadı. Kod tarafında `resolveLoginIdentifier` zaten Parti 18'in 18/18 testiyle doğrulanmış;
+burada yeni olan yalnızca hedef email'in artık doğru değere işaret etmesi. Kullanıcının
+sporcuya gerçek girişi denetmesi/denemesi önerilir. Yeni bir "sporcu ekle + giriş erişimi
+oluştur" ucundan uca UI denemesi (yeni kodun gerçekten doğru email üretip üretmediğini canlı
+doğrulamak için) bu partide YAPILMADI — kod incelemesi + `create-org-user`'la birebir aynı
+desen olması yeterli görüldü, gereksiz test verisi üretmemek için canlıda yeni bir sporcu
+oluşturulmadı.
+
+`packages/db/types.ts` regenerasyonu gerekmedi (yeni tablo/kolon/RPC yok — mevcut `profiles`
+şemasına satır eklendi, Edge Function'lar zaten `packages/db/types.ts`'e karşı type-check
+edilmiyor). `pnpm docs:sync` ÇALIŞTIRILMADI (şema/route/klasör yapısı değişmedi).
 
 ---
 
