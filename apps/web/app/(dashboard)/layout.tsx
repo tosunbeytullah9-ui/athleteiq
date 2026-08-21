@@ -1,8 +1,6 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Sidebar } from "@/components/shared/sidebar";
-import { Header } from "@/components/shared/header";
-import { Toaster } from "@/components/ui/toaster";
+import { DashboardShell } from "@/components/shared/dashboard-shell";
 import {
   UserContextProvider,
   type Role,
@@ -36,18 +34,7 @@ export default async function DashboardLayout({
 
   return (
     <UserContextProvider value={{ role, orgId, teamId }}>
-      <div className="flex h-screen flex-col overflow-hidden">
-        <div className="flex flex-1 overflow-hidden">
-          <Sidebar />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <Header />
-            <main className="flex-1 overflow-y-auto bg-background p-8">
-              {children}
-            </main>
-          </div>
-        </div>
-        <Toaster />
-      </div>
+      <DashboardShell>{children}</DashboardShell>
     </UserContextProvider>
   );
 }
