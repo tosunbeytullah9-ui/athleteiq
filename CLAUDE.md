@@ -116,6 +116,7 @@ AthleteIQ/
 │   └── settings.local.json
 ├── apps/
 │   ├── mobile/
+│   │   ├── android/
 │   │   ├── app/
 │   │   ├── components/
 │   │   ├── lib/
@@ -123,12 +124,25 @@ AthleteIQ/
 │   │   ├── .gitignore
 │   │   ├── app.json
 │   │   ├── babel.config.js
+│   │   ├── bugreport-sdk_gphone64_x86_64-BE4B.251210.005-2026-08-25-14-18-20.zip
+│   │   ├── bundle_test.json
+│   │   ├── emulator.log
+│   │   ├── emulator2.log
 │   │   ├── eslint.config.js
 │   │   ├── expo-env.d.ts
 │   │   ├── global.css
+│   │   ├── index.js
 │   │   ├── metro.config.js
+│   │   ├── metro.log
+│   │   ├── metro2.log
+│   │   ├── metro3.log
 │   │   ├── nativewind-env.d.ts
 │   │   ├── package.json
+│   │   ├── run-android.log
+│   │   ├── run-android2.log
+│   │   ├── run-android3.log
+│   │   ├── run-android4.log
+│   │   ├── studio.log
 │   │   ├── tailwind.config.js
 │   │   └── tsconfig.json
 │   └── web/
@@ -183,6 +197,7 @@ AthleteIQ/
 │   └── react-native-css-interop@0.2.6.patch
 ├── scripts/
 │   ├── docs-sync.mjs
+│   ├── import-exercise-library.mjs
 │   └── table-descriptions.json
 ├── supabase/
 │   ├── .temp/
@@ -199,7 +214,6 @@ AthleteIQ/
 │   │   ├── create-org-user/
 │   │   ├── grant-athlete-access/
 │   │   ├── invite-member/
-│   │   ├── polar-sync/
 │   │   ├── reset-athlete-password/
 │   │   ├── reset-user-password/
 │   │   └── whoop-webhook/
@@ -239,7 +253,11 @@ AthleteIQ/
 │   │   ├── 034_teams_rls_fix.sql
 │   │   ├── 035_teams_metadata.sql
 │   │   ├── 036_athletes_team_id_nullable.sql
-│   │   └── 037_organizations_update_policy.sql
+│   │   ├── 037_organizations_update_policy.sql
+│   │   ├── 038_exercise_taxonomy_extend.sql
+│   │   ├── 039_exercise_library_import.sql
+│   │   ├── 20260818073627_parti_18s_secure_definer_functions.sql
+│   │   └── 20260827122641_platform_exercises_delete.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -258,7 +276,8 @@ AthleteIQ/
 ├── PROGRESS.md
 ├── READINESS_PLAN.md
 ├── tsconfig.base.json
-└── turbo.json
+├── turbo.json
+└── vercel.json
 ```
 <!-- AUTO-GENERATED:TREE:END -->
 
@@ -1011,7 +1030,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-17
+Son otomatik senkron: 2026-08-27
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1062,6 +1081,10 @@ Son otomatik senkron: 2026-08-17
 - 035_teams_metadata.sql
 - 036_athletes_team_id_nullable.sql
 - 037_organizations_update_policy.sql
+- 038_exercise_taxonomy_extend.sql
+- 039_exercise_library_import.sql
+- 20260818073627_parti_18s_secure_definer_functions.sql
+- 20260827122641_platform_exercises_delete.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/

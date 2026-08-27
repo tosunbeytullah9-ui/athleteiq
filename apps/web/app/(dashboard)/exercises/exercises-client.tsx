@@ -32,6 +32,8 @@ const MOVEMENT_PATTERNS: { value: string; label: string }[] = [
   { value: "loaded_carry", label: "Loaded Carry" },
   { value: "sport_specific", label: "Sport Specific" },
   { value: "mobility_flexibility", label: "Mobility & Flexibility" },
+  { value: "isolation", label: "Isolation" },
+  { value: "olympic_lift", label: "Olympic Lift" },
 ];
 
 const DIFFICULTY_LABELS: Record<string, { label: string; color: string }> = {

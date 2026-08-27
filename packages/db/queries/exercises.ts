@@ -151,6 +151,68 @@ export async function updatePlatformExercise(
   return result;
 }
 
+export type PlatformExerciseUsage = {
+  /** Egzersiz adını taşıyan program satırı sayısı (exercises.name TEXT, FK yok) */
+  programRows: number;
+  /** Bu egzersizden fork'lanmış org egzersizi sayısı */
+  orgForks: number;
+  /** Bu egzersize bağlı 1RM kaydı sayısı */
+  oneRmRecords: number;
+};
+
+/**
+ * Silmeden önce süper admine gösterilecek etki özeti.
+ * Hiçbiri silmeyi engellemez — program satırları adı TEXT tuttuğu için
+ * bozulmaz, fork'lar `on delete set null` ile korunur (bkz. migration 040).
+ */
+export async function getPlatformExerciseUsage(
+  client: DbClient,
+  exercise: Pick<PlatformExercise, "id" | "name">
+): Promise<PlatformExerciseUsage> {
+  const c = client as any;
+
+  const [programs, forks, oneRm] = await Promise.all([
+    c
+      .from("exercises")
+      .select("id", { count: "exact", head: true })
+      .ilike("name", exercise.name),
+    c
+      .from("org_exercises")
+      .select("id", { count: "exact", head: true })
+      .eq("forked_from_platform", exercise.id),
+    c
+      .from("athlete_1rm_records")
+      .select("id", { count: "exact", head: true })
+      .eq("exercise_id", exercise.id),
+  ]);
+
+  for (const r of [programs, forks, oneRm]) {
+    if (r.error) throw r.error;
+  }
+
+  return {
+    programRows: programs.count ?? 0,
+    orgForks: forks.count ?? 0,
+    oneRmRecords: oneRm.count ?? 0,
+  };
+}
+
+/**
+ * Platform egzersizini KALICI olarak siler (süper admin, RLS ile gate'li).
+ * Geçici gizleme için `updatePlatformExercise(..., { is_active: false })` kullan.
+ */
+export async function deletePlatformExercise(
+  client: DbClient,
+  id: string
+): Promise<void> {
+  const { error } = await (client as any)
+    .from("platform_exercises")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 export async function getOrgExercises(
   client: DbClient,
   orgId: string,

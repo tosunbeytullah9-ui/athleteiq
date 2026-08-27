@@ -24,6 +24,8 @@ const MOVEMENT_LABELS: Record<string, string> = {
   loaded_carry: "Loaded Carry",
   sport_specific: "Sport Specific",
   mobility_flexibility: "Mobility & Flexibility",
+  isolation: "Isolation",
+  olympic_lift: "Olympic Lift",
 };
 
 interface Props {

@@ -2,11 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { updatePlatformExercise } from "@athleteiq/db/queries/exercises";
-import type { PlatformExercise } from "@athleteiq/db/queries/exercises";
+import {
+  updatePlatformExercise,
+  deletePlatformExercise,
+  getPlatformExerciseUsage,
+} from "@athleteiq/db/queries/exercises";
+import type {
+  PlatformExercise,
+  PlatformExerciseUsage,
+} from "@athleteiq/db/queries/exercises";
 import { MOVEMENT_PATTERNS } from "@/components/features/exercises/exercise-form-fields";
 import { CreatePlatformExerciseModal } from "@/components/features/exercises/create-platform-exercise-modal";
 import { EditPlatformExerciseModal } from "@/components/features/exercises/edit-platform-exercise-modal";
+import { DeleteConfirmDialog } from "@/components/features/exercises/delete-confirm-dialog";
 import {
   Table,
   TableBody,
@@ -34,6 +42,10 @@ export function ExercisesClient({ initialExercises }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<PlatformExercise | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<PlatformExercise | null>(null);
+  const [usage, setUsage] = useState<PlatformExerciseUsage | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -71,8 +83,79 @@ export function ExercisesClient({ initialExercises }: Props) {
     }
   }
 
+  async function askDelete(ex: PlatformExercise) {
+    setError(null);
+    setUsage(null);
+    setDeleting(ex);
+    try {
+      const supabase = createClient();
+      setUsage(await getPlatformExerciseUsage(supabase as any, ex));
+    } catch (err) {
+      console.error(err);
+      // Kullanım sayımı başarısız olsa da silme engellenmez; diyalog
+      // sayı yerine uyarı metniyle açılır.
+      setUsage(null);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    const target = deleting;
+    setDeletingId(target.id);
+    setError(null);
+    try {
+      const supabase = createClient();
+      await deletePlatformExercise(supabase as any, target.id);
+      setExercises((prev) => prev.filter((p) => p.id !== target.id));
+      setDeleting(null);
+      setUsage(null);
+    } catch (err) {
+      console.error(err);
+      setError(
+        `"${target.name}" silinemedi. Süper admin yetkisi gerekiyor.`
+      );
+      setDeleting(null);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  function deleteDescription(ex: PlatformExercise): string {
+    const lines = [
+      `"${ex.name}" platform kütüphanesinden kalıcı olarak silinecek. Bu işlem geri alınamaz.`,
+    ];
+
+    if (!usage) {
+      lines.push("Kullanım özeti alınamadı.");
+    } else if (usage.programRows || usage.orgForks || usage.oneRmRecords) {
+      const parts: string[] = [];
+      if (usage.programRows) parts.push(`${usage.programRows} program satırı`);
+      if (usage.orgForks) parts.push(`${usage.orgForks} org fork'u`);
+      if (usage.oneRmRecords) parts.push(`${usage.oneRmRecords} 1RM kaydı`);
+      lines.push(
+        `Bu egzersiz şu an ${parts.join(", ")} tarafından kullanılıyor. ` +
+          `Bunlar silinmez: programlar egzersiz adını metin olarak sakladığı için ` +
+          `bozulmaz, fork'lanmış org egzersizleri kalır. Egzersiz yalnızca ` +
+          `kütüphaneden ve seçim listesinden kaybolur.`
+      );
+    } else {
+      lines.push("Bu egzersiz hiçbir programda, fork'ta veya 1RM kaydında kullanılmıyor.");
+    }
+
+    lines.push(
+      "Kalıcı silmek yerine geçici gizlemek istiyorsan Aktif rozetine tıklayıp pasife alabilirsin."
+    );
+
+    return lines.join(" ");
+  }
+
   return (
     <div className="space-y-4">
+      {error && (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Input
@@ -142,9 +225,19 @@ export function ExercisesClient({ initialExercises }: Props) {
                   </button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="outline" size="sm" onClick={() => setEditing(ex)}>
-                    Düzenle
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditing(ex)}>
+                      Düzenle
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      disabled={deletingId === ex.id}
+                      onClick={() => askDelete(ex)}
+                    >
+                      {deletingId === ex.id ? "Siliniyor..." : "Sil"}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -158,6 +251,18 @@ export function ExercisesClient({ initialExercises }: Props) {
           onCreated={(ex) => {
             upsert(ex);
             setShowCreate(false);
+          }}
+        />
+      )}
+
+      {deleting && (
+        <DeleteConfirmDialog
+          title="Egzersizi kalıcı olarak sil"
+          description={deleteDescription(deleting)}
+          onConfirm={confirmDelete}
+          onCancel={() => {
+            setDeleting(null);
+            setUsage(null);
           }}
         />
       )}
