@@ -23,18 +23,9 @@ import type {
   OrgExerciseCategory,
   Athlete1RMRecord,
 } from "@athleteiq/db/queries/exercises";
+import { SUPERSET_GROUPS, SUPERSET_COLORS } from "@/lib/supersetGroups";
 
-export const SUPERSET_GROUPS = ["", "A", "B", "C", "D", "E", "F", "G"] as const;
-
-export const SUPERSET_COLORS: Record<string, string> = {
-  A: "border-l-violet-500",
-  B: "border-l-emerald-500",
-  C: "border-l-blue-500",
-  D: "border-l-orange-500",
-  E: "border-l-pink-500",
-  F: "border-l-cyan-500",
-  G: "border-l-yellow-500",
-};
+export { SUPERSET_GROUPS, SUPERSET_COLORS };
 
 // Set bazlı yük tipi — exercise_sets tablosunda ayrı bir load_type kolonu
 // YOK; tip, hangi kolon dolu olduğundan (load_kg / percent_1rm / is_bodyweight /

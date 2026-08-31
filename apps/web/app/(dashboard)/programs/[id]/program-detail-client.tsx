@@ -46,6 +46,7 @@ import {
   type TonnageContext,
   type TonnageSummary,
 } from "@/lib/tonnage";
+import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
@@ -118,6 +119,84 @@ interface Props {
   athlete: { id: string; full_name: string; weight_kg: number | null } | null;
   team: { id: string; name: string } | null;
   athleteMaxHistory: Athlete1RMRecord[];
+}
+
+type ExerciseWithSets = Tables<"exercises"> & {
+  exercise_sets: Tables<"exercise_sets">[];
+};
+
+function ExerciseCard({
+  exercise,
+  maxHistoryLookup,
+  programStartDate,
+}: {
+  exercise: ExerciseWithSets;
+  maxHistoryLookup: Map<string, Athlete1RMRecord[]>;
+  programStartDate: string | null;
+}) {
+  const sets = (exercise.exercise_sets ?? [])
+    .slice()
+    .sort((a, b) => a.set_number - b.set_number);
+
+  return (
+    <div className="rounded-md border p-3">
+      <div className="flex items-start justify-between gap-2 mb-2">
+        <div>
+          <p className="font-medium text-sm">{exercise.name}</p>
+          {exercise.notes && (
+            <p className="text-xs text-muted-foreground">{exercise.notes}</p>
+          )}
+        </div>
+        {exercise.rest_sec && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            Dinlenme {exercise.rest_sec}s
+          </span>
+        )}
+      </div>
+
+      {sets.length > 0 ? (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-1 pr-2 font-medium text-muted-foreground text-xs">
+                Set
+              </th>
+              <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
+                Tekrar/Süre
+              </th>
+              <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
+                Yük
+              </th>
+              <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
+                RPE
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {sets.map((set) => (
+              <tr key={set.id} className="border-b last:border-0">
+                <td className="py-1.5 pr-2 text-xs text-muted-foreground">
+                  {set.set_number}
+                </td>
+                <td className="py-1.5 px-2">{formatSetReps(set)}</td>
+                <td className="py-1.5 px-2">
+                  {formatSetLoad(
+                    set,
+                    exercise.name,
+                    maxHistoryLookup,
+                    programStartDate
+                  )}
+                </td>
+                <td className="py-1.5 px-2">{set.rpe ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="text-xs text-muted-foreground">Set bilgisi yok.</p>
+      )}
+    </div>
+  );
 }
 
 const DAY_LABELS = [
@@ -574,93 +653,54 @@ export function ProgramDetailClient({
 
                       {session.exercises.length > 0 && (
                         <CardContent className="space-y-3">
-                          {session.exercises
-                            .slice()
-                            .sort(
-                              (a, b) =>
-                                (a.order_index ?? 0) - (b.order_index ?? 0)
-                            )
-                            .map((exercise) => {
-                              const sets = (exercise.exercise_sets ?? [])
-                                .slice()
-                                .sort((a, b) => a.set_number - b.set_number);
-
+                          {groupExercisesForRender(
+                            session.exercises
+                              .slice()
+                              .sort(
+                                (a, b) =>
+                                  (a.order_index ?? 0) - (b.order_index ?? 0)
+                              )
+                          ).map((unit) => {
+                            if (unit.kind === "single") {
                               return (
-                                <div
-                                  key={exercise.id}
-                                  className="rounded-md border p-3"
-                                >
-                                  <div className="flex items-start justify-between gap-2 mb-2">
-                                    <div>
-                                      <p className="font-medium text-sm">
-                                        {exercise.name}
-                                      </p>
-                                      {exercise.notes && (
-                                        <p className="text-xs text-muted-foreground">
-                                          {exercise.notes}
-                                        </p>
-                                      )}
-                                    </div>
-                                    {exercise.rest_sec && (
-                                      <span className="shrink-0 text-xs text-muted-foreground">
-                                        Dinlenme {exercise.rest_sec}s
-                                      </span>
+                                <ExerciseCard
+                                  key={unit.exercise.id}
+                                  exercise={unit.exercise}
+                                  maxHistoryLookup={maxHistoryLookup}
+                                  programStartDate={program.start_date}
+                                />
+                              );
+                            }
+                            const borderColor =
+                              SUPERSET_COLORS[unit.groupKey] ??
+                              "border-l-gray-400";
+                            return (
+                              <div
+                                key={unit.groupKey}
+                                className={`rounded-lg border-l-4 ${borderColor} border bg-muted/20 p-2 space-y-2`}
+                              >
+                                <p className="text-xs font-semibold text-muted-foreground px-1">
+                                  {unit.label}
+                                </p>
+                                {unit.members.map((exercise, i) => (
+                                  <div key={exercise.id}>
+                                    <ExerciseCard
+                                      exercise={exercise}
+                                      maxHistoryLookup={maxHistoryLookup}
+                                      programStartDate={program.start_date}
+                                    />
+                                    {i < unit.members.length - 1 && (
+                                      <div className="flex items-center justify-center -my-1.5 relative z-10">
+                                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                                          +
+                                        </div>
+                                      </div>
                                     )}
                                   </div>
-
-                                  {sets.length > 0 ? (
-                                    <table className="w-full text-sm">
-                                      <thead>
-                                        <tr className="border-b">
-                                          <th className="text-left py-1 pr-2 font-medium text-muted-foreground text-xs">
-                                            Set
-                                          </th>
-                                          <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
-                                            Tekrar/Süre
-                                          </th>
-                                          <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
-                                            Yük
-                                          </th>
-                                          <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">
-                                            RPE
-                                          </th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {sets.map((set) => (
-                                          <tr
-                                            key={set.id}
-                                            className="border-b last:border-0"
-                                          >
-                                            <td className="py-1.5 pr-2 text-xs text-muted-foreground">
-                                              {set.set_number}
-                                            </td>
-                                            <td className="py-1.5 px-2">
-                                              {formatSetReps(set)}
-                                            </td>
-                                            <td className="py-1.5 px-2">
-                                              {formatSetLoad(
-                                                set,
-                                                exercise.name,
-                                                maxHistoryLookup,
-                                                program.start_date
-                                              )}
-                                            </td>
-                                            <td className="py-1.5 px-2">
-                                              {set.rpe ?? "—"}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  ) : (
-                                    <p className="text-xs text-muted-foreground">
-                                      Set bilgisi yok.
-                                    </p>
-                                  )}
-                                </div>
-                              );
-                            })}
+                                ))}
+                              </div>
+                            );
+                          })}
                         </CardContent>
                       )}
                     </Card>
