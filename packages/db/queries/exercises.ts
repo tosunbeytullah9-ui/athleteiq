@@ -488,6 +488,11 @@ export function buildMaxLookup(athleteMaxes: Athlete1RMRecord[]): Map<string, nu
   return lookup;
 }
 
+/** Salonda gerçekten yüklenebilecek en yakın ağırlığa (2.5 kg diskler) yukarı yuvarlar. */
+export function roundToPlateKg(kg: number): number {
+  return Math.ceil(kg / 2.5) * 2.5;
+}
+
 /** %1RM -> gerçek kg. 1RM kaydı yoksa null (hata değil). */
 export function resolveOneRepMaxKg(
   exerciseName: string,
@@ -496,7 +501,7 @@ export function resolveOneRepMaxKg(
 ): number | null {
   const oneRm = maxLookup.get(normalizeExerciseName(exerciseName));
   if (oneRm == null) return null;
-  return (percent1rm / 100) * oneRm;
+  return roundToPlateKg((percent1rm / 100) * oneRm);
 }
 
 /** Egzersiz adına göre (normalize edilerek) gruplanmış tam 1RM geçmişi — her grup test_date desc sıralı. */
@@ -543,5 +548,5 @@ export function resolveOneRepMaxKgForDate(
     const priorOrEqual = records.find((r) => r.test_date <= referenceDate);
     chosen = priorOrEqual ?? records[records.length - 1]!;
   }
-  return (percent1rm / 100) * chosen.weight_kg;
+  return roundToPlateKg((percent1rm / 100) * chosen.weight_kg);
 }

@@ -256,6 +256,7 @@ AthleteIQ/
 │   │   ├── 037_organizations_update_policy.sql
 │   │   ├── 038_exercise_taxonomy_extend.sql
 │   │   ├── 039_exercise_library_import.sql
+│   │   ├── 040_acwr_logs_update_policy.sql
 │   │   ├── 20260818073627_parti_18s_secure_definer_functions.sql
 │   │   └── 20260827122641_platform_exercises_delete.sql
 │   ├── snippets/
@@ -1030,7 +1031,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-08-27
+Son otomatik senkron: 2026-09-04
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1083,6 +1084,7 @@ Son otomatik senkron: 2026-08-27
 - 037_organizations_update_policy.sql
 - 038_exercise_taxonomy_extend.sql
 - 039_exercise_library_import.sql
+- 040_acwr_logs_update_policy.sql
 - 20260818073627_parti_18s_secure_definer_functions.sql
 - 20260827122641_platform_exercises_delete.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
@@ -1120,7 +1122,13 @@ Son otomatik senkron: 2026-08-27
 - ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama (Parti 16)
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish
-- ✅ ACWR: log girişi + dashboard
+- ✅ ACWR: log girişi + dashboard (aynı gün ikinci girişte/koç düzeltmesinde sessizce
+  başarısız olan eksik UPDATE RLS politikası `040_acwr_logs_update_policy.sql` ile
+  kapatıldı, bkz. Bekleyen Özellikler'in altındaki "03.09.2026 Eksiklikler" notu)
+- ✅ Wellness: `/wellness` — sporcu web arayüzünden günlük check-in girer (Parti 03.09.2026
+  Eksiklikler §3'e kadar bu akış yalnızca mobile'da vardı; web athlete guard'ı hem
+  `middleware.ts` hem `(dashboard)/layout.tsx`'te `/wellness`'e izin verecek şekilde
+  genişletildi)
 - ✅ Yarışma: ekleme + listeleme
 - ✅ Test sonuçları: ekleme + listeleme
 - ✅ Wearable altyapısı: tablolar + token saklama + normalize şema

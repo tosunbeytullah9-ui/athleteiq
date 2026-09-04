@@ -18,6 +18,7 @@ interface OrgUser {
   joined_at: string | null;
   profile: { username: string; full_name: string } | null;
   email: string | null;
+  isSuperAdmin: boolean;
 }
 
 interface Props {
@@ -137,6 +138,11 @@ export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <Badge variant="secondary">{ROLE_LABELS[u.role] ?? u.role}</Badge>
+                    {u.isSuperAdmin && (
+                      <Badge className="bg-amber-500 text-white hover:bg-amber-500">
+                        Süper Admin
+                      </Badge>
+                    )}
                     {u.role === "coach" && (
                       <CoachTeamSelect
                         membershipId={u.membership_id}

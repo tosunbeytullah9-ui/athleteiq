@@ -41,10 +41,14 @@ export default async function SettingsUsersPage() {
   // backfill edilen eski-desen kullanıcılar hâlâ {username}@athleteiq.app'te.
   // auth.users'tan gerçek email'i çekiyoruz (org üye sayısı küçük, N+1 kabul edilebilir).
   const emailByUserId = new Map<string, string>();
+  const superAdminUserIds = new Set<string>();
   await Promise.all(
     memberships.map(async (m) => {
       const { data } = await admin.auth.admin.getUserById(m.user_id);
       if (data?.user?.email) emailByUserId.set(m.user_id, data.user.email);
+      if (data?.user?.user_metadata?.["platform_role"] === "super_admin") {
+        superAdminUserIds.add(m.user_id);
+      }
     })
   );
 
@@ -57,6 +61,7 @@ export default async function SettingsUsersPage() {
     joined_at: m.joined_at,
     profile: profileMap.get(m.user_id) ?? null,
     email: emailByUserId.get(m.user_id) ?? null,
+    isSuperAdmin: superAdminUserIds.has(m.user_id),
   }));
 
   return (

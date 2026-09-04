@@ -151,14 +151,16 @@ export async function middleware(request: NextRequest) {
 
   const role = supabaseResponse.cookies.get("aiq_role")?.value ?? cachedRole;
 
-  // ATHLETE GUARD (asıl güvenlik): Sporcu web'de SADECE kendi yayınlanmış
-  // programını salt-okunur görür. İzin verilen tek yol /programs ve
-  // /programs/[id] (detay). Program oluşturma/düzenleme ve diğer tüm
-  // dashboard sayfaları bloklanır → /programs'a redirect.
+  // ATHLETE GUARD (asıl güvenlik): Sporcu web'de kendi yayınlanmış programını
+  // salt-okunur görür ve kendi günlük wellness check-in'ini girer. İzin verilen
+  // yollar /programs (+ [id] detay) ve /wellness. Program oluşturma/düzenleme
+  // ve diğer tüm dashboard sayfaları bloklanır → /programs'a redirect.
   if (role === "athlete") {
     const isBlocked =
       pathname === "/programs/new" || pathname.endsWith("/edit");
-    const isAllowed = pathname.startsWith("/programs") && !isBlocked;
+    const isAllowed =
+      (pathname.startsWith("/programs") && !isBlocked) ||
+      pathname === "/wellness";
 
     if (!isAllowed) {
       return NextResponse.redirect(new URL("/programs", request.url));

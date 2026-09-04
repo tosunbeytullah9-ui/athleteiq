@@ -273,6 +273,14 @@ export function ExercisesClient({
           </div>
           {canWrite && (
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => { setEditCategoryTarget(null); setCategoryModalOpen(true); }}
+              >
+                <Layers className="h-4 w-4" />
+                Yeni Kategori
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setForkOpen(true)}>
                 <GitFork className="h-4 w-4" />
                 Platform&apos;dan Ekle

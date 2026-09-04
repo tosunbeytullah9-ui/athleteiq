@@ -56,6 +56,12 @@ const navItems: {
     roles: ["admin", "coach"],
   },
   {
+    href: "/wellness",
+    label: "Wellness Girişi",
+    icon: Sunrise,
+    roles: ["athlete"],
+  },
+  {
     href: "/competitions",
     label: "Yarışmalar",
     icon: Trophy,
