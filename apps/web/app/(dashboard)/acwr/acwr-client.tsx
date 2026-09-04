@@ -56,14 +56,19 @@ function getAcwrBadgeVariant(ratio: number | null): "default" | "secondary" | "d
 }
 
 const today = new Date().toISOString().split("T")[0]!;
-const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-  .toISOString()
-  .split("T")[0]!;
+const RANGE_OPTIONS = [30, 40, 50, 60] as const;
+
+function daysAgo(days: number): string {
+  return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0]!;
+}
 
 export function AcwrClient({ athletes }: Props) {
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>(
     athletes[0]?.id ?? ""
   );
+  const [rangeDays, setRangeDays] = useState<number>(30);
   const [logs, setLogs] = useState<AcwrLog[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -73,6 +78,7 @@ export function AcwrClient({ athletes }: Props) {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<AcwrLogInput>({
     resolver: zodResolver(acwrLogSchema),
@@ -82,7 +88,15 @@ export function AcwrClient({ athletes }: Props) {
     },
   });
 
-  const loadLogs = useCallback(async (athleteId: string) => {
+  // RHF's defaultValues are captured once at mount, so the hidden
+  // athlete_id field must be kept in sync explicitly whenever the
+  // dropdown selection changes — otherwise submissions silently use
+  // whichever athlete was selected when the form first mounted.
+  useEffect(() => {
+    setValue("athlete_id", selectedAthleteId);
+  }, [selectedAthleteId, setValue]);
+
+  const loadLogs = useCallback(async (athleteId: string, days: number) => {
     if (!athleteId) return;
     setIsLoading(true);
     try {
@@ -91,7 +105,7 @@ export function AcwrClient({ athletes }: Props) {
         .from("acwr_logs")
         .select("*")
         .eq("athlete_id", athleteId)
-        .gte("log_date", thirtyDaysAgo)
+        .gte("log_date", daysAgo(days))
         .lte("log_date", today)
         .order("log_date");
       if (error) throw error;
@@ -102,8 +116,8 @@ export function AcwrClient({ athletes }: Props) {
   }, []);
 
   useEffect(() => {
-    if (selectedAthleteId) loadLogs(selectedAthleteId);
-  }, [selectedAthleteId, loadLogs]);
+    if (selectedAthleteId) loadLogs(selectedAthleteId, rangeDays);
+  }, [selectedAthleteId, rangeDays, loadLogs]);
 
   async function onSubmit(data: AcwrLogInput) {
     setSubmitError(null);
@@ -152,7 +166,7 @@ export function AcwrClient({ athletes }: Props) {
 
       reset({ log_date: today, athlete_id: selectedAthleteId });
       setShowForm(false);
-      await loadLogs(selectedAthleteId);
+      await loadLogs(selectedAthleteId, rangeDays);
     } catch (err: unknown) {
       setSubmitError(err instanceof Error ? err.message : "Kayıt sırasında hata oluştu.");
     }
@@ -180,7 +194,7 @@ export function AcwrClient({ athletes }: Props) {
         <div>
           <h1 className="text-2xl font-bold">ACWR Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Akut:Kronik Yük Oranı — son 30 gün
+            Akut:Kronik Yük Oranı — son {rangeDays} gün
           </p>
         </div>
         <Button onClick={() => setShowForm((v) => !v)}>
@@ -207,6 +221,19 @@ export function AcwrClient({ athletes }: Props) {
             ))
           )}
         </select>
+
+        <Label className="shrink-0">Aralık</Label>
+        <select
+          value={rangeDays}
+          onChange={(e) => setRangeDays(Number(e.target.value))}
+          className="flex h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+        >
+          {RANGE_OPTIONS.map((d) => (
+            <option key={d} value={d}>
+              Son {d} gün
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Log girişi formu */}
@@ -220,11 +247,7 @@ export function AcwrClient({ athletes }: Props) {
               onSubmit={handleSubmit(onSubmit)}
               className="grid grid-cols-2 gap-4 md:grid-cols-4"
             >
-              <input
-                type="hidden"
-                value={selectedAthleteId}
-                {...register("athlete_id")}
-              />
+              <input type="hidden" {...register("athlete_id")} />
 
               <div className="space-y-1.5">
                 <Label htmlFor="log_date">Tarih *</Label>
@@ -334,7 +357,7 @@ export function AcwrClient({ athletes }: Props) {
           <CardContent className="pt-5">
             <p className="text-xs text-muted-foreground">Toplam Log</p>
             <p className="text-2xl font-bold mt-1">{logs.length}</p>
-            <p className="text-xs text-muted-foreground mt-1">son 30 gün</p>
+            <p className="text-xs text-muted-foreground mt-1">son {rangeDays} gün</p>
           </CardContent>
         </Card>
       </div>
