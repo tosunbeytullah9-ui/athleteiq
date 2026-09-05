@@ -23,6 +23,9 @@ export const MOVEMENT_PATTERNS = [
   { value: "mobility_flexibility", label: "Mobility & Flexibility" },
   { value: "isolation", label: "Isolation" },
   { value: "olympic_lift", label: "Olympic Lift" },
+  { value: "total_body", label: "Tüm Vücut" },
+  { value: "cardio", label: "Kardiyo" },
+  { value: "neck", label: "Boyun" },
 ];
 
 const LOAD_TYPES = [

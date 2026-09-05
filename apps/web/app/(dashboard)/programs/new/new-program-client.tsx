@@ -68,6 +68,7 @@ const programSchema = z.object({
   start_date: z.string().min(1, "Başlangıç tarihi gerekli"),
   phase: z.enum(["preparation", "competition", "transition", "peak"]).optional(),
   discipline: z.string().optional(),
+  training_group: z.string().optional(),
   notes: z.string().optional(),
   sessions: z.array(sessionSchema).default([]),
 });
@@ -77,7 +78,12 @@ type ProgramForm = z.infer<typeof programSchema>;
 interface Props {
   orgId: string;
   teams: { id: string; name: string }[];
-  athletes: { id: string; full_name: string; team_id: string | null }[];
+  athletes: {
+    id: string;
+    full_name: string;
+    team_id: string | null;
+    training_group: string | null;
+  }[];
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];
   categories?: OrgExerciseCategory[];
@@ -143,6 +149,17 @@ export function NewProgramClient({
       ? athletes.filter((a) => a.team_id === selectedTeamId)
       : athletes;
 
+  // Seçili takımdaki sporculardan gelen mevcut grup etiketleri — Training
+  // Groups için ayrı bir lookup tablosu yok, athletes.training_group'tan öneri.
+  const trainingGroupSuggestions = useMemo(() => {
+    const set = new Set(
+      athletes
+        .filter((a) => a.team_id === selectedTeamId && a.training_group)
+        .map((a) => a.training_group as string)
+    );
+    return Array.from(set).sort();
+  }, [athletes, selectedTeamId]);
+
   function addSession(dayOfWeek: number) {
     appendSession({
       day_of_week: dayOfWeek,
@@ -181,6 +198,8 @@ export function NewProgramClient({
         p_block_start_date: data.start_date,
         p_sessions: buildSessionsPayload(data.sessions),
         p_discipline: data.discipline?.trim() || undefined,
+        p_training_group:
+          data.scope === "team" ? data.training_group?.trim() || undefined : undefined,
       });
 
       if (error) throw new Error(mapRpcError(error.message));
@@ -281,6 +300,7 @@ export function NewProgramClient({
                           setValue("scope", s);
                           setValue("team_id", undefined);
                           setValue("athlete_id", undefined);
+                          setValue("training_group", undefined);
                         }}
                         className="accent-primary"
                       />
@@ -305,6 +325,26 @@ export function NewProgramClient({
                       </option>
                     ))}
                   </select>
+                  {selectedTeamId && (
+                    <div className="space-y-1.5 pt-2">
+                      <Label htmlFor="training_group">Alt Grup (opsiyonel)</Label>
+                      <Input
+                        id="training_group"
+                        list="training-group-suggestions"
+                        {...register("training_group")}
+                        placeholder="Örn: Linemen, Skill"
+                      />
+                      <datalist id="training-group-suggestions">
+                        {trainingGroupSuggestions.map((g) => (
+                          <option key={g} value={g} />
+                        ))}
+                      </datalist>
+                      <p className="text-xs text-muted-foreground">
+                        Boş bırakılırsa tüm takım görür; doldurulursa yalnızca bu gruptaki
+                        sporcular görür
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-1.5">

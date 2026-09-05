@@ -3,6 +3,7 @@
   "athlete_1rm_records": "Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki \"Son max\" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).",
   "athlete_push_tokens": "Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).",
   "athletes": "Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo/pozisyon vb. (001_schema.sql).",
+  "attendance_records": "Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).",
   "competition_results": "Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).",
   "competitions": "Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).",
   "exercise_sets": "Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).",

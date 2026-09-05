@@ -513,6 +513,11 @@ export function ProgramDetailClient({
                     </>
                   ) : null}
                 </div>
+                {team && program.training_group && (
+                  <Badge variant="outline" className="text-xs">
+                    {program.training_group}
+                  </Badge>
+                )}
                 {program.phase && (
                   <span>{PHASE_LABELS[program.phase] ?? program.phase}</span>
                 )}

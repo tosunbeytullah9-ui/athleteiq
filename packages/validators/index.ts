@@ -5,5 +5,6 @@ export * from "./acwr";
 export * from "./team";
 export * from "./organization";
 export * from "./wellness";
+export * from "./attendance";
 export * from "./exercise";
 export * from "./org-user";

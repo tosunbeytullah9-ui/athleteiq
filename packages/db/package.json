@@ -17,6 +17,7 @@
     "./queries/exercises": "./queries/exercises.ts",
     "./queries/organizations": "./queries/organizations.ts",
     "./queries/wellness": "./queries/wellness.ts",
+    "./queries/attendance": "./queries/attendance.ts",
     "./queries/profiles": "./queries/profiles.ts"
   },
   "scripts": {

@@ -17,6 +17,7 @@ import {
   Layers,
   Sunrise,
   UserCog,
+  ClipboardCheck,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -49,6 +50,12 @@ const navItems: {
     roles: ["admin", "coach"],
   },
   { href: "/acwr", label: "ACWR", icon: BarChart2, roles: ["admin", "coach"] },
+  {
+    href: "/attendance",
+    label: "Yoklama",
+    icon: ClipboardCheck,
+    roles: ["admin", "coach"],
+  },
   {
     href: "/readiness",
     label: "Wellness",

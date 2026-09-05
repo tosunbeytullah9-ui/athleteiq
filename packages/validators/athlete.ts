@@ -63,6 +63,7 @@ const createAthleteBaseSchema = z.object({
   height_cm: optionalNumber,
   weight_kg: optionalNumber,
   position: z.string().optional().transform((v) => v || null),
+  training_group: z.string().optional().transform((v) => v || null),
   notes: z.string().optional().transform((v) => v || null),
   create_login: z.boolean().optional().default(false),
   username: z.string().optional(),

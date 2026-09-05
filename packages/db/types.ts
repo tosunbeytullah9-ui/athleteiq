@@ -179,6 +179,7 @@ export type Database = {
           org_id: string
           position: string | null
           team_id: string | null
+          training_group: string | null
           updated_at: string | null
           user_id: string | null
           username: string | null
@@ -197,6 +198,7 @@ export type Database = {
           org_id: string
           position?: string | null
           team_id?: string | null
+          training_group?: string | null
           updated_at?: string | null
           user_id?: string | null
           username?: string | null
@@ -215,6 +217,7 @@ export type Database = {
           org_id?: string
           position?: string | null
           team_id?: string | null
+          training_group?: string | null
           updated_at?: string | null
           user_id?: string | null
           username?: string | null
@@ -230,6 +233,67 @@ export type Database = {
           },
           {
             foreignKeyName: "athletes_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      attendance_records: {
+        Row: {
+          athlete_id: string
+          created_at: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          recorded_by: string | null
+          session_date: string
+          status: string
+          team_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          athlete_id: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          recorded_by?: string | null
+          session_date: string
+          status: string
+          team_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          athlete_id?: string
+          created_at?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          recorded_by?: string | null
+          session_date?: string
+          status?: string
+          team_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_records_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_records_team_id_fkey"
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
@@ -1013,6 +1077,7 @@ export type Database = {
           start_date: string | null
           team_id: string | null
           title: string
+          training_group: string | null
           updated_at: string | null
           week_index_in_block: number | null
           week_number: number | null
@@ -1033,6 +1098,7 @@ export type Database = {
           start_date?: string | null
           team_id?: string | null
           title: string
+          training_group?: string | null
           updated_at?: string | null
           week_index_in_block?: number | null
           week_number?: number | null
@@ -1053,6 +1119,7 @@ export type Database = {
           start_date?: string | null
           team_id?: string | null
           title?: string
+          training_group?: string | null
           updated_at?: string | null
           week_index_in_block?: number | null
           week_number?: number | null
@@ -1391,6 +1458,7 @@ export type Database = {
           p_sessions: Json
           p_team_id: string
           p_title: string
+          p_training_group?: string
           p_weeks_count: number
         }
         Returns: Json
@@ -1413,6 +1481,7 @@ export type Database = {
           start_date: string | null
           team_id: string | null
           title: string
+          training_group: string | null
           updated_at: string | null
           week_index_in_block: number | null
           week_number: number | null
@@ -1445,6 +1514,7 @@ export type Database = {
           p_sessions: Json
           p_start_date: string
           p_title: string
+          p_training_group?: string
         }
         Returns: undefined
       }
@@ -1466,12 +1536,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1495,11 +1565,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1520,11 +1590,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1545,11 +1615,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -1562,11 +1632,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }

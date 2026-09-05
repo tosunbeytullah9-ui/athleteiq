@@ -92,6 +92,7 @@ const programSchema = z.object({
   start_date: z.string().min(1, "Başlangıç tarihi gerekli"),
   phase: z.enum(["preparation", "competition", "transition", "peak"]).optional(),
   discipline: z.string().optional(),
+  training_group: z.string().optional(),
   notes: z.string().optional(),
   sessions: z.array(sessionSchema).default([]),
 });
@@ -122,7 +123,12 @@ interface Props {
   program: ProgramRow;
   orgId: string;
   teams: { id: string; name: string }[];
-  athletes: { id: string; full_name: string; team_id: string | null }[];
+  athletes: {
+    id: string;
+    full_name: string;
+    team_id: string | null;
+    training_group: string | null;
+  }[];
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];
   categories?: OrgExerciseCategory[];
@@ -244,6 +250,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
       start_date: program.start_date ?? undefined,
       phase: (program.phase as ProgramForm["phase"]) ?? undefined,
       discipline: program.discipline ?? undefined,
+      training_group: program.training_group ?? undefined,
       notes: program.notes ?? undefined,
       sessions: defaultSessions,
     },
@@ -260,6 +267,15 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
   });
 
   const watchedSessions = watch("sessions");
+
+  const trainingGroupSuggestions = useMemo(() => {
+    const set = new Set(
+      athletes
+        .filter((a) => a.team_id === program.team_id && a.training_group)
+        .map((a) => a.training_group as string)
+    );
+    return Array.from(set).sort();
+  }, [athletes, program.team_id]);
 
   const pickerAthleteMaxes = useMemo(
     () =>
@@ -312,6 +328,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
         p_end_date: deriveEndDate(data.start_date),
         p_sessions: buildSessionsPayload(data.sessions),
         p_discipline: data.discipline?.trim() || undefined,
+        p_training_group: scope === "team" ? data.training_group?.trim() || undefined : undefined,
       });
 
       if (error) throw new Error(mapRpcError(error.message));
@@ -542,6 +559,27 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                 </datalist>
                 <p className="text-xs text-muted-foreground">Sekmede görünecek, kısa tutun</p>
               </div>
+
+              {scope === "team" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="training_group">Alt Grup (opsiyonel)</Label>
+                  <Input
+                    id="training_group"
+                    list="training-group-suggestions"
+                    {...register("training_group")}
+                    placeholder="Örn: Linemen, Skill"
+                  />
+                  <datalist id="training-group-suggestions">
+                    {trainingGroupSuggestions.map((g) => (
+                      <option key={g} value={g} />
+                    ))}
+                  </datalist>
+                  <p className="text-xs text-muted-foreground">
+                    Boş bırakılırsa tüm takım görür; doldurulursa yalnızca bu gruptaki sporcular
+                    görür
+                  </p>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <Label htmlFor="notes">Notlar</Label>

@@ -12,29 +12,9 @@ import { EditExerciseModal } from "@/components/features/exercises/edit-exercise
 import { CreateCategoryModal } from "@/components/features/exercises/create-category-modal";
 import { ForkExerciseModal } from "@/components/features/exercises/fork-exercise-modal";
 import { DeleteConfirmDialog } from "@/components/features/exercises/delete-confirm-dialog";
+import { MOVEMENT_PATTERNS } from "@/components/features/exercises/exercise-form-fields";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
-
-const MOVEMENT_PATTERNS: { value: string; label: string }[] = [
-  { value: "horizontal_push", label: "Horizontal Push" },
-  { value: "vertical_push", label: "Vertical Push" },
-  { value: "horizontal_pull", label: "Horizontal Pull" },
-  { value: "vertical_pull", label: "Vertical Pull" },
-  { value: "hip_hinge_bilateral", label: "Hip Hinge (Bilateral)" },
-  { value: "hip_hinge_unilateral", label: "Hip Hinge (Unilateral)" },
-  { value: "knee_dominant_bilateral", label: "Knee Dominant (Bilateral)" },
-  { value: "knee_dominant_unilateral", label: "Knee Dominant (Unilateral)" },
-  { value: "rotation", label: "Rotation" },
-  { value: "anti_rotation", label: "Anti-Rotation" },
-  { value: "jump_land", label: "Jump & Land" },
-  { value: "locomotion", label: "Locomotion" },
-  { value: "core_stability", label: "Core Stability" },
-  { value: "loaded_carry", label: "Loaded Carry" },
-  { value: "sport_specific", label: "Sport Specific" },
-  { value: "mobility_flexibility", label: "Mobility & Flexibility" },
-  { value: "isolation", label: "Isolation" },
-  { value: "olympic_lift", label: "Olympic Lift" },
-];
 
 const DIFFICULTY_LABELS: Record<string, { label: string; color: string }> = {
   beginner: { label: "Başlangıç", color: "bg-green-100 text-green-800" },

@@ -5,27 +5,11 @@ import { X, Search } from "lucide-react";
 import { Input } from "@athleteiq/ui/components/input";
 import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory, Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
+import { MOVEMENT_PATTERNS } from "@/components/features/exercises/exercise-form-fields";
 
-const MOVEMENT_LABELS: Record<string, string> = {
-  horizontal_push: "Horizontal Push",
-  vertical_push: "Vertical Push",
-  horizontal_pull: "Horizontal Pull",
-  vertical_pull: "Vertical Pull",
-  hip_hinge_bilateral: "Hip Hinge (Bilateral)",
-  hip_hinge_unilateral: "Hip Hinge (Unilateral)",
-  knee_dominant_bilateral: "Knee Dominant (Bilateral)",
-  knee_dominant_unilateral: "Knee Dominant (Unilateral)",
-  rotation: "Rotation",
-  anti_rotation: "Anti-Rotation",
-  jump_land: "Jump & Land",
-  locomotion: "Locomotion",
-  core_stability: "Core Stability",
-  loaded_carry: "Loaded Carry",
-  sport_specific: "Sport Specific",
-  mobility_flexibility: "Mobility & Flexibility",
-  isolation: "Isolation",
-  olympic_lift: "Olympic Lift",
-};
+const MOVEMENT_LABELS: Record<string, string> = Object.fromEntries(
+  MOVEMENT_PATTERNS.map((p) => [p.value, p.label])
+);
 
 export interface PickedExercise {
   name: string;

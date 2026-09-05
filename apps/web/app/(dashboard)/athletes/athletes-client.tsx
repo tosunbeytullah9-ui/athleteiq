@@ -82,7 +82,12 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
             {initialAthletes.length} sporcu kayıtlı
           </p>
         </div>
-        <AddAthleteModal teams={teams} orgId={orgId} onSuccess={() => router.refresh()} />
+        <AddAthleteModal
+          teams={teams}
+          orgId={orgId}
+          existingAthletes={initialAthletes}
+          onSuccess={() => router.refresh()}
+        />
       </div>
 
       <div className="flex gap-3">

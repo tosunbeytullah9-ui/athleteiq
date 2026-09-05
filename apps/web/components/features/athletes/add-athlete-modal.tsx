@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -15,10 +15,11 @@ import { createAthlete } from "@athleteiq/db/queries/athletes";
 interface Props {
   teams: { id: string; name: string }[];
   orgId: string;
+  existingAthletes?: { team_id: string | null; training_group: string | null }[];
   onSuccess: () => void;
 }
 
-export function AddAthleteModal({ teams, orgId, onSuccess }: Props) {
+export function AddAthleteModal({ teams, orgId, existingAthletes = [], onSuccess }: Props) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -36,6 +37,19 @@ export function AddAthleteModal({ teams, orgId, onSuccess }: Props) {
   });
 
   const createLogin = watch("create_login");
+  const selectedTeamId = watch("team_id");
+
+  // Seçili takımdaki mevcut sporculardan öneri — coach'un aynı grup adını
+  // tekrar tekrar aynı şekilde yazmasını kolaylaştırır, ayrı bir lookup
+  // tablosu gerektirmez (position alanıyla aynı serbest-metin yaklaşımı).
+  const trainingGroupSuggestions = useMemo(() => {
+    const set = new Set(
+      existingAthletes
+        .filter((a) => a.team_id === selectedTeamId && a.training_group)
+        .map((a) => a.training_group as string)
+    );
+    return Array.from(set).sort();
+  }, [existingAthletes, selectedTeamId]);
 
   // Toggle KAPALI: mevcut davranış — doğrudan roster-only insert, DOKUNULMADI.
   // (data'yı olduğu gibi spread etmiyoruz: data artık create_login/username/password
@@ -50,6 +64,7 @@ export function AddAthleteModal({ teams, orgId, onSuccess }: Props) {
       height_cm: data.height_cm ?? null,
       weight_kg: data.weight_kg ?? null,
       position: data.position,
+      training_group: data.training_group,
       notes: data.notes,
       org_id: orgId,
     });
@@ -74,6 +89,7 @@ export function AddAthleteModal({ teams, orgId, onSuccess }: Props) {
         height_cm: data.height_cm,
         weight_kg: data.weight_kg,
         position: data.position,
+        training_group: data.training_group,
         notes: data.notes,
       }),
     });
@@ -215,6 +231,21 @@ export function AddAthleteModal({ teams, orgId, onSuccess }: Props) {
             <div className="space-y-1.5">
               <Label htmlFor="position">Pozisyon / Branş</Label>
               <Input id="position" {...register("position")} placeholder="Artistik Jimnastik" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="training_group">Antrenman Grubu (opsiyonel)</Label>
+              <Input
+                id="training_group"
+                list="training-group-suggestions"
+                {...register("training_group")}
+                placeholder="Örn: Linemen, Skill"
+              />
+              <datalist id="training-group-suggestions">
+                {trainingGroupSuggestions.map((g) => (
+                  <option key={g} value={g} />
+                ))}
+              </datalist>
             </div>
 
             <div className="space-y-1.5">

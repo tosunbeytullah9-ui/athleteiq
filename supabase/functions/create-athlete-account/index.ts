@@ -20,6 +20,7 @@ interface CreateAthletePayload {
   height_cm?: number;
   weight_kg?: number;
   position?: string;
+  training_group?: string;
   notes?: string;
 }
 
@@ -70,6 +71,7 @@ Deno.serve(async (req: Request) => {
       height_cm,
       weight_kg,
       position,
+      training_group,
       notes,
     } = payload;
 
@@ -210,6 +212,7 @@ Deno.serve(async (req: Request) => {
         height_cm: height_cm ?? null,
         weight_kg: weight_kg ?? null,
         position: position ?? null,
+        training_group: training_group ?? null,
         notes: notes ?? null,
       })
       .select()

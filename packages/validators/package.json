@@ -11,6 +11,7 @@
     "./team": "./team.ts",
     "./organization": "./organization.ts",
     "./wellness": "./wellness.ts",
+    "./attendance": "./attendance.ts",
     "./exercise": "./exercise.ts",
     "./org-user": "./org-user.ts"
   },

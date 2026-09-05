@@ -1,6 +1,40 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-08-21 (**Parti 19 — Sporcu Hesabı Kimlik Tutarsızlığı Düzeltmesi** —
+> Son güncelleme: 2026-09-05 (**Parti 20 — Attendance, Training Groups, Egzersiz Taksonomisi
+> Genişletmesi** — Öncelik 2 listesindeki 4 maddeyi kapattı. (1) ACWR grafiği zaten Recharts ile
+> uygulanmıştı (`acwr-client.tsx`), kod değişikliği gerekmedi, sadece doğrulandı. (2) Egzersiz
+> taksonomisi (`041_exercise_taxonomy_extend2.sql`) `movement_pattern`'e `total_body`/`cardio`/
+> `neck` ekledi; UI'da 3 ayrı yerde (`exercise-form-fields.tsx`, dashboard `exercises-client.tsx`,
+> `exercise-picker-modal.tsx`) elle senkronize edilen kopya `MOVEMENT_PATTERNS` dizileri tek
+> kaynağa (`exercise-form-fields.tsx`) indirildi. (3) Attendance (`042_attendance.sql`) — yeni
+> `attendance_records` tablosu (team/date/status: present/late/excused/absent), `athletes_select`
+> ile aynı takım-bazlı RLS deseni (coach kendi takımı, admin org geneli, **sporcu görünürlüğü
+> bilinçli olarak yok** — istekte geçmiyor), yeni `/attendance` sayfası + sidebar girişi, yeni
+> `packages/validators/attendance.ts` + `packages/db/queries/attendance.ts`. (4) Training Groups
+> (`043_training_groups.sql`) — `athletes.training_group` + `training_programs.training_group`
+> (serbest metin, `position`/`discipline` alanlarından bağımsız — o ikisinin RLS'e hiç etkisi
+> yok, bu GERÇEKTEN daraltıyor); `create_program_with_weeks`/`update_program_week` RPC'leri
+> (canlı gövdeleri `pg_get_functiondef` ile 030'un dosyasıyla birebir doğrulandıktan sonra)
+> `p_training_group` parametresiyle yeniden tanımlandı; `programs_select`/`sessions_select`/
+> `exercises_select`/`exercise_sets_select` RLS politikaları (canlı gövdeleri `pg_policies` ile
+> 025'in dosyasıyla birebir doğrulandıktan sonra) sporcu-published-görüş dalına grup eşleşmesi
+> eklenecek şekilde `alter policy` ile güncellendi — coach/admin dalları dokunulmadı. UI:
+> `add-athlete-modal.tsx` (+ `create-athlete-account` Edge Function, iki oluşturma yolu da
+> güncellendi), `new-program-client.tsx`, `week-editor-form.tsx` (asıl program-edit formu,
+> `edit-program-client.tsx` değil), `program-detail-client.tsx`'te grup rozeti. Ayrıca bir
+> bookkeeping düzeltmesi: `040_acwr_logs_update_policy.sql` bir önceki oturumda MCP ile doğrudan
+> uygulanmış (remote'ta `20260904124844` sürüm numarasıyla), local dosya `040` adıyla
+> commit'lenmişti — `20260818073627` presedanıyla aynı senaryo, dosya yeniden adlandırılıp
+> hizalandı (bkz. CLAUDE.md §4.1). `supabase gen types` (`--linked`, proje lokal Docker stack'i
+> olmadığı için) ile `packages/db/types.ts` regenerate edildi, `pnpm docs:sync` çalıştırıldı,
+> `get_advisors` (security) her migration sonrası temiz çıktı (yalnızca önceden var olan,
+> bilinçli SECURITY DEFINER uyarıları). `tsc --noEmit` 3/3 dokunulan paket (db, validators, web)
+> temiz; mobile'da 1 önceden var olan, ilgisiz tip hatası (`program/[day].tsx`, `team_id: string
+> | null` → `string`) — bu Parti'den önce de vardı, dokunulmadı. **Bilinen sınır:** sporculara
+> `training_group` atamak şu an yalnızca oluşturma anında mümkün — web'de athlete-edit ekranı
+> hiç yok (`athlete-detail-client.tsx` salt-okunur), bu Parti'nin kapsamına yeni bir edit akışı
+> AÇILMADI. Detay: § Parti 20)
+> Önceki: 2026-08-21 (**Parti 19 — Sporcu Hesabı Kimlik Tutarsızlığı Düzeltmesi** —
 > kullanıcının "Sporcular" sayfasından "Giriş erişimi oluştur" toggle'ıyla eklediği bir sporcu
 > (nazli.savranbasi, TGF) hem giriş yapamıyor hem de Kullanıcılar sayfasında "Şifre sıfırla"
 > butonu görünmüyordu. Kök neden: `create-athlete-account` (Parti 4.B) Parti 18'in login'i
@@ -1005,6 +1039,102 @@ kontrolünün unutulması. Aynı Parti'de yazılan (021_propagate_week.sql) dör
 `copy_program_tree`'de "çağıran zaten kontrol ediyor" varsayımıyla atlanmış — tıpkı
 `insert_sessions_tree`'nin Parti 8.G'de bulunan aynı sınıf açığı gibi. CLAUDE.md §4.1'e kalıcı
 kural olarak eklendi (bkz. CLAUDE.md değişikliği).
+
+---
+
+### Parti 20 — Attendance, Training Groups, Egzersiz Taksonomisi Genişletmesi ✅ (2026-09-05)
+
+#### Kapsam
+
+PROGRESS.md "Öncelik 2" listesindeki 4 madde: ACWR grafiği (kontrol), Attendance (yoklama),
+Training Groups (takım içi alt gruplama), egzersiz taksonomisi genişletmesi (`total_body`/
+`cardio`/`neck`). Ayrıca yol boyunca bulunan bir migration bookkeeping tutarsızlığı düzeltildi.
+
+#### Bookkeeping düzeltmesi
+
+`supabase migration list` local `040_acwr_logs_update_policy.sql`'i "uygulanmamış" gösteriyordu.
+`execute_sql` ile remote'taki `20260904124844` sürümünün içeriği birebir aynı çıktı — bir önceki
+oturumda MCP ile doğrudan uygulanmış, local dosya sıralı `040` adıyla commit'lenmişti.
+`20260818073627` presedanıyla (CLAUDE.md §4.1) aynı senaryo. Dosya `20260904124844_
+acwr_logs_update_policy.sql` olarak yeniden adlandırılıp hizalandı, SQL'e dokunulmadı.
+
+#### 1) ACWR grafiği — değişiklik yok
+
+`acwr-client.tsx` zaten Recharts `LineChart` ile tam bir trend grafiği (ACWR çizgisi + akut/
+kronik referans çizgileri 0.8/1.3/1.5 + tooltip/legend) + özet kartlar + log tablosu içeriyordu.
+Doğrulandı, PROGRESS.md'de ✅ işaretlendi.
+
+#### 2) Egzersiz taksonomisi — `041_exercise_taxonomy_extend2.sql`
+
+`038_exercise_taxonomy_extend.sql`'in devamı: `platform_exercises`/`org_exercises`
+`movement_pattern` CHECK constraint'i 18 → 21 değere genişledi (`total_body`, `cardio`,
+`neck` eklendi), 038'deki drop+re-add deseniyle. UI'da hareket paterni listesi 3 AYRI yerde
+elle senkronize edilen kopya diziydi (`exercise-form-fields.tsx`'in `MOVEMENT_PATTERNS`'ı,
+dashboard `exercises-client.tsx`'in kendi kopyası, `exercise-picker-modal.tsx`'in
+`MOVEMENT_LABELS` record'u) — üçü de tek kaynağa (`exercise-form-fields.tsx`) indirildi, ileride
+4. bir yerin unutulma riski kapandı.
+
+#### 3) Attendance (Yoklama) — `042_attendance.sql`
+
+Yeni `attendance_records` tablosu: `org_id`/`team_id`/`athlete_id`/`session_date`/`status`
+(`present`/`late`/`excused`/`absent`)/`notes`/`recorded_by`, `unique(athlete_id, session_date)`.
+RLS `athletes_select` (002_rls.sql) ile aynı takım-bazlı desen — admin org geneli, coach kendi
+takımı, **sporcu görünürlüğü BİLİNÇLİ OLARAK YOK** (istekte geçmiyor, ileride eklenebilir).
+Yeni `packages/validators/attendance.ts` (durum enum'u + Zod şeması), yeni
+`packages/db/queries/attendance.ts` (`getAttendanceForTeamAndDate`, `getAttendanceHistory`,
+`upsertAttendanceRecords` — `onConflict: "athlete_id,session_date"`, `wellness_checkins`'in
+UPDATE politikası olan upsert deseniyle aynı, `acwr_logs`'un eski eksikliğini tekrarlamıyor).
+Yeni `/attendance` sayfası (`page.tsx` + `attendance-client.tsx`): takım seçici (coach için
+kilitli, admin için tüm org takımları — `acwr-client.tsx`'teki `<select>` deseni), tarih
+seçici, 4 durum butonlu toplu işaretleme + kaydet, son 30 günlük sporcu bazlı devam yüzdesi
+özet tablosu. Sidebar'a "Yoklama" girişi (`admin`/`coach`) eklendi — middleware'de ayrı bir
+guard gerekmedi (athlete guard zaten varsayılan-reddet, yalnızca `/programs` + `/wellness`
+izinli). `scripts/table-descriptions.json`'a giriş eklendi.
+
+#### 4) Training Groups — `043_training_groups.sql`
+
+`athletes.training_group` + `training_programs.training_group` (serbest metin, nullable).
+**`athletes.position`** (branş/pozisyon etiketi) ve **`training_programs.discipline`**
+(030_program_discipline.sql, salt mobil sekme etiketi) ile KARIŞTIRILMAMALI — ikisinin de
+RLS'e hiç etkisi yok. `training_group` GERÇEKTEN daraltıyor: takım programına grup atanırsa,
+o grupta olmayan takım sporcuları published görünümde artık görmüyor.
+
+- `create_program_with_weeks`/`update_program_week` RPC'leri `p_training_group text default
+  null` parametresiyle yeniden tanımlandı — canlı gövdeleri `pg_get_functiondef` ile önce
+  `030_program_discipline.sql`'in dosya içeriğiyle birebir doğrulandı (aradaki partilerde
+  başka bir migration bu fonksiyonlara dokunmamış), sonra üzerine inşa edildi.
+- `programs_select`/`sessions_select`/`exercises_select`/`exercise_sets_select` RLS
+  politikaları `alter policy` ile güncellendi — canlı gövdeleri `pg_policies` ile önce
+  `025_team_scoped_training_rls.sql`'in dosya içeriğiyle birebir doğrulandı. Yalnızca
+  sporcu-published-görüş dalına grup eşleşmesi eklendi (`training_group is null or
+  a.training_group = p.training_group`); coach/admin dalları DOKUNULMADI.
+- UI: `add-athlete-modal.tsx` (yeni "Antrenman Grubu" alanı, takımdaki mevcut değerlerden
+  datalist önerisi) + `create-athlete-account` Edge Function'a `training_group` payload
+  alanı eklendi (giriş erişimli sporcu oluşturma yolu da güncellendi, iki yol arasında
+  asimetri kalmadı). `new-program-client.tsx`'e (program oluşturma sihirbazı) "Alt Grup"
+  alanı + RPC parametresi eklendi. Asıl program-edit formu **`week-editor-form.tsx`**'tir
+  (`edit-program-client.tsx` değil — o yalnızca hafta sekmelerini yönetir) — aynı alan
+  oraya da eklendi, `program.team_id` üzerinden hangi programın takım-scope'lu olduğu
+  belirlenip `scope === "team"` dışında alan gizlendi. `program-detail-client.tsx`'te grup
+  rozeti (badge) eklendi.
+- **Bilinen sınır:** mevcut bir sporcuya sonradan grup atamanın web UI'ı yok — athlete-edit
+  ekranı hiç yok (`athlete-detail-client.tsx` salt-okunur), bu partinin kapsamına yeni bir
+  edit akışı açılmadı. Şimdilik yalnızca oluşturma anında ayarlanabilir.
+
+#### Doğrulama
+
+- Her migration `supabase db push --include-all` ile ayrı ayrı uygulandı (041/042/043
+  mevcut timestamp'li migration'lardan lexicographic olarak önce geldiği için `--include-all`
+  gerekti), her birinden sonra `supabase migration list` ile local=remote hizası doğrulandı.
+- `mcp__claude_ai_Supabase__get_advisors` (security) her migration sonrası çalıştırıldı —
+  yeni bir uyarı çıkmadı (yalnızca önceden var olan, bilinçli SECURITY DEFINER uyarıları).
+- `supabase gen types typescript --linked` ile `packages/db/types.ts` regenerate edildi
+  (proje lokal Docker stack'i kullanmıyor, `db:gen:types` script'indeki `--local` yerine).
+- `tsc --noEmit`: `@athleteiq/db`, `@athleteiq/validators`, `@athleteiq/web` temiz. Mobile'da
+  1 önceden var olan, bu Parti'den bağımsız tip hatası (`program/[day].tsx:56`, `team_id:
+  string | null` → `string`) — `git stash` ile baseline'da da aynı hata doğrulandı, dokunulmadı.
+- `pnpm docs:sync` çalıştırıldı — CLAUDE.md §2/§3/§11 otomatik blokları + senkron tarihi
+  güncellendi.
 
 ---
 
@@ -3064,8 +3194,11 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 - [x] Program silme/arşivleme (blok-farkında, yayın durumuna göre sil/arşivle) ✅ (2026-08-10, Parti 12)
 - [x] Yarışma düzenleme/silme ✅ (2026-08-10, Parti 12)
 - [x] Sabah wellness check-in — mobil form + geçmiş, web koç görünümü (`/readiness`) ✅ (2026-08-11, Parti 14)
-- [ ] ACWR grafiği — Recharts ile görsel trend (şu an tablo mu grafik mi kontrol et)
+- [x] ACWR grafiği — Recharts ile görsel trend ✅ (zaten uygulanmıştı, 2026-09-05'te doğrulandı — `acwr-client.tsx` tam bir `LineChart` [ACWR trend + akut/kronik referans çizgileri + tooltip/legend] + özet kartlar + log tablosu içeriyor, kod değişikliği gerekmedi)
 - [ ] Readiness skor motoru — bireysel taban çizgisi (`readiness_scores`, ≥14 gün veri birikince, READINESS_PLAN.md §7 Adım 6)
+- [x] Attendance (yoklama) sistemi — takım/tarih bazlı yoklama alma (Present/Late/Excused/Absent), coach kendi takımı + admin org geneli görür ✅ (2026-09-05, Parti 20 — sporcu görünürlüğü bilinçli olarak yok)
+- [x] Training Groups — takım içi pozisyon bazlı alt gruplama, `training_programs`'a opsiyonel grup daraltması ✅ (2026-09-05, Parti 20 — RLS seviyesinde gerçek daraltma, mevcut sporcuya sonradan grup atamak için web'de edit ekranı yok, bilinen sınır)
+- [x] Egzersiz taksonomisi genişletme — `movement_pattern`'e `total_body`/`cardio`/`neck` eklendi ✅ (2026-09-05, Parti 20, 041_exercise_taxonomy_extend2.sql)
 
 ### Öncelik 3 — Gelecek Sprint
 - [ ] WHOOP aktif sync (altyapı hazır, webhook deploy + token yönetimi aktif et)

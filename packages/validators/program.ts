@@ -12,6 +12,7 @@ export const createProgramSchema = z
       .enum(["preparation", "competition", "transition", "peak"])
       .optional(),
     notes: z.string().optional(),
+    training_group: z.string().optional(),
   })
   .refine((data) => data.team_id ?? data.athlete_id, {
     message: "Takım veya sporcu seçilmeli",

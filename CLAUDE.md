@@ -181,6 +181,7 @@ AthleteIQ/
 │       ├── acwr.ts
 │       ├── athlete.test.ts
 │       ├── athlete.ts
+│       ├── attendance.ts
 │       ├── auth.test.ts
 │       ├── auth.ts
 │       ├── exercise.test.ts
@@ -256,9 +257,12 @@ AthleteIQ/
 │   │   ├── 037_organizations_update_policy.sql
 │   │   ├── 038_exercise_taxonomy_extend.sql
 │   │   ├── 039_exercise_library_import.sql
-│   │   ├── 040_acwr_logs_update_policy.sql
+│   │   ├── 041_exercise_taxonomy_extend2.sql
+│   │   ├── 042_attendance.sql
+│   │   ├── 043_training_groups.sql
 │   │   ├── 20260818073627_parti_18s_secure_definer_functions.sql
-│   │   └── 20260827122641_platform_exercises_delete.sql
+│   │   ├── 20260827122641_platform_exercises_delete.sql
+│   │   └── 20260904124844_acwr_logs_update_policy.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -295,6 +299,7 @@ AthleteIQ/
 - **athlete_1rm_records** — Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki "Son max" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
 - **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo/pozisyon vb. (001_schema.sql).
+- **attendance_records** — Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).
 - **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
 - **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
 - **exercise_sets** — Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).
@@ -472,6 +477,12 @@ cross-tenant açık olduğu bulundu ve kapatıldı — bkz. PROGRESS.md § Parti
 (diğerleri `034`–`037` sıralıdır). MCP ile doğrudan uygulandığı için sürüm otomatik atanmıştır
 ve `schema_migrations` kaydıyla eşleşmesi zorunlu olduğundan yeniden adlandırılamaz. Bundan
 sonraki migration'lar sıralı konvansiyona devam etmelidir.
+
+Aynı senaryo ikinci kez yaşandı: `040_acwr_logs_update_policy.sql` bir önceki oturumda MCP ile
+doğrudan uygulanmış (remote'ta `20260904124844` sürüm numarasıyla kayıtlı), local dosya ise
+sıralı `040` adıyla commit'lenmiş — `supabase migration list` bu yüzden local'i "uygulanmamış"
+gösteriyordu. İçerik `execute_sql` ile birebir doğrulandı, fonksiyonel eksiklik yok. Dosya
+`20260904124844_acwr_logs_update_policy.sql` olarak yeniden adlandırılıp hizalandı (2026-09-05).
 
 ### 4.2 Tip Güvenliği Konvansiyonu — types.ts regenerasyonu
 
@@ -1031,7 +1042,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-04
+Son otomatik senkron: 2026-09-05
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1084,9 +1095,12 @@ Son otomatik senkron: 2026-09-04
 - 037_organizations_update_policy.sql
 - 038_exercise_taxonomy_extend.sql
 - 039_exercise_library_import.sql
-- 040_acwr_logs_update_policy.sql
+- 041_exercise_taxonomy_extend2.sql
+- 042_attendance.sql
+- 043_training_groups.sql
 - 20260818073627_parti_18s_secure_definer_functions.sql
 - 20260827122641_platform_exercises_delete.sql
+- 20260904124844_acwr_logs_update_policy.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
