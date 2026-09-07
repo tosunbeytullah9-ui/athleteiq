@@ -18,6 +18,7 @@ import {
   Sunrise,
   UserCog,
   ClipboardCheck,
+  LayoutDashboard,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,12 @@ const navItems: {
   icon: typeof Users;
   roles: Role[];
 }[] = [
+  {
+    href: "/dashboard",
+    label: "Dashboard",
+    icon: LayoutDashboard,
+    roles: ["admin", "coach"],
+  },
   {
     href: "/athletes",
     label: "Sporcular",

@@ -6,7 +6,9 @@
     "dev": "cross-env EXPO_NO_CACHE=1 expo start",
     "build:android": "eas build -p android",
     "build:ios": "eas build -p ios",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "dependencies": {
     "@athleteiq/db": "workspace:*",
