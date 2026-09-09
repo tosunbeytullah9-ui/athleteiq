@@ -82,43 +82,67 @@ export interface GetExercisesFilters {
   source?: "platform" | "org" | "all";
 }
 
+// PostgREST tek istekte azami bu kadar satır döner (supabase/config.toml [api]
+// max_rows = 1000, cloud projede de aynı varsayılan) — .range() VERİLMESE BİLE
+// sessizce bu sayıda kesiyor, hata fırlatmıyor. platform_exercises 1000'i geçtiği
+// (039_exercise_library_import.sql sonrası 1400+) an, alfabetik sırada geç kalan
+// her şey ("Trap Bar Deadlift" gibi "T" ile başlayanlar dahil) hiçbir yerde
+// GÖRÜNMEZ hale geliyordu — egzersiz kütüphanesi, program builder'daki egzersiz
+// seçici ve 1RM kaydı seçici dahil, hepsi bu fonksiyonları unbounded çağırıyordu.
+// Çözüm: gerçek sunucu limitini hiç bilmeye gerek kalmadan, dolana kadar sayfalayarak
+// TÜM satırları tüketen genel bir yardımcı (2026-09-09).
+const EXERCISES_PAGE_SIZE = 1000;
+
+async function fetchAllPaginated<T>(
+  buildPage: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  const results: T[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await buildPage(from, from + EXERCISES_PAGE_SIZE - 1);
+    if (error) throw error;
+    const page = data ?? [];
+    results.push(...page);
+    if (page.length < EXERCISES_PAGE_SIZE) break;
+    from += EXERCISES_PAGE_SIZE;
+  }
+  return results;
+}
+
 export async function getPlatformExercises(
   client: DbClient,
   filters?: Pick<GetExercisesFilters, "movement_pattern" | "sport_tag" | "search">
 ): Promise<PlatformExercise[]> {
-  let query = (client as any)
-    .from("platform_exercises")
-    .select("*")
-    .eq("is_active", true)
-    .order("name");
+  return fetchAllPaginated<PlatformExercise>((from, to) => {
+    let query = (client as any)
+      .from("platform_exercises")
+      .select("*")
+      .eq("is_active", true)
+      .order("name")
+      .range(from, to);
 
-  if (filters?.movement_pattern) {
-    query = query.eq("movement_pattern", filters.movement_pattern);
-  }
-  if (filters?.sport_tag) {
-    query = query.contains("sport_tags", [filters.sport_tag]);
-  }
-  if (filters?.search) {
-    query = query.or(
-      `name.ilike.%${filters.search}%,name_tr.ilike.%${filters.search}%`
-    );
-  }
+    if (filters?.movement_pattern) {
+      query = query.eq("movement_pattern", filters.movement_pattern);
+    }
+    if (filters?.sport_tag) {
+      query = query.contains("sport_tags", [filters.sport_tag]);
+    }
+    if (filters?.search) {
+      query = query.or(
+        `name.ilike.%${filters.search}%,name_tr.ilike.%${filters.search}%`
+      );
+    }
 
-  const { data, error } = await query;
-  if (error) throw error;
-  return data ?? [];
+    return query;
+  });
 }
 
 export async function getPlatformExercisesAdmin(
   client: DbClient
 ): Promise<PlatformExercise[]> {
-  const { data, error } = await (client as any)
-    .from("platform_exercises")
-    .select("*")
-    .order("name");
-
-  if (error) throw error;
-  return data ?? [];
+  return fetchAllPaginated<PlatformExercise>((from, to) =>
+    (client as any).from("platform_exercises").select("*").order("name").range(from, to)
+  );
 }
 
 export async function createPlatformExercise(

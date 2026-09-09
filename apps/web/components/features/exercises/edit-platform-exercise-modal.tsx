@@ -70,7 +70,16 @@ export function EditPlatformExerciseModal({ exercise, onClose, onUpdated }: Prop
       const result = await updatePlatformExercise(supabase as any, exercise.id, payload);
       onUpdated(result);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Egzersiz güncellenemedi.");
+      // Supabase'in PostgrestError'ı gerçek Error sınıfından türemiyor (instanceof Error
+      // false döner) — düz "err.message" kontrolü olmadan gerçek DB hatası (örn. bu isimde
+      // zaten bir egzersiz var) sessizce genel mesaja düşüyordu, tanı imkansızdı.
+      const code = (err as { code?: string } | null)?.code;
+      const message = (err as { message?: string } | null)?.message;
+      if (code === "23505") {
+        setError("Bu isimde bir egzersiz zaten var — farklı bir ad seçin.");
+      } else {
+        setError(message || "Egzersiz güncellenemedi.");
+      }
     } finally {
       setIsSubmitting(false);
     }

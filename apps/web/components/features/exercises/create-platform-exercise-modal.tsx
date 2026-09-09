@@ -68,7 +68,16 @@ export function CreatePlatformExerciseModal({ onClose, onCreated }: Props) {
       const result = await createPlatformExercise(supabase as any, payload);
       onCreated(result);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Egzersiz oluşturulamadı.");
+      // edit-platform-exercise-modal.tsx'teki aynı düzeltme — PostgrestError instanceof
+      // Error değil, ham "err instanceof Error" kontrolü gerçek DB hatasını (örn. bu isimde
+      // zaten bir egzersiz var) her zaman genel mesaja düşürüyordu.
+      const code = (err as { code?: string } | null)?.code;
+      const message = (err as { message?: string } | null)?.message;
+      if (code === "23505") {
+        setError("Bu isimde bir egzersiz zaten var — farklı bir ad seçin.");
+      } else {
+        setError(message || "Egzersiz oluşturulamadı.");
+      }
     } finally {
       setIsSubmitting(false);
     }

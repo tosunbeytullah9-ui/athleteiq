@@ -67,7 +67,7 @@ export function AthleteStatusDialog({ athlete, onSuccess, onCancel }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [athlete.id]);
+  }, [athlete.id, athlete.is_active]);
 
   const hasImpact =
     impact != null &&
