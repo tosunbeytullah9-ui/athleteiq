@@ -3197,7 +3197,7 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 - [x] ACWR grafiği — Recharts ile görsel trend ✅ (zaten uygulanmıştı, 2026-09-05'te doğrulandı — `acwr-client.tsx` tam bir `LineChart` [ACWR trend + akut/kronik referans çizgileri + tooltip/legend] + özet kartlar + log tablosu içeriyor, kod değişikliği gerekmedi)
 - [ ] Readiness skor motoru — bireysel taban çizgisi (`readiness_scores`, ≥14 gün veri birikince, READINESS_PLAN.md §7 Adım 6)
 - [x] Attendance (yoklama) sistemi — takım/tarih bazlı yoklama alma (Present/Late/Excused/Absent), coach kendi takımı + admin org geneli görür ✅ (2026-09-05, Parti 20 — sporcu görünürlüğü bilinçli olarak yok)
-- [x] Training Groups — takım içi pozisyon bazlı alt gruplama, `training_programs`'a opsiyonel grup daraltması ✅ (2026-09-05, Parti 20 — RLS seviyesinde gerçek daraltma, mevcut sporcuya sonradan grup atamak için web'de edit ekranı yok, bilinen sınır)
+- [x] Training Groups — takım içi pozisyon bazlı alt gruplama, `training_programs`'a opsiyonel grup daraltması ✅ (2026-09-05, Parti 20 — RLS seviyesinde gerçek daraltma; "mevcut sporcuya sonradan grup atamak için web'de edit ekranı yok" sınırı 2026-09-09'da `EditAthleteModal` ile kapatıldı — bkz. §ilgili parti aşağıda, `apps/web/components/features/athletes/edit-athlete-modal.tsx` "Antrenman Grubu" alanı)
 - [x] Egzersiz taksonomisi genişletme — `movement_pattern`'e `total_body`/`cardio`/`neck` eklendi ✅ (2026-09-05, Parti 20, 041_exercise_taxonomy_extend2.sql)
 
 ### Öncelik 3 — Gelecek Sprint

@@ -122,6 +122,7 @@ AthleteIQ/
 │   │   ├── lib/
 │   │   ├── .env
 │   │   ├── .gitignore
+│   │   ├── .npmrc
 │   │   ├── app.json
 │   │   ├── babel.config.js
 │   │   ├── bugreport-sdk_gphone64_x86_64-BE4B.251210.005-2026-08-25-14-18-20.zip
@@ -213,10 +214,12 @@ AthleteIQ/
 │   ├── functions/
 │   │   ├── create-athlete-account/
 │   │   ├── create-org-user/
+│   │   ├── delete-org-user/
 │   │   ├── grant-athlete-access/
 │   │   ├── invite-member/
 │   │   ├── reset-athlete-password/
 │   │   ├── reset-user-password/
+│   │   ├── update-org-user/
 │   │   └── whoop-webhook/
 │   ├── migrations/
 │   │   ├── 001_schema.sql
@@ -262,7 +265,8 @@ AthleteIQ/
 │   │   ├── 043_training_groups.sql
 │   │   ├── 20260818073627_parti_18s_secure_definer_functions.sql
 │   │   ├── 20260827122641_platform_exercises_delete.sql
-│   │   └── 20260904124844_acwr_logs_update_policy.sql
+│   │   ├── 20260904124844_acwr_logs_update_policy.sql
+│   │   └── 20260909070021_athlete_delete_and_competition_entries.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -300,6 +304,7 @@ AthleteIQ/
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
 - **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo/pozisyon vb. (001_schema.sql).
 - **attendance_records** — Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).
+- **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql).
 - **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
 - **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
 - **exercise_sets** — Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).
@@ -327,7 +332,7 @@ AthleteIQ/
 
 ## 4. ROW LEVEL SECURITY (ÇEKİRDEK TABLOLAR)
 
-> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017) ve `athlete_push_tokens` (004) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
+> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) ve `competition_entries` (20260909070021) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
 
 ```sql
 -- =============================================
@@ -483,6 +488,23 @@ doğrudan uygulanmış (remote'ta `20260904124844` sürüm numarasıyla kayıtl�
 sıralı `040` adıyla commit'lenmiş — `supabase migration list` bu yüzden local'i "uygulanmamış"
 gösteriyordu. İçerik `execute_sql` ile birebir doğrulandı, fonksiyonel eksiklik yok. Dosya
 `20260904124844_acwr_logs_update_policy.sql` olarak yeniden adlandırılıp hizalandı (2026-09-05).
+Aynı senaryo ÜÇÜNCÜ kez yaşandı (2026-09-09): sıralı `044_athlete_delete_and_competition_entries.sql`
+adıyla yazılıp MCP ile uygulandı, remote yine kendi zaman damgalı sürümünü (`20260909070021`) atadı
+— dosya `20260909070021_athlete_delete_and_competition_entries.sql` olarak yeniden adlandırılıp
+hizalandı. Desen artık nettir: MCP `apply_migration` HER ZAMAN kendi zaman damgasını atar, sıralı
+`0NN_...` adıyla yazıp sonra MCP ile uygulayan her Parti bu yeniden adlandırmayı BEKLEMELİDİR —
+`supabase migration list` ile kontrol edip dosyayı ona göre hizalamak rutin bir son adım olmalı.
+
+`athletes` tablosunda `athletes_select`/`athletes_insert`/`athletes_update` vardı ama hiçbir zaman
+`athletes_delete` politikası yazılmamıştı (varsayılan-deny) — sporcu silme UI'dan hiç
+bağlanmamıştı, bu 2026-09-09'da fark edildi ve `20260909070021_athlete_delete_and_competition_entries.sql`
+ile kapatıldı (`athletes_update` ile birebir aynı yetki: admin org geneli, coach kendi takımı).
+UI (`AthleteStatusDialog`, `apps/web/components/features/athletes/athlete-status-dialog.tsx`)
+hard-delete'i yalnızca `getAthleteImpact()` sıfır dönerse (hiçbir bağlı program/ACWR/test/
+yarışma sonucu/1RM/wellness/yoklama kaydı VE giriş erişimi yoksa) sunar — aksi halde yalnızca
+`is_active=false` (zaten `athletes_update` ile izinli, geri alınabilir) sunulur. Aynı migration
+`competition_entries` tablosunu da ekledi (§3'te açıklandı) — RLS'i `competition_results`
+(`comp_results_select`/`comp_results_write`) ile birebir aynı kalıbı taklit eder.
 
 ### 4.2 Tip Güvenliği Konvansiyonu — types.ts regenerasyonu
 
@@ -536,6 +558,21 @@ sıfırlama, `apps/web/components/features/athletes/reset-password-modal.tsx` /
 `.../settings/reset-user-password-modal.tsx`), **süper admin → yalnızca Supabase Dashboard**
 (kod tabanında süper admin için hiçbir sıfırlama yolu yok, §4.3 yukarıdaki "Süper admin
 kurtarma yolu" notuyla aynı kısıt).
+
+**Kullanıcı düzenleme/silme (2026-09-09):** `profiles.full_name`/`username` düzenlemek İÇİN
+`profiles` tablosuna doğrudan UPDATE atmak YETERLİ DEĞİL — `resolveLoginIdentifier`
+(`packages/validators/auth.ts`) giriş email'ini `{username}@{org_slug}.athleteiq.app` olarak
+doğrudan hesaplar, `profiles.username`'e hiç bakmaz. Bu yüzden username değişimi
+`supabase/functions/update-org-user`'dan geçmeli — `auth.users.email`'i de senkron günceller
+(profiles UPDATE başarısız olursa email'i eski haline geri alır). Yalnızca `full_name`
+değişse bile aynı Edge Function kullanılır (tek kod yolu, iki ayrı davranış yok). Kullanıcı
+silme (`supabase/functions/delete-org-user`) daha basit: `auth.users` satırını silmek yeterli
+— `memberships`/`profiles` `on delete cascade`, `athletes.user_id` `on delete set null`
+olduğu için geri kalan her şey otomatik temizlenir (sporcuysa roster kaydı SİLİNMEZ, yalnızca
+giriş erişimi kalkar). İkisi de `create-org-user`/`reset-user-password` ile aynı yetki kısıtını
+taşır: yalnızca `super_admin` veya hedef org'un admin'i (koç ÇAĞIRAMAZ), süper admin hesapları
+bu yoldan silinemez/rolü değiştirilemez, ve `delete-org-user` org'un son admin'ini silmeyi
+reddeder (org'u kilitlemesin diye).
 
 ---
 
@@ -758,6 +795,16 @@ code-exchange'i içindi).
 [ ] apps/web/components/features/acwr-chart/ → Recharts ACWR trend grafiği
 ```
 
+**Sonradan eklenen görevler (2026-09-09 — sporcu/kullanıcı düzenleme-silme + yarışma roster'ı):**
+```
+[x] apps/web/components/features/athletes/edit-athlete-modal.tsx → Sporcu profili düzenleme (updateAthlete, packages/db/queries/athletes.ts)
+[x] apps/web/components/features/athletes/athlete-status-dialog.tsx → Pasife al/Aktife al/Kalıcı sil — getAthleteImpact() sıfırsa hard-delete sunar, aksi halde yalnızca is_active=false
+[x] apps/web/app/(dashboard)/athletes/athletes-client.tsx → "Pasifleri de göster" filtresi + satır bazlı düzenle/sil aksiyonları
+[x] apps/web/app/(dashboard)/athletes/[id]/athlete-detail-client.tsx → Aynı düzenle/durum aksiyonları + "Yarışmalar" kartı (sporcunun kayıtlı olduğu yarışmalar)
+[x] apps/web/components/features/settings/edit-org-user-modal.tsx + delete-org-user-dialog.tsx → apps/web/app/(dashboard)/settings/users/users-client.tsx'e kablolu (supabase/functions/update-org-user, delete-org-user üzerinden — bkz. §4.3)
+[x] apps/web/app/(dashboard)/competitions/competitions-client.tsx → Yarışma formuna sporcu bazlı katılımcı (roster) seçici — competition_entries tablosu (20260909070021_athlete_delete_and_competition_entries.sql), syncCompetitionEntries()
+```
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -775,6 +822,9 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 **Test kriteri:**
 - Coach yeni program oluşturur → publish → sporcu 2 saniye içinde görür
 - Admin tüm takımları görür, Coach sadece kendi takımını görür
+- Admin/coach bir sporcunun bilgilerini düzenler → değişiklik anında listede görünür
+- Geçmiş kaydı olmayan bir sporcu kalıcı silinebilir; geçmişi olan sporcuda yalnızca "Pasife Al" sunulur ve pasif sporcu geçmişi korunarak listeden gizlenir
+- Bir yarışmada yalnızca seçilen sporcular "katılımcı" olarak görünür — takımın tamamı otomatik eklenmez
 
 ---
 
@@ -1042,7 +1092,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-05
+Son otomatik senkron: 2026-09-09
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1101,6 +1151,7 @@ Son otomatik senkron: 2026-09-05
 - 20260818073627_parti_18s_secure_definer_functions.sql
 - 20260827122641_platform_exercises_delete.sql
 - 20260904124844_acwr_logs_update_policy.sql
+- 20260909070021_athlete_delete_and_competition_entries.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1111,6 +1162,8 @@ Son otomatik senkron: 2026-09-05
   - `reset-user-password` — yeni (Parti 16), ACTIVE — genel (admin/koç) şifre sıfırlama, `profiles` üzerinden çözer
   - `create-athlete-account` — ACTIVE (Parti 4.B) — sporcuya özel, hâlâ paralel kullanımda
   - `grant-athlete-access` / `reset-athlete-password` — ACTIVE (Parti 10) — sporcuya özel
+  - `update-org-user` — yeni (2026-09-09), ACTIVE — ad/kullanıcı adı düzenler, username değişirse `auth.users.email`'i senkron günceller (bkz. §4.3)
+  - `delete-org-user` — yeni (2026-09-09), ACTIVE — kullanıcı silme, `auth.users` cascade'iyle memberships/profiles otomatik temizlenir
   - `whoop-webhook` / `polar-sync` — ACTIVE, wearable altyapısı (aktif sync henüz yok)
 
 ### Env Dosyaları
@@ -1133,8 +1186,8 @@ Son otomatik senkron: 2026-09-05
   Parti 4.D'de kaldırmıştı; davet akışı Parti 16'da kaldırıldı), admin'in kullanıcıyı doğrudan
   oluşturması (`create-org-user`, Parti 16) + kullanıcı-adı tabanlı sporcu hesabı oluşturma
   (Parti 4.B/4.C, hâlâ paralel), middleware (role-based routing)
-- ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama (Parti 16)
-- ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay
+- ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama + düzenleme + silme (Parti 16, düzenleme/silme 2026-09-09)
+- ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay, düzenleme, pasife alma/kalıcı silme (2026-09-09 — bkz. §4.1, §6 Agent 3)
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish
 - ✅ ACWR: log girişi + dashboard (aynı gün ikinci girişte/koç düzeltmesinde sessizce
   başarısız olan eksik UPDATE RLS politikası `040_acwr_logs_update_policy.sql` ile
@@ -1143,7 +1196,7 @@ Son otomatik senkron: 2026-09-05
   Eksiklikler §3'e kadar bu akış yalnızca mobile'da vardı; web athlete guard'ı hem
   `middleware.ts` hem `(dashboard)/layout.tsx`'te `/wellness`'e izin verecek şekilde
   genişletildi)
-- ✅ Yarışma: ekleme + listeleme
+- ✅ Yarışma: ekleme + listeleme + sporcu bazlı katılımcı (roster) seçimi — `competition_entries` tablosu, her yarışmaya yalnızca seçilen sporcular kayıtlı (2026-09-09)
 - ✅ Test sonuçları: ekleme + listeleme
 - ✅ Wearable altyapısı: tablolar + token saklama + normalize şema
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları

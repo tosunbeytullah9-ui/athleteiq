@@ -21,7 +21,7 @@ export default async function AthletesPage() {
     .select("id, name")
     .eq("org_id", orgId);
 
-  const athletes = await getAthletes(supabase, orgId);
+  const athletes = await getAthletes(supabase, orgId, { includeInactive: true });
 
   return <AthletesClient athletes={athletes} teams={teams ?? []} orgId={orgId} />;
 }

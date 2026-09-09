@@ -4,6 +4,7 @@
   "athlete_push_tokens": "Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).",
   "athletes": "Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo/pozisyon vb. (001_schema.sql).",
   "attendance_records": "Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).",
+  "competition_entries": "Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql).",
   "competition_results": "Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).",
   "competitions": "Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).",
   "exercise_sets": "Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).",

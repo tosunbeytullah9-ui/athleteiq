@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trophy, MapPin, Calendar, X, Pencil, Trash2 } from "lucide-react";
+import { Plus, Trophy, MapPin, Calendar, X, Pencil, Trash2, Users } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
@@ -17,6 +17,7 @@ import {
   createCompetition,
   updateCompetition,
   deleteCompetition,
+  syncCompetitionEntries,
 } from "@athleteiq/db/queries/competitions";
 import type { Tables } from "@athleteiq/db/types";
 
@@ -24,13 +25,18 @@ type Competition = Tables<"competitions"> & {
   competition_results: (Tables<"competition_results"> & {
     athletes: { full_name: string; avatar_url: string | null } | null;
   })[];
+  competition_entries: (Tables<"competition_entries"> & {
+    athletes: { id: string; full_name: string; team_id: string | null } | null;
+  })[];
 };
 type Team = { id: string; name: string };
+type AthleteOption = { id: string; full_name: string; team_id: string | null };
 
 interface Props {
   orgId: string;
   competitions: Competition[];
   teams: Team[];
+  athletes: AthleteOption[];
 }
 
 const competitionSchema = z.object({
@@ -63,13 +69,39 @@ function isUpcoming(dateStr: string | null): boolean {
   return new Date(dateStr) >= new Date(new Date().toDateString());
 }
 
-export function CompetitionsClient({ orgId, competitions: initialCompetitions, teams }: Props) {
+export function CompetitionsClient({
+  orgId,
+  competitions: initialCompetitions,
+  teams,
+  athletes,
+}: Props) {
   const [competitions, setCompetitions] = useState<Competition[]>(initialCompetitions);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Competition | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Competition | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "upcoming" | "past">("upcoming");
+  const [selectedAthleteIds, setSelectedAthleteIds] = useState<string[]>([]);
+
+  const athletesByTeam = teams.map((team) => ({
+    team,
+    athletes: athletes.filter((a) => a.team_id === team.id),
+  }));
+  const unassignedAthletes = athletes.filter((a) => !a.team_id);
+
+  function toggleAthlete(athleteId: string) {
+    setSelectedAthleteIds((prev) =>
+      prev.includes(athleteId) ? prev.filter((id) => id !== athleteId) : [...prev, athleteId]
+    );
+  }
+
+  function selectAllInTeam(teamAthleteIds: string[]) {
+    setSelectedAthleteIds((prev) => Array.from(new Set([...prev, ...teamAthleteIds])));
+  }
+
+  function clearTeam(teamAthleteIds: string[]) {
+    setSelectedAthleteIds((prev) => prev.filter((id) => !teamAthleteIds.includes(id)));
+  }
 
   const {
     register,
@@ -95,11 +127,13 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
   function openCreateForm() {
     setEditTarget(null);
     reset({ name: "", competition_date: "", location: "", level: undefined, team_id: "", notes: "" });
+    setSelectedAthleteIds([]);
     setShowForm(true);
   }
 
   function openEditForm(comp: Competition) {
     setEditTarget(comp);
+    setSelectedAthleteIds(comp.competition_entries.map((e) => e.athlete_id));
     setShowForm(true);
   }
 
@@ -107,6 +141,22 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
     setShowForm(false);
     setEditTarget(null);
     setSubmitError(null);
+  }
+
+  // athletes prop'undan roster satırlarını yeniden inşa eder — competition_entries
+  // tekrar fetch etmeden local state'i syncCompetitionEntries sonrasıyla tutarlı tutmak için.
+  function buildEntries(athleteIds: string[]): Competition["competition_entries"] {
+    return athleteIds.map((athleteId) => {
+      const athlete = athletes.find((a) => a.id === athleteId) ?? null;
+      return {
+        id: athleteId,
+        competition_id: "",
+        athlete_id: athleteId,
+        notes: null,
+        created_at: null,
+        athletes: athlete,
+      } as Competition["competition_entries"][number];
+    });
   }
 
   async function onSubmit(data: CompetitionForm) {
@@ -122,9 +172,14 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
           team_id: data.team_id || null,
           notes: data.notes ?? null,
         });
+        await syncCompetitionEntries(supabase, editTarget.id, selectedAthleteIds);
         setCompetitions((prev) =>
           prev
-            .map((c) => (c.id === editTarget.id ? { ...c, ...updated } : c))
+            .map((c) =>
+              c.id === editTarget.id
+                ? { ...c, ...updated, competition_entries: buildEntries(selectedAthleteIds) }
+                : c
+            )
             .sort((a, b) => ((a.competition_date ?? "") < (b.competition_date ?? "") ? -1 : 1))
         );
         toast({ title: "Yarışma güncellendi" });
@@ -138,8 +193,15 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
           team_id: data.team_id || null,
           notes: data.notes ?? null,
         });
+        if (selectedAthleteIds.length > 0) {
+          await syncCompetitionEntries(supabase, newComp.id, selectedAthleteIds);
+        }
         // Fetch with results joined — competitions query returns base row, add empty results
-        const compWithResults = { ...newComp, competition_results: [] };
+        const compWithResults = {
+          ...newComp,
+          competition_results: [],
+          competition_entries: buildEntries(selectedAthleteIds),
+        };
         setCompetitions((prev) =>
           [...prev, compWithResults as Competition].sort((a, b) =>
             (a.competition_date ?? "") < (b.competition_date ?? "") ? -1 : 1
@@ -269,6 +331,84 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
                     {...register("notes")}
                     placeholder="İsteğe bağlı notlar..."
                   />
+                </div>
+              </div>
+
+              {/* Katılımcı seçimi — her sporcu/takım her yarışmaya gitmez, bu yüzden
+                  team_id alanı yalnızca gevşek bir ilişkilendirme; asıl "kim gidiyor"
+                  kaydı burada, sporcu bazında. */}
+              <div className="space-y-2 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <Label className="flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5" />
+                    Katılımcılar ({selectedAthleteIds.length} sporcu seçili)
+                  </Label>
+                </div>
+                <div className="max-h-56 overflow-y-auto rounded-md border p-3 space-y-3">
+                  {athletes.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">Henüz sporcu kaydı yok.</p>
+                  ) : (
+                    <>
+                      {athletesByTeam.map(({ team, athletes: teamAthletes }) => {
+                        if (teamAthletes.length === 0) return null;
+                        const teamIds = teamAthletes.map((a) => a.id);
+                        const allSelected = teamIds.every((id) => selectedAthleteIds.includes(id));
+                        return (
+                          <div key={team.id}>
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-xs font-medium text-muted-foreground">{team.name}</p>
+                              <button
+                                type="button"
+                                className="text-xs text-primary hover:underline"
+                                onClick={() =>
+                                  allSelected ? clearTeam(teamIds) : selectAllInTeam(teamIds)
+                                }
+                              >
+                                {allSelected ? "Takımı kaldır" : "Tüm takımı seç"}
+                              </button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                              {teamAthletes.map((a) => (
+                                <label
+                                  key={a.id}
+                                  className="flex items-center gap-2 text-sm cursor-pointer"
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedAthleteIds.includes(a.id)}
+                                    onChange={() => toggleAthlete(a.id)}
+                                    className="h-3.5 w-3.5 rounded border-input"
+                                  />
+                                  {a.full_name}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {unassignedAthletes.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">Takımsız</p>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                            {unassignedAthletes.map((a) => (
+                              <label
+                                key={a.id}
+                                className="flex items-center gap-2 text-sm cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedAthleteIds.includes(a.id)}
+                                  onChange={() => toggleAthlete(a.id)}
+                                  className="h-3.5 w-3.5 rounded border-input"
+                                />
+                                {a.full_name}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -411,6 +551,28 @@ export function CompetitionsClient({ orgId, competitions: initialCompetitions, t
 
                       {comp.notes && (
                         <p className="mt-1.5 text-xs text-muted-foreground">{comp.notes}</p>
+                      )}
+
+                      {comp.competition_entries.length > 0 && (
+                        <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Users className="h-3 w-3" />
+                            {comp.competition_entries.length} sporcu kayıtlı:
+                          </span>
+                          {comp.competition_entries.slice(0, 6).map((e) => (
+                            <span
+                              key={e.id}
+                              className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs"
+                            >
+                              {e.athletes?.full_name ?? "—"}
+                            </span>
+                          ))}
+                          {comp.competition_entries.length > 6 && (
+                            <span className="text-xs text-muted-foreground">
+                              +{comp.competition_entries.length - 6} daha
+                            </span>
+                          )}
+                        </div>
                       )}
 
                       {comp.competition_results.length > 0 && (

@@ -2,11 +2,14 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Search, UserCircle2 } from "lucide-react";
+import { Search, UserCircle2, Trash2, RotateCcw } from "lucide-react";
 import { Input } from "@athleteiq/ui/components/input";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Skeleton } from "@athleteiq/ui/components/skeleton";
+import { Button } from "@athleteiq/ui/components/button";
 import { AddAthleteModal } from "@/components/features/athletes/add-athlete-modal";
+import { EditAthleteModal } from "@/components/features/athletes/edit-athlete-modal";
+import { AthleteStatusDialog } from "@/components/features/athletes/athlete-status-dialog";
 import { GrantAccessModal } from "@/components/features/athletes/grant-access-modal";
 import { ResetPasswordModal } from "@/components/features/athletes/reset-password-modal";
 import { useRouter } from "next/navigation";
@@ -35,6 +38,8 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
+  const [showInactive, setShowInactive] = useState(false);
+  const [statusTarget, setStatusTarget] = useState<Athlete | null>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -64,9 +69,10 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
     return initialAthletes.filter((a) => {
       const matchSearch = a.full_name.toLowerCase().includes(search.toLowerCase());
       const matchTeam = selectedTeam === "all" || a.team_id === selectedTeam;
-      return matchSearch && matchTeam;
+      const matchActive = showInactive || a.is_active;
+      return matchSearch && matchTeam && matchActive;
     });
-  }, [initialAthletes, search, selectedTeam]);
+  }, [initialAthletes, search, selectedTeam, showInactive]);
 
   const teamMap = useMemo(
     () => Object.fromEntries(teams.map((t) => [t.id, t.name])),
@@ -112,6 +118,15 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
             </option>
           ))}
         </select>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground whitespace-nowrap px-1">
+          <input
+            type="checkbox"
+            checked={showInactive}
+            onChange={(e) => setShowInactive(e.target.checked)}
+            className="h-4 w-4 rounded border-input"
+          />
+          Pasifleri de göster
+        </label>
       </div>
 
       {filtered.length === 0 ? (
@@ -134,13 +149,16 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Branş</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Durum</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Giriş</th>
+                <th className="text-right px-4 py-3 font-medium text-muted-foreground">İşlemler</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((athlete) => (
                 <tr
                   key={athlete.id}
-                  className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                  className={`border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer ${
+                    athlete.is_active ? "" : "opacity-60"
+                  }`}
                   onClick={() => router.push(`/athletes/${athlete.id}`)}
                 >
                   <td className="px-4 py-3">
@@ -203,11 +221,44 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                       )}
                     </div>
                   </td>
+                  <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-end gap-1">
+                      <EditAthleteModal
+                        athlete={athlete}
+                        teams={teams}
+                        onSuccess={() => router.refresh()}
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setStatusTarget(athlete)}
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        aria-label={athlete.is_active ? "Pasife al / sil" : "Tekrar aktif et"}
+                      >
+                        {athlete.is_active ? (
+                          <Trash2 className="h-4 w-4" />
+                        ) : (
+                          <RotateCcw className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {statusTarget && (
+        <AthleteStatusDialog
+          athlete={statusTarget}
+          onSuccess={() => {
+            setStatusTarget(null);
+            router.refresh();
+          }}
+          onCancel={() => setStatusTarget(null)}
+        />
       )}
     </div>
   );

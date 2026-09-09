@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Users as UsersIcon } from "lucide-react";
+import { Users as UsersIcon, Trash2 } from "lucide-react";
 import { Badge } from "@athleteiq/ui/components/badge";
+import { Button } from "@athleteiq/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { CreateOrgUserModal } from "@/components/features/settings/create-org-user-modal";
+import { EditOrgUserModal } from "@/components/features/settings/edit-org-user-modal";
+import { DeleteOrgUserDialog } from "@/components/features/settings/delete-org-user-dialog";
 import { ResetUserPasswordModal } from "@/components/features/settings/reset-user-password-modal";
+import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
 
 interface OrgUser {
@@ -89,6 +93,34 @@ function CoachTeamSelect({
 
 export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
   const router = useRouter();
+  const { user: currentUser } = useUserContext();
+  const [deleteTarget, setDeleteTarget] = useState<OrgUser | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  async function handleConfirmDelete() {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch("/api/org-users/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: deleteTarget.user_id }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error ?? "Kullanıcı silinemedi");
+      toast({ title: "Kullanıcı silindi" });
+      setDeleteTarget(null);
+      router.refresh();
+    } catch (err: unknown) {
+      toast({
+        title: "Silme başarısız",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "destructive",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
+  }
 
   return (
     <div className="max-w-4xl space-y-6">
@@ -152,14 +184,38 @@ export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
                       />
                     )}
                     {u.profile && (
-                      <ResetUserPasswordModal
-                        user={{
-                          id: u.user_id,
-                          full_name: u.profile.full_name,
-                          username: u.profile.username,
-                        }}
-                        onSuccess={() => router.refresh()}
-                      />
+                      <>
+                        <ResetUserPasswordModal
+                          user={{
+                            id: u.user_id,
+                            full_name: u.profile.full_name,
+                            username: u.profile.username,
+                          }}
+                          onSuccess={() => router.refresh()}
+                        />
+                        {!u.isSuperAdmin && (
+                          <EditOrgUserModal
+                            user={{
+                              id: u.user_id,
+                              full_name: u.profile.full_name,
+                              username: u.profile.username,
+                            }}
+                            onSuccess={() => router.refresh()}
+                          />
+                        )}
+                      </>
+                    )}
+                    {u.profile && !u.isSuperAdmin && u.user_id !== currentUser?.id && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        aria-label="Kullanıcıyı sil"
+                        onClick={() => setDeleteTarget(u)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -168,6 +224,15 @@ export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
           )}
         </CardContent>
       </Card>
+
+      {deleteTarget && (
+        <DeleteOrgUserDialog
+          fullName={deleteTarget.profile?.full_name ?? deleteTarget.email ?? "Kullanıcı"}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setDeleteTarget(null)}
+          isDeleting={isDeleting}
+        />
+      )}
     </div>
   );
 }

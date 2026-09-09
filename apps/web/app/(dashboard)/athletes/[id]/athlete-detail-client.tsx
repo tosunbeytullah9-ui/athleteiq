@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ArrowLeft, CheckCircle2, XCircle, Trophy } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { EditAthleteModal } from "@/components/features/athletes/edit-athlete-modal";
+import { AthleteStatusDialog } from "@/components/features/athletes/athlete-status-dialog";
 import type { Tables } from "@athleteiq/db/types";
 import type {
   Athlete1RMRecord,
@@ -13,9 +17,11 @@ import type {
   OrgExercise,
   OrgExerciseCategory,
 } from "@athleteiq/db/queries/exercises";
+import type { getAthleteCompetitionEntries } from "@athleteiq/db/queries/competitions";
 import { OneRmRecordsTab } from "./one-rm-records-tab";
 
 type Athlete = Tables<"athletes">;
+type CompetitionEntry = Awaited<ReturnType<typeof getAthleteCompetitionEntries>>[number];
 
 interface RecentProgram {
   id: string;
@@ -53,6 +59,8 @@ interface Props {
   platformExercises: PlatformExercise[];
   orgExercises: OrgExercise[];
   categories: OrgExerciseCategory[];
+  competitionEntries: CompetitionEntry[];
+  teams: { id: string; name: string }[];
 }
 
 const GENDER_LABELS: Record<string, string> = {
@@ -85,7 +93,11 @@ export function AthleteDetailClient({
   platformExercises,
   orgExercises,
   categories,
+  competitionEntries,
+  teams,
 }: Props) {
+  const router = useRouter();
+  const [statusOpen, setStatusOpen] = useState(false);
   const latestAcwr = acwrLogs[0];
   const initials = athlete.full_name
     .split(" ")
@@ -96,14 +108,31 @@ export function AthleteDetailClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex items-center justify-between gap-4">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/athletes">
             <ArrowLeft className="h-4 w-4" />
             Sporcular
           </Link>
         </Button>
+        <div className="flex items-center gap-2">
+          <EditAthleteModal athlete={athlete} teams={teams} onSuccess={() => router.refresh()} />
+          <Button variant="outline" size="sm" onClick={() => setStatusOpen(true)}>
+            {athlete.is_active ? "Pasife Al / Sil" : "Tekrar Aktif Et"}
+          </Button>
+        </div>
       </div>
+
+      {statusOpen && (
+        <AthleteStatusDialog
+          athlete={athlete}
+          onSuccess={() => {
+            setStatusOpen(false);
+            router.refresh();
+          }}
+          onCancel={() => setStatusOpen(false)}
+        />
+      )}
 
       {/* Sporcu kartı */}
       <Card>
@@ -251,6 +280,58 @@ export function AthleteDetailClient({
           </CardContent>
         </Card>
       </div>
+
+      {/* Yarışmalar — competitions/competitions-client.tsx'teki roster picker'ın
+          sonucu, sporcu bazında görünüm */}
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Trophy className="h-4 w-4" />
+            Yarışmalar
+          </CardTitle>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/competitions">Yarışma Takvimi</Link>
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {competitionEntries.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              Bu sporcu henüz hiçbir yarışmaya kayıtlı değil.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {competitionEntries.map((entry) => {
+                const comp = entry.competitions;
+                if (!comp) return null;
+                const upcoming = comp.competition_date
+                  ? new Date(comp.competition_date) >= new Date(new Date().toDateString())
+                  : false;
+                return (
+                  <li
+                    key={entry.id}
+                    className="flex items-center justify-between rounded-md px-3 py-2 hover:bg-muted/50 transition-colors"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{comp.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {comp.competition_date
+                          ? new Date(comp.competition_date).toLocaleDateString("tr-TR")
+                          : ""}
+                        {comp.location ? ` · ${comp.location}` : ""}
+                      </p>
+                    </div>
+                    {upcoming && (
+                      <Badge variant="default" className="text-xs">
+                        Yaklaşan
+                      </Badge>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
 
       {/* ACWR tablo */}
       {acwrLogs.length > 0 && (

@@ -49,3 +49,24 @@ export const resetUserPasswordSchema = z.object({
 });
 
 export type ResetUserPasswordInput = z.infer<typeof resetUserPasswordSchema>;
+
+// profiles tablosunu doğrudan (RLS: profiles_update, 032_profiles.sql) günceller —
+// create-org-user'ın aksine service-role Edge Function gerekmez, admin/super_admin
+// zaten profiles üzerinde UPDATE yetkisine sahip.
+export const updateOrgUserSchema = z.object({
+  full_name: z.string().min(2, "Ad en az 2 karakter olmalı"),
+  username: z
+    .string()
+    .regex(
+      ATHLETE_USERNAME_RE,
+      "Kullanıcı adı yalnızca küçük harf, rakam, nokta ve alt çizgi içerebilir (3-30 karakter)"
+    ),
+});
+
+export type UpdateOrgUserInput = z.infer<typeof updateOrgUserSchema>;
+
+export const deleteOrgUserSchema = z.object({
+  user_id: z.string().uuid(),
+});
+
+export type DeleteOrgUserInput = z.infer<typeof deleteOrgUserSchema>;

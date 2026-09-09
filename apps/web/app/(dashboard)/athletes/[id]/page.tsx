@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getAthleteById } from "@athleteiq/db/queries/athletes";
+import { getAthleteCompetitionEntries } from "@athleteiq/db/queries/competitions";
 import {
   getAthleteMaxHistory,
   getPlatformExercises,
@@ -28,6 +29,8 @@ export default async function AthleteDetailPage({ params }: Props) {
     platformExercises,
     orgExercises,
     categories,
+    competitionEntries,
+    teamsResult,
   ] = await Promise.all([
     supabase
       .from("training_programs")
@@ -51,6 +54,8 @@ export default async function AthleteDetailPage({ params }: Props) {
     getPlatformExercises(supabase),
     getOrgExercises(supabase, athlete.org_id),
     getOrgCategories(supabase, athlete.org_id),
+    getAthleteCompetitionEntries(supabase, id),
+    supabase.from("teams").select("id, name").eq("org_id", athlete.org_id).order("name"),
   ]);
 
   return (
@@ -63,6 +68,8 @@ export default async function AthleteDetailPage({ params }: Props) {
       platformExercises={platformExercises}
       orgExercises={orgExercises}
       categories={categories}
+      competitionEntries={competitionEntries}
+      teams={teamsResult.data ?? []}
     />
   );
 }
