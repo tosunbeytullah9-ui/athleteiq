@@ -15,16 +15,22 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    console.error("[whoop/connect] no user session");
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  const { data: athlete } = await supabase
+  const { data: athlete, error: athleteError } = await supabase
     .from("athletes")
     .select("id")
     .eq("user_id", user.id)
     .maybeSingle();
 
   if (!athlete) {
+    console.error(
+      "[whoop/connect] no athlete row for user",
+      user.id,
+      athleteError?.message
+    );
     const url = new URL("/wearables", request.url);
     url.searchParams.set("status", "error");
     return NextResponse.redirect(url);
@@ -35,10 +41,20 @@ export async function GET(request: NextRequest) {
   const redirectUri = process.env.WHOOP_REDIRECT_URI;
 
   if (!clientId || !clientSecret || !redirectUri) {
+    console.error("[whoop/connect] missing env", {
+      hasClientId: Boolean(clientId),
+      hasClientSecret: Boolean(clientSecret),
+      hasRedirectUri: Boolean(redirectUri),
+    });
     const url = new URL("/wearables", request.url);
     url.searchParams.set("status", "error");
     return NextResponse.redirect(url);
   }
+
+  console.log("[whoop/connect] redirecting to WHOOP authorize", {
+    athleteId: athlete.id,
+    redirectUri,
+  });
 
   const state = await createOAuthState(athlete.id, clientSecret, 10 * 60 * 1000, "web");
   return NextResponse.redirect(buildAuthUrl(clientId, redirectUri, state));
