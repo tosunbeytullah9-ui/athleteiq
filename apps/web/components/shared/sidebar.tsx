@@ -40,6 +40,12 @@ const navItems: {
     roles: ["admin", "coach"],
   },
   {
+    href: "/dashboard",
+    label: "Ana Sayfa",
+    icon: LayoutDashboard,
+    roles: ["athlete"],
+  },
+  {
     href: "/athletes",
     label: "Sporcular",
     icon: Users,
@@ -80,7 +86,13 @@ const navItems: {
     href: "/competitions",
     label: "Yarışmalar",
     icon: Trophy,
-    roles: ["admin", "coach", "athlete"],
+    roles: ["admin", "coach"],
+  },
+  {
+    href: "/competitions",
+    label: "Müsabakalar",
+    icon: Trophy,
+    roles: ["athlete"],
   },
   {
     href: "/tests",
@@ -89,16 +101,16 @@ const navItems: {
     roles: ["admin", "coach"],
   },
   {
-    href: "/wearables",
-    label: "Wearable",
-    icon: Watch,
-    roles: ["admin", "coach", "athlete"],
-  },
-  {
     href: "/profile",
     label: "Profil",
     icon: User,
     roles: ["athlete"],
+  },
+  {
+    href: "/wearables",
+    label: "Wearable",
+    icon: Watch,
+    roles: ["admin", "coach", "athlete"],
   },
   {
     href: "/settings/users",

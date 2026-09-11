@@ -16,6 +16,8 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import type { Tables } from "@athleteiq/db/types";
+import type { LatestAcwrRow } from "@athleteiq/db/queries/acwr";
+import { getAcwrColor, getAcwrLabel } from "@/lib/acwr";
 
 type Athlete = Tables<"athletes">;
 type Team = { id: string; name: string };
@@ -24,6 +26,7 @@ interface Props {
   athletes: Athlete[];
   teams: Team[];
   orgId: string;
+  latestAcwr: LatestAcwrRow[];
 }
 
 function calculateAge(birthDate: string | null): string {
@@ -34,7 +37,7 @@ function calculateAge(birthDate: string | null): string {
   return `${age} yaş`;
 }
 
-export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Props) {
+export function AthletesClient({ athletes: initialAthletes, teams, orgId, latestAcwr }: Props) {
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
@@ -77,6 +80,11 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
   const teamMap = useMemo(
     () => Object.fromEntries(teams.map((t) => [t.id, t.name])),
     [teams]
+  );
+
+  const acwrMap = useMemo(
+    () => new Map(latestAcwr.map((a) => [a.athlete_id, a])),
+    [latestAcwr]
   );
 
   return (
@@ -147,6 +155,7 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Takım</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Yaş</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Branş</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Son ACWR</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Durum</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Giriş</th>
                 <th className="text-right px-4 py-3 font-medium text-muted-foreground">İşlemler</th>
@@ -178,7 +187,7 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                     {athlete.team_id ? (
                       teamMap[athlete.team_id] ?? "—"
                     ) : (
-                      <Badge variant="outline" className="border-amber-300 bg-amber-50 text-amber-700">
+                      <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
                         Takımsız
                       </Badge>
                     )}
@@ -188,6 +197,25 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId }: Prop
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {athlete.position ?? "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {(() => {
+                      const acwr = acwrMap.get(athlete.id);
+                      if (!acwr?.acwr_ratio) return <span className="text-muted-foreground">—</span>;
+                      return (
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="text-sm font-semibold"
+                            style={{ color: getAcwrColor(acwr.acwr_ratio) }}
+                          >
+                            {acwr.acwr_ratio.toFixed(2)}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {getAcwrLabel(acwr.acwr_ratio)}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={athlete.is_active ? "default" : "secondary"}>

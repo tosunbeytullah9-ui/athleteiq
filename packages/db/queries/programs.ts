@@ -181,6 +181,60 @@ export async function getDaySessions(client: DbClient, programId: string, dayOfW
   return data ?? [];
 }
 
+export interface TodaySessionRow {
+  id: string;
+  title: string | null;
+  session_type: string | null;
+  duration_min: number | null;
+  order_index: number | null;
+  team_name: string | null;
+  athlete_name: string | null;
+}
+
+/** Org genelinde, bugün (dayOfWeek) yayınlanmış programlara düşen tüm seanslar
+ * — Dashboard "Bugünün Programı" widget'ı için. RLS coach'u kendi takımına
+ * daraltır (training_programs_write ALL politikası zaten team/org kapsamlı). */
+export async function getTodaySessions(
+  client: DbClient,
+  orgId: string,
+  dayOfWeek: number
+): Promise<TodaySessionRow[]> {
+  const { data, error } = await client
+    .from("training_sessions")
+    .select(
+      `id, title, session_type, duration_min, order_index,
+       training_programs!inner(org_id, is_published, teams(name), athletes(full_name))`
+    )
+    .eq("training_programs.org_id", orgId)
+    .eq("training_programs.is_published", true)
+    .eq("day_of_week", dayOfWeek)
+    .order("order_index", { ascending: true });
+
+  if (error) throw error;
+
+  return (
+    data as unknown as {
+      id: string;
+      title: string | null;
+      session_type: string | null;
+      duration_min: number | null;
+      order_index: number | null;
+      training_programs: {
+        teams: { name: string } | null;
+        athletes: { full_name: string } | null;
+      } | null;
+    }[]
+  ).map((row) => ({
+    id: row.id,
+    title: row.title,
+    session_type: row.session_type,
+    duration_min: row.duration_min,
+    order_index: row.order_index,
+    team_name: row.training_programs?.teams?.name ?? null,
+    athlete_name: row.training_programs?.athletes?.full_name ?? null,
+  }));
+}
+
 /** Bugün itibarıyla tarih olarak aktif mi (start_date <= today <= end_date). */
 export function isDateActive(
   program: Pick<Tables<"training_programs">, "start_date" | "end_date">,

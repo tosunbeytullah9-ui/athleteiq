@@ -38,3 +38,27 @@ export function getLocalDateString(date: Date = new Date()): string {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+// Bugünden geriye, ardışık günlerde check-in yapılmış gün sayısı — sporcu
+// Ana Sayfa'daki "streak" rozeti için. checkinDates sırasız (Set) verilebilir;
+// bugün henüz check-in yapılmamışsa dünden geriye sayılır (bugünün henüz
+// bitmemiş olması seriyi bozmaz).
+export function computeCheckinStreak(
+  checkinDates: Iterable<string>,
+  today: string = getLocalDateString()
+): number {
+  const dates = new Set(checkinDates);
+  let streak = 0;
+  const cursor = new Date(today + "T00:00:00");
+  if (!dates.has(today)) {
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const cursorStr = getLocalDateString(cursor);
+    if (!dates.has(cursorStr)) break;
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
+}

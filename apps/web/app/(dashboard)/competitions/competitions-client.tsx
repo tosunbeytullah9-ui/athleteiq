@@ -58,11 +58,44 @@ const LEVEL_LABELS: Record<string, string> = {
 };
 
 const LEVEL_COLORS: Record<string, string> = {
-  international: "bg-purple-100 text-purple-700",
-  national: "bg-blue-100 text-blue-700",
-  regional: "bg-green-100 text-green-700",
-  local: "bg-gray-100 text-gray-700",
+  international: "bg-violet/10 text-violet",
+  national: "bg-primary/10 text-primary",
+  regional: "bg-good/10 text-good",
+  local: "bg-muted text-muted-foreground",
 };
+
+function AthleteChip({
+  name,
+  checked,
+  onToggle,
+}: {
+  name: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors ${
+        checked ? "border-primary bg-primary/10" : "border-input hover:bg-accent"
+      }`}
+    >
+      <span
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${
+          checked ? "bg-primary text-primary-foreground" : "border border-input"
+        }`}
+      >
+        {checked && (
+          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={3}>
+            <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </span>
+      <span className="truncate">{name}</span>
+    </button>
+  );
+}
 
 function isUpcoming(dateStr: string | null): boolean {
   if (!dateStr) return false;
@@ -367,20 +400,14 @@ export function CompetitionsClient({
                                 {allSelected ? "Takımı kaldır" : "Tüm takımı seç"}
                               </button>
                             </div>
-                            <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                            <div className="grid grid-cols-2 gap-2">
                               {teamAthletes.map((a) => (
-                                <label
+                                <AthleteChip
                                   key={a.id}
-                                  className="flex items-center gap-2 text-sm cursor-pointer"
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedAthleteIds.includes(a.id)}
-                                    onChange={() => toggleAthlete(a.id)}
-                                    className="h-3.5 w-3.5 rounded border-input"
-                                  />
-                                  {a.full_name}
-                                </label>
+                                  name={a.full_name}
+                                  checked={selectedAthleteIds.includes(a.id)}
+                                  onToggle={() => toggleAthlete(a.id)}
+                                />
                               ))}
                             </div>
                           </div>
@@ -389,20 +416,14 @@ export function CompetitionsClient({
                       {unassignedAthletes.length > 0 && (
                         <div>
                           <p className="text-xs font-medium text-muted-foreground mb-1">Takımsız</p>
-                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          <div className="grid grid-cols-2 gap-2">
                             {unassignedAthletes.map((a) => (
-                              <label
+                              <AthleteChip
                                 key={a.id}
-                                className="flex items-center gap-2 text-sm cursor-pointer"
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={selectedAthleteIds.includes(a.id)}
-                                  onChange={() => toggleAthlete(a.id)}
-                                  className="h-3.5 w-3.5 rounded border-input"
-                                />
-                                {a.full_name}
-                              </label>
+                                name={a.full_name}
+                                checked={selectedAthleteIds.includes(a.id)}
+                                onToggle={() => toggleAthlete(a.id)}
+                              />
                             ))}
                           </div>
                         </div>

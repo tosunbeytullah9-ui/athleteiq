@@ -34,10 +34,7 @@ import {
   deleteProgramBlock,
 } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
-import {
-  resolveOneRepMaxKgForDate,
-  type Athlete1RMRecord,
-} from "@athleteiq/db/queries/exercises";
+import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 import {
   buildMaxHistoryLookup,
   calculateProgramTonnage,
@@ -47,6 +44,13 @@ import {
   type TonnageSummary,
 } from "@/lib/tonnage";
 import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
+import {
+  formatSetReps,
+  formatSetLoad,
+  formatTonnage,
+  SESSION_TYPE_LABELS,
+  DAY_LABELS,
+} from "@/lib/exercise-format";
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
@@ -55,46 +59,6 @@ type Program = Tables<"training_programs"> & {
     })[];
   })[];
 };
-
-const BAND_LABELS: Record<string, string> = {
-  soft: "Yumuşak",
-  medium: "Orta",
-  hard: "Sert",
-};
-
-function formatSetReps(set: Tables<"exercise_sets">): string {
-  if (set.duration_sec != null) return `${set.duration_sec} sn`;
-  if (set.reps != null) return `${set.reps} tekrar`;
-  return "—";
-}
-
-function formatSetLoad(
-  set: Tables<"exercise_sets">,
-  exerciseName: string,
-  maxHistoryLookup: Map<string, Athlete1RMRecord[]>,
-  programStartDate: string | null
-): string {
-  if (set.band_resistance)
-    return `${BAND_LABELS[set.band_resistance] ?? set.band_resistance} bant`;
-  if (set.is_bodyweight) return "Vücut ağırlığı";
-  if (set.percent_1rm != null) {
-    const resolvedKg = resolveOneRepMaxKgForDate(
-      exerciseName,
-      set.percent_1rm,
-      maxHistoryLookup,
-      programStartDate
-    );
-    return resolvedKg != null
-      ? `%${set.percent_1rm} 1RM (${resolvedKg.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} kg)`
-      : `%${set.percent_1rm} 1RM`;
-  }
-  if (set.load_kg != null) return `${set.load_kg} kg`;
-  return "—";
-}
-
-function formatTonnage(kg: number): string {
-  return `${kg.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} kg`;
-}
 
 function TonnageBreakdown({ tonnage }: { tonnage: TonnageSummary }) {
   if (tonnage.unresolved.length === 0) return null;
@@ -198,24 +162,6 @@ function ExerciseCard({
     </div>
   );
 }
-
-const DAY_LABELS = [
-  "Pazartesi",
-  "Salı",
-  "Çarşamba",
-  "Perşembe",
-  "Cuma",
-  "Cumartesi",
-  "Pazar",
-];
-
-const SESSION_TYPE_LABELS: Record<string, string> = {
-  strength: "Kuvvet",
-  conditioning: "Kondisyon",
-  technical: "Teknik",
-  recovery: "Toparlanma",
-  competition: "Müsabaka",
-};
 
 const PHASE_LABELS: Record<string, string> = {
   preparation: "Hazırlık",

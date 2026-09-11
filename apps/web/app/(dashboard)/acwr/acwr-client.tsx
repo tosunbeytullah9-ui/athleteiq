@@ -24,35 +24,15 @@ import { createClient } from "@/lib/supabase/client";
 import { upsertAcwrLog } from "@athleteiq/db/queries/acwr";
 import { acwrLogSchema, type AcwrLogInput } from "@athleteiq/validators/acwr";
 import type { Tables } from "@athleteiq/db/types";
+import type { LatestAcwrRow } from "@athleteiq/db/queries/acwr";
+import { getAcwrColor, getAcwrLabel, getAcwrBadgeVariant } from "@/lib/acwr";
 
 type AcwrLog = Tables<"acwr_logs">;
 type Athlete = { id: string; full_name: string; team_id: string | null };
 
 interface Props {
   athletes: Athlete[];
-}
-
-function getAcwrColor(ratio: number | null): string {
-  if (!ratio) return "#6b7280";
-  if (ratio < 0.8) return "#3b82f6";
-  if (ratio <= 1.3) return "#22c55e";
-  if (ratio <= 1.5) return "#f59e0b";
-  return "#ef4444";
-}
-
-function getAcwrLabel(ratio: number | null): string {
-  if (!ratio) return "—";
-  if (ratio < 0.8) return "Düşük";
-  if (ratio <= 1.3) return "Optimal";
-  if (ratio <= 1.5) return "Dikkat";
-  return "Yüksek Risk";
-}
-
-function getAcwrBadgeVariant(ratio: number | null): "default" | "secondary" | "destructive" {
-  if (!ratio) return "secondary";
-  if (ratio <= 1.3) return "default";
-  if (ratio > 1.5) return "destructive";
-  return "secondary";
+  latestAcwr: LatestAcwrRow[];
 }
 
 const today = new Date().toISOString().split("T")[0]!;
@@ -64,7 +44,7 @@ function daysAgo(days: number): string {
     .split("T")[0]!;
 }
 
-export function AcwrClient({ athletes }: Props) {
+export function AcwrClient({ athletes, latestAcwr: orgAcwr }: Props) {
   const [selectedAthleteId, setSelectedAthleteId] = useState<string>(
     athletes[0]?.id ?? ""
   );
@@ -188,6 +168,18 @@ export function AcwrClient({ athletes }: Props) {
 
   const selectedAthlete = athletes.find((a) => a.id === selectedAthleteId);
 
+  const riskBuckets = {
+    safe: orgAcwr.filter((a) => a.acwr_ratio != null && a.acwr_ratio >= 0.8 && a.acwr_ratio <= 1.3).length,
+    caution: orgAcwr.filter(
+      (a) => a.acwr_ratio != null && ((a.acwr_ratio > 1.3 && a.acwr_ratio <= 1.5) || a.acwr_ratio < 0.8)
+    ).length,
+    risky: orgAcwr.filter((a) => a.acwr_ratio != null && a.acwr_ratio > 1.5).length,
+  };
+  const rankedAthletes = [...orgAcwr]
+    .filter((a) => a.acwr_ratio != null)
+    .sort((a, b) => (b.acwr_ratio ?? 0) - (a.acwr_ratio ?? 0));
+  const maxRankedRatio = Math.max(1, ...rankedAthletes.map((a) => a.acwr_ratio ?? 0));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -202,6 +194,77 @@ export function AcwrClient({ athletes }: Props) {
           Yük Logu Ekle
         </Button>
       </div>
+
+      {orgAcwr.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Risk Dağılımı</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex h-3 overflow-hidden rounded-full bg-muted">
+                {riskBuckets.safe > 0 && (
+                  <div
+                    className="h-full bg-good"
+                    style={{ width: `${(riskBuckets.safe / orgAcwr.length) * 100}%` }}
+                  />
+                )}
+                {riskBuckets.caution > 0 && (
+                  <div
+                    className="h-full bg-warning"
+                    style={{ width: `${(riskBuckets.caution / orgAcwr.length) * 100}%` }}
+                  />
+                )}
+                {riskBuckets.risky > 0 && (
+                  <div
+                    className="h-full bg-critical"
+                    style={{ width: `${(riskBuckets.risky / orgAcwr.length) * 100}%` }}
+                  />
+                )}
+              </div>
+              <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+                <div>
+                  <p className="font-bold text-good">{riskBuckets.safe}</p>
+                  <p className="text-xs text-muted-foreground">Güvenli</p>
+                </div>
+                <div>
+                  <p className="font-bold text-warning">{riskBuckets.caution}</p>
+                  <p className="text-xs text-muted-foreground">Dikkat</p>
+                </div>
+                <div>
+                  <p className="font-bold text-critical">{riskBuckets.risky}</p>
+                  <p className="text-xs text-muted-foreground">Riskli</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Sporcu Bazlı ACWR Sıralaması</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2.5">
+              {rankedAthletes.slice(0, 6).map((a) => (
+                <div key={a.athlete_id} className="flex items-center gap-3 text-sm">
+                  <span className="w-28 shrink-0 truncate">{a.full_name}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full rounded-full"
+                      style={{
+                        width: `${((a.acwr_ratio ?? 0) / maxRankedRatio) * 100}%`,
+                        background: getAcwrColor(a.acwr_ratio),
+                      }}
+                    />
+                  </div>
+                  <span className="w-10 shrink-0 text-right font-semibold" style={{ color: getAcwrColor(a.acwr_ratio) }}>
+                    {a.acwr_ratio?.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Sporcu seçimi */}
       <div className="flex items-center gap-3">

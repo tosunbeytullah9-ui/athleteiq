@@ -151,16 +151,18 @@ export async function middleware(request: NextRequest) {
 
   const role = supabaseResponse.cookies.get("aiq_role")?.value ?? cachedRole;
 
-  // ATHLETE GUARD (asıl güvenlik): Sporcu web'de kendi yayınlanmış programını
-  // salt-okunur görür, kendi günlük wellness check-in'ini girer, kendi
-  // yarışma/profil/wearable bilgisini görür. İzin verilen yollar /programs
-  // (+ [id] detay), /wellness, /competitions, /profile, /wearables (+ kendi
-  // WHOOP OAuth connect/callback/disconnect route'ları). Program oluşturma/
-  // düzenleme ve diğer tüm dashboard sayfaları bloklanır → /programs'a redirect.
+  // ATHLETE GUARD (asıl güvenlik): Sporcu web'de kendi Ana Sayfa'sını,
+  // yayınlanmış programını salt-okunur görür, kendi günlük wellness
+  // check-in'ini girer, kendi yarışma/profil/wearable bilgisini görür.
+  // İzin verilen yollar /dashboard (Ana Sayfa), /programs (+ [id] detay),
+  // /wellness, /competitions, /profile, /wearables (+ kendi WHOOP OAuth
+  // connect/callback/disconnect route'ları). Program oluşturma/düzenleme
+  // ve diğer tüm dashboard sayfaları bloklanır → /dashboard'a redirect.
   if (role === "athlete") {
     const isBlocked =
       pathname === "/programs/new" || pathname.endsWith("/edit");
     const isAllowed =
+      pathname === "/dashboard" ||
       (pathname.startsWith("/programs") && !isBlocked) ||
       pathname === "/wellness" ||
       pathname === "/competitions" ||
@@ -169,7 +171,7 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/api/wearables/whoop/");
 
     if (!isAllowed) {
-      return NextResponse.redirect(new URL("/programs", request.url));
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
     return supabaseResponse;
   }
@@ -204,7 +206,7 @@ function getRoleDestination(
     case "coach":
       return "/athletes";
     case "athlete":
-      return "/programs";
+      return "/dashboard";
     default:
       return "/";
   }

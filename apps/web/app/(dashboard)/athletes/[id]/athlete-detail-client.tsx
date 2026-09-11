@@ -3,7 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, CheckCircle2, XCircle, Trophy } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Trophy, TrendingUp } from "lucide-react";
+import {
+  Line,
+  LineChart,
+  ReferenceLine,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from "recharts";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
@@ -78,10 +86,10 @@ const PHASE_LABELS: Record<string, string> = {
 
 function acwrColor(ratio: number | null): string {
   if (!ratio) return "text-muted-foreground";
-  if (ratio < 0.8) return "text-blue-600";
-  if (ratio <= 1.3) return "text-green-600";
-  if (ratio <= 1.5) return "text-yellow-600";
-  return "text-red-600";
+  if (ratio < 0.8) return "text-primary";
+  if (ratio <= 1.3) return "text-good";
+  if (ratio <= 1.5) return "text-warning";
+  return "text-critical";
 }
 
 export function AthleteDetailClient({
@@ -99,6 +107,10 @@ export function AthleteDetailClient({
   const router = useRouter();
   const [statusOpen, setStatusOpen] = useState(false);
   const latestAcwr = acwrLogs[0];
+  const chartData = [...acwrLogs].reverse().map((log) => ({
+    date: new Date(log.log_date).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" }),
+    acwr: log.acwr_ratio != null ? Number(log.acwr_ratio.toFixed(2)) : null,
+  }));
   const initials = athlete.full_name
     .split(" ")
     .map((n) => n[0])
@@ -337,10 +349,30 @@ export function AthleteDetailClient({
       {acwrLogs.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">ACWR Geçmişi (Son 30 Gün)</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <TrendingUp className="h-4 w-4" />
+              ACWR Geçmişi (Son 30 Gün)
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
+            <ResponsiveContainer width="100%" height={140}>
+              <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
+                <ReferenceLine y={0.8} stroke="var(--color-primary)" strokeDasharray="3 3" />
+                <ReferenceLine y={1.3} stroke="var(--color-warning)" strokeDasharray="3 3" />
+                <ReferenceLine y={1.5} stroke="var(--color-critical)" strokeDasharray="3 3" />
+                <Tooltip formatter={(value: number) => [value, "ACWR"]} />
+                <Line
+                  type="monotone"
+                  dataKey="acwr"
+                  stroke="var(--color-primary)"
+                  strokeWidth={2.5}
+                  dot={{ r: 3 }}
+                  connectNulls
+                />
+              </LineChart>
+            </ResponsiveContainer>
+            <div className="overflow-x-auto mt-4">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">

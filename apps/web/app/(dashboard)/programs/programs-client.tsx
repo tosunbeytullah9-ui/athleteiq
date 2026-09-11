@@ -8,14 +8,18 @@ import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
 import { setProgramsArchived } from "@athleteiq/db/queries/programs";
+import { getAthleteMaxHistory } from "@athleteiq/db/queries/exercises";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent } from "@athleteiq/ui/components/card";
 import type { Tables } from "@athleteiq/db/types";
+import { AthleteProgramView } from "./athlete-program-view";
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
-    exercises: Tables<"exercises">[];
+    exercises: (Tables<"exercises"> & {
+      exercise_sets?: Tables<"exercise_sets">[];
+    })[];
   })[];
 };
 
@@ -23,6 +27,7 @@ interface Props {
   programs: Program[];
   teams: { id: string; name: string }[];
   athletes: { id: string; full_name: string; team_id: string | null }[];
+  athleteMaxHistory?: Awaited<ReturnType<typeof getAthleteMaxHistory>>;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -39,7 +44,12 @@ const PHASE_COLORS: Record<string, string> = {
   peak: "bg-purple-100 text-purple-700",
 };
 
-export function ProgramsClient({ programs, teams, athletes }: Props) {
+export function ProgramsClient({
+  programs,
+  teams,
+  athletes,
+  athleteMaxHistory = [],
+}: Props) {
   const router = useRouter();
   const { role } = useUserContext();
   const isAthlete = role === "athlete";
@@ -92,6 +102,10 @@ export function ProgramsClient({ programs, teams, athletes }: Props) {
     if (filter === "draft") return base.filter((p) => !p.is_published);
     return base;
   }, [programs, filter, isAthlete, showArchived]);
+
+  if (isAthlete) {
+    return <AthleteProgramView programs={filtered} maxHistory={athleteMaxHistory} />;
+  }
 
   const activePrograms = programs.filter((p) => !p.is_archived);
   const publishedCount = activePrograms.filter((p) => p.is_published).length;

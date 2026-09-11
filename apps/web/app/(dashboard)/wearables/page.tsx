@@ -1,6 +1,11 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getWearableConnection, getWearableConnections } from "@athleteiq/db/queries/wearables";
+import {
+  getWearableConnection,
+  getWearableConnections,
+  getWearableMetrics,
+} from "@athleteiq/db/queries/wearables";
+import { toLocalDateString } from "@/lib/date";
 import { WearablesClient } from "./wearables-client";
 import { AthleteWearableClient } from "./athlete-wearable-client";
 
@@ -46,8 +51,23 @@ export default async function WearablesPage({ searchParams }: PageProps) {
       );
     }
 
-    const connection = await getWearableConnection(supabase, athlete.id, "whoop");
-    return <AthleteWearableClient connection={connection} status={status ?? null} />;
+    // Polar için henüz bir OAuth connect akışı yok (bkz. CLAUDE.md §11) — kart
+    // bilinçli olarak "Yakında" gösteriliyor, bağlantı durumu sorgulanmıyor.
+    const whoopConnection = await getWearableConnection(supabase, athlete.id, "whoop");
+
+    const today = toLocalDateString(new Date());
+    const weekAgo = toLocalDateString(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    const metrics = whoopConnection?.is_active
+      ? await getWearableMetrics(supabase, athlete.id, "whoop", weekAgo, today)
+      : [];
+
+    return (
+      <AthleteWearableClient
+        whoopConnection={whoopConnection}
+        metrics={metrics}
+        status={status ?? null}
+      />
+    );
   }
 
   const [connections, athletesResult] = await Promise.all([

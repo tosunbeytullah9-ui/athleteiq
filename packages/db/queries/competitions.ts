@@ -115,9 +115,27 @@ export async function syncCompetitionEntries(
 export async function getAthleteCompetitionEntries(client: DbClient, athleteId: string) {
   const { data, error } = await client
     .from("competition_entries")
-    .select("id, notes, competitions(id, name, competition_date, location, level)")
+    .select("id, notes, competitions(id, name, competition_date, location, level, team_id)")
     .eq("athlete_id", athleteId)
     .order("competitions(competition_date)", { ascending: true });
+
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Bir sporcunun kayıtlı geçmiş yarışma SONUÇLARINI döner (competition_results —
+ * competition_entries'ten farklı, bkz. üstteki not). Sporcunun kendi "Müsabakalar"
+ * ekranındaki "Sonuçlar" sekmesi için — gerçek rank/score, uydurulmuş veri yok.
+ */
+export async function getAthleteCompetitionResults(client: DbClient, athleteId: string) {
+  const { data, error } = await client
+    .from("competition_results")
+    .select(
+      "id, event, score, rank, notes, competitions(id, name, competition_date, location, level, team_id)"
+    )
+    .eq("athlete_id", athleteId)
+    .order("competitions(competition_date)", { ascending: false });
 
   if (error) throw error;
   return data;

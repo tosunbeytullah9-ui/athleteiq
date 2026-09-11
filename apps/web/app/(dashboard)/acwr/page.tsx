@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { getLatestAcwrByOrg } from "@athleteiq/db/queries/acwr";
 import { AcwrClient } from "./acwr-client";
 
 export default async function AcwrPage() {
@@ -15,12 +16,15 @@ export default async function AcwrPage() {
     );
   }
 
-  const athletesResult = await supabase
-    .from("athletes")
-    .select("id, full_name, team_id")
-    .eq("org_id", orgId)
-    .eq("is_active", true)
-    .order("full_name");
+  const [athletesResult, latestAcwr] = await Promise.all([
+    supabase
+      .from("athletes")
+      .select("id, full_name, team_id")
+      .eq("org_id", orgId)
+      .eq("is_active", true)
+      .order("full_name"),
+    getLatestAcwrByOrg(supabase, orgId),
+  ]);
 
-  return <AcwrClient athletes={athletesResult.data ?? []} />;
+  return <AcwrClient athletes={athletesResult.data ?? []} latestAcwr={latestAcwr} />;
 }

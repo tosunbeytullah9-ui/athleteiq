@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import {
   getCompetitions,
   getAthleteCompetitionEntries,
+  getAthleteCompetitionResults,
 } from "@athleteiq/db/queries/competitions";
 import { getAthletes } from "@athleteiq/db/queries/athletes";
 import { CompetitionsClient } from "./competitions-client";
@@ -45,8 +46,11 @@ export default async function CompetitionsPage() {
       );
     }
 
-    const entries = await getAthleteCompetitionEntries(supabase, athlete.id);
-    return <AthleteCompetitionsClient entries={entries} />;
+    const [entries, results] = await Promise.all([
+      getAthleteCompetitionEntries(supabase, athlete.id),
+      getAthleteCompetitionResults(supabase, athlete.id),
+    ]);
+    return <AthleteCompetitionsClient entries={entries} results={results} />;
   }
 
   const [competitions, teamsResult, athletes] = await Promise.all([
