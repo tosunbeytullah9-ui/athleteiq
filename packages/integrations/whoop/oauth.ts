@@ -95,6 +95,7 @@ export async function revokeAccess(accessToken: string): Promise<void> {
 interface StatePayload {
   athleteId: string;
   exp: number; // epoch ms
+  platform?: "web" | "mobile";
 }
 
 function toBase64Url(bytes: Uint8Array): string {
@@ -127,9 +128,14 @@ async function hmacSign(secret: string, message: string): Promise<Uint8Array> {
 export async function createOAuthState(
   athleteId: string,
   secret: string,
-  ttlMs = 10 * 60 * 1000
+  ttlMs = 10 * 60 * 1000,
+  platform?: "web" | "mobile"
 ): Promise<string> {
-  const payload: StatePayload = { athleteId, exp: Date.now() + ttlMs };
+  const payload: StatePayload = {
+    athleteId,
+    exp: Date.now() + ttlMs,
+    ...(platform ? { platform } : {}),
+  };
   const payloadJson = JSON.stringify(payload);
   const payloadB64 = toBase64Url(new TextEncoder().encode(payloadJson));
   const signature = await hmacSign(secret, payloadB64);
@@ -139,7 +145,7 @@ export async function createOAuthState(
 export async function verifyOAuthState(
   state: string,
   secret: string
-): Promise<{ athleteId: string } | null> {
+): Promise<{ athleteId: string; platform?: "web" | "mobile" } | null> {
   const [payloadB64, sigB64] = state.split(".");
   if (!payloadB64 || !sigB64) return null;
 
@@ -157,7 +163,7 @@ export async function verifyOAuthState(
     if (typeof payload.athleteId !== "string" || payload.exp < Date.now()) {
       return null;
     }
-    return { athleteId: payload.athleteId };
+    return { athleteId: payload.athleteId, platform: payload.platform };
   } catch {
     return null;
   }

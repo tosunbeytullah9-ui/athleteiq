@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm"];
+const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm", "/privacy"];
 const AUTH_ROUTES = ["/login"];
 
 export async function middleware(request: NextRequest) {
@@ -152,15 +152,21 @@ export async function middleware(request: NextRequest) {
   const role = supabaseResponse.cookies.get("aiq_role")?.value ?? cachedRole;
 
   // ATHLETE GUARD (asıl güvenlik): Sporcu web'de kendi yayınlanmış programını
-  // salt-okunur görür ve kendi günlük wellness check-in'ini girer. İzin verilen
-  // yollar /programs (+ [id] detay) ve /wellness. Program oluşturma/düzenleme
-  // ve diğer tüm dashboard sayfaları bloklanır → /programs'a redirect.
+  // salt-okunur görür, kendi günlük wellness check-in'ini girer, kendi
+  // yarışma/profil/wearable bilgisini görür. İzin verilen yollar /programs
+  // (+ [id] detay), /wellness, /competitions, /profile, /wearables (+ kendi
+  // WHOOP OAuth connect/callback/disconnect route'ları). Program oluşturma/
+  // düzenleme ve diğer tüm dashboard sayfaları bloklanır → /programs'a redirect.
   if (role === "athlete") {
     const isBlocked =
       pathname === "/programs/new" || pathname.endsWith("/edit");
     const isAllowed =
       (pathname.startsWith("/programs") && !isBlocked) ||
-      pathname === "/wellness";
+      pathname === "/wellness" ||
+      pathname === "/competitions" ||
+      pathname === "/profile" ||
+      pathname === "/wearables" ||
+      pathname.startsWith("/api/wearables/whoop/");
 
     if (!isAllowed) {
       return NextResponse.redirect(new URL("/programs", request.url));

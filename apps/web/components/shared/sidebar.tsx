@@ -19,6 +19,7 @@ import {
   UserCog,
   ClipboardCheck,
   LayoutDashboard,
+  User,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -79,7 +80,7 @@ const navItems: {
     href: "/competitions",
     label: "Yarışmalar",
     icon: Trophy,
-    roles: ["admin", "coach"],
+    roles: ["admin", "coach", "athlete"],
   },
   {
     href: "/tests",
@@ -91,7 +92,13 @@ const navItems: {
     href: "/wearables",
     label: "Wearable",
     icon: Watch,
-    roles: ["admin", "coach"],
+    roles: ["admin", "coach", "athlete"],
+  },
+  {
+    href: "/profile",
+    label: "Profil",
+    icon: User,
+    roles: ["athlete"],
   },
   {
     href: "/settings/users",

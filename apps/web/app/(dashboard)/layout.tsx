@@ -16,10 +16,11 @@ export default async function DashboardLayout({
   const orgId = cookieStore.get("aiq_org_id")?.value ?? null;
   const teamId = cookieStore.get("aiq_team_id")?.value ?? null;
 
-  // Defans-in-depth: middleware athlete'i zaten /programs + /wellness'e
-  // kilitliyor, ama server component'te de rolü doğrula. Athlete sadece
-  // /programs, /programs/[id] (salt-okunur) ve /wellness görebilir; new/edit
-  // ve diğer sayfalar bloklı.
+  // Defans-in-depth: middleware athlete'i zaten /programs + /wellness +
+  // /competitions + /profile + /wearables'e kilitliyor, ama server
+  // component'te de rolü doğrula. Athlete sadece /programs, /programs/[id]
+  // (salt-okunur), /wellness, /competitions, /profile ve /wearables
+  // görebilir; new/edit ve diğer sayfalar bloklı.
   if (role === "athlete") {
     const headerStore = await headers();
     const pathname = headerStore.get("x-pathname") ?? "";
@@ -28,7 +29,10 @@ export default async function DashboardLayout({
         pathname === "/programs/new" || pathname.endsWith("/edit");
       const isAllowed =
         (pathname.startsWith("/programs") && !isBlocked) ||
-        pathname === "/wellness";
+        pathname === "/wellness" ||
+        pathname === "/competitions" ||
+        pathname === "/profile" ||
+        pathname === "/wearables";
       if (!isAllowed) {
         redirect("/programs");
       }

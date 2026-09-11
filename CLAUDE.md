@@ -805,6 +805,20 @@ code-exchange'i içindi).
 [x] apps/web/app/(dashboard)/competitions/competitions-client.tsx → Yarışma formuna sporcu bazlı katılımcı (roster) seçici — competition_entries tablosu (20260909070021_athlete_delete_and_competition_entries.sql), syncCompetitionEntries()
 ```
 
+**Sonradan eklenen görevler (2026-09-11 — sporcuya web'de Yarışmalar/Profil/Wearable menüleri):**
+```
+[x] apps/web/components/shared/sidebar.tsx → athlete rolüne 3 yeni menü öğesi: Yarışmalar (/competitions), Wearable (/wearables), Profil (/profile — yalnızca athlete'e özel link)
+[x] apps/web/middleware.ts + apps/web/app/(dashboard)/layout.tsx → ATHLETE GUARD allow-list'i genişletildi: /competitions, /profile, /wearables (+ /api/wearables/whoop/* — web OAuth akışı)
+[x] apps/web/app/(dashboard)/competitions/page.tsx + athlete-competitions-client.tsx → role==="athlete" dalı: getAthleteCompetitionEntries() ile SADECE kendi kayıtlı olduğu yarışmalar, salt-okunur (admin/coach'un org-geneli yönetim sayfası değişmedi)
+[x] apps/web/app/(dashboard)/profile/page.tsx → Web'de ilk kez: sporcunun kendi profilini (ad, kullanıcı adı, takım, org, doğum tarihi/yaş, cinsiyet, boy/kilo, grup, notlar) salt-okunur gösterir — RLS'te athlete'in kendi athletes satırını UPDATE etme izni yok, bu yüzden düzenleme burada YOK, "koçunuzla iletişime geçin" notu var
+[x] apps/web/app/(dashboard)/wearables/page.tsx + athlete-wearable-client.tsx → role==="athlete" dalı: kendi WHOOP bağlantı durumu + web'den bağlan/bağlantı kes (admin/coach'un org-geneli salt-okunur durum tablosu değişmedi)
+[x] packages/integrations/whoop/oauth.ts → createOAuthState/verifyOAuthState'e opsiyonel platform: "web"|"mobile" alanı eklendi (geriye dönük uyumlu — platform verilmezse eski mobil davranış)
+[x] apps/web/app/api/wearables/whoop/connect/route.ts → YENİ, web-özel: cookie oturumundan athlete id çözer, platform:"web" state'iyle WHOOP authorize'a yönlendirir (mobildeki Bearer-token'lı /authorize'dan ayrı — web tarayıcı navigasyonu cookie taşır, mobil taşımaz)
+[x] apps/web/app/api/wearables/whoop/callback/route.ts → state'teki platform'a göre dallanır: "web" ise `/wearables?status=...`'a, aksi halde (mobil, platform yok) eskisi gibi `athleteiq://wearables/callback`'e yönlendirir
+[x] apps/web/app/api/wearables/whoop/disconnect/route.ts → YENİ, web-özel: RLS "wearable_own" (for all) sayesinde anon+cookie client ile kendi bağlantısını revokeAccess() + is_active=false yapar (access_token kolonu NOT NULL olduğu için null'lanmaz, yalnızca refresh_token temizlenir)
+```
+Not: `apps/web/app/(dashboard)/wearables/wearables-client.tsx`'teki admin/coach org-geneli görünümünün kaynağı olan `getWearableConnections()` RLS'i (`wearable_own`, yalnızca athlete-self + super_admin) admin/coach dalını kapsamıyor — bu ayrı, önceden var olan bir bulgu, bu Parti'de DOKUNULMADI (bkz. BUGS.md'ye eklenmesi önerilir).
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -825,6 +839,7 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 - Admin/coach bir sporcunun bilgilerini düzenler → değişiklik anında listede görünür
 - Geçmiş kaydı olmayan bir sporcu kalıcı silinebilir; geçmişi olan sporcuda yalnızca "Pasife Al" sunulur ve pasif sporcu geçmişi korunarak listeden gizlenir
 - Bir yarışmada yalnızca seçilen sporcular "katılımcı" olarak görünür — takımın tamamı otomatik eklenmez
+- Sporcu web'de `/competitions`'ta yalnızca kendi kayıtlı olduğu yarışmaları görür (başka sporcunun kaydı görünmez, düzenleme/roster UI'ı yok); `/profile`'da kendi bilgilerini görür ama düzenleyemez; `/wearables`'ta WHOOP'a bağlanıp web'den bağlantıyı kesebilir
 
 ---
 
@@ -1137,7 +1152,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-09
+Son otomatik senkron: 2026-09-11
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1244,14 +1259,17 @@ Son otomatik senkron: 2026-09-09
   Eksiklikler §3'e kadar bu akış yalnızca mobile'da vardı; web athlete guard'ı hem
   `middleware.ts` hem `(dashboard)/layout.tsx`'te `/wellness`'e izin verecek şekilde
   genişletildi)
-- ✅ Yarışma: ekleme + listeleme + sporcu bazlı katılımcı (roster) seçimi — `competition_entries` tablosu, her yarışmaya yalnızca seçilen sporcular kayıtlı (2026-09-09)
+- ✅ Yarışma: ekleme + listeleme + sporcu bazlı katılımcı (roster) seçimi — `competition_entries` tablosu, her yarışmaya yalnızca seçilen sporcular kayıtlı (2026-09-09). Sporcu web'de `/competitions`'ta kendi kayıtlı olduğu yarışmaları salt-okunur görür (2026-09-11).
 - ✅ Test sonuçları: ekleme + listeleme
 - ✅ Wearable altyapısı: tablolar + token saklama + normalize şema
-- ✅ WHOOP entegrasyonu (2026-09-11) — OAuth bağlanma (mobil), webhook ile gerçek zamanlı
-  senkron (recovery/sleep/cycle → `wearable_daily_metrics` + `whoop_cycles`), bağlantı
-  kesme + WHOOP tarafında yetki iptali (`revokeAccess`). Gerçek WHOOP developer app
-  kaydı ve secret'ların girilmesi bekliyor — bkz. §6 Agent 5 "Devreye almak için
+- ✅ WHOOP entegrasyonu (2026-09-11) — OAuth bağlanma (mobil + web, ikisi de aynı
+  callback'i platform state'ine göre paylaşır), webhook ile gerçek zamanlı senkron
+  (recovery/sleep/cycle → `wearable_daily_metrics` + `whoop_cycles`), bağlantı kesme
+  (mobil + web) + WHOOP tarafında yetki iptali (`revokeAccess`). Gerçek WHOOP developer
+  app kaydı ve secret'ların girilmesi bekliyor — bkz. §6 Agent 5 "Devreye almak için
   manuel adımlar". Polar entegrasyonu henüz başlanmadı.
+- ✅ Sporcu web profili: `/profile` — sporcu kendi bilgilerini (ad, takım, org, fiziksel
+  veriler) salt-okunur görür, düzenleme yok (RLS'te athlete self-update izni yok) (2026-09-11)
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
 
 ### Bekleyen Özellikler

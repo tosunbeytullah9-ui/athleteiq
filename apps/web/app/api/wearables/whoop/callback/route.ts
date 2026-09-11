@@ -3,12 +3,25 @@ import { exchangeCode, verifyOAuthState } from "@athleteiq/integrations/whoop";
 import { upsertWearableConnection } from "@athleteiq/db/queries/wearables";
 import { NextRequest, NextResponse } from "next/server";
 
-// WHOOP'un yönlendirdiği tarayıcı isteği — mobil uygulama WebBrowser.openAuthSessionAsync
-// ile bu URL'yi açar; işlem bitince "athleteiq://wearables/callback" deep link'ine
-// yönlendirilir ve WebBrowser bunu yakalayıp kapatır (bkz. apps/mobile connect-whoop.tsx).
-// Bu route cookie tabanlı oturum TAŞIMAZ — sporcu kimliği state parametresinden
-// (authorize route'unda imzalanmış) çözülür.
-function redirectToApp(status: "success" | "error" | "denied") {
+// WHOOP'un yönlendirdiği tarayıcı isteği. İki çağıran var:
+//  - Mobil: WebBrowser.openAuthSessionAsync ile açılır, işlem bitince
+//    "athleteiq://wearables/callback" deep link'ine yönlendirilir (bkz.
+//    apps/mobile connect-whoop.tsx).
+//  - Web: /api/wearables/whoop/connect (sporcu kendi web oturumuyla) ile
+//    açılır, işlem bitince "/wearables" sayfasına yönlendirilir.
+// Bu route cookie tabanlı oturum TAŞIMAZ (WHOOP'un kendi sunucusu çağırır) —
+// hangi sporcu VE hangi platform olduğu state parametresinden (authorize/connect
+// route'unda imzalanmış) çözülür.
+function buildRedirect(
+  status: "success" | "error" | "denied",
+  platform: "web" | "mobile" | undefined,
+  requestUrl: string
+) {
+  if (platform === "web") {
+    const url = new URL("/wearables", requestUrl);
+    url.searchParams.set("status", status);
+    return NextResponse.redirect(url);
+  }
   return NextResponse.redirect(`athleteiq://wearables/callback?status=${status}`);
 }
 
@@ -18,24 +31,24 @@ export async function GET(request: NextRequest) {
   const state = searchParams.get("state");
   const error = searchParams.get("error");
 
-  if (error) {
-    return redirectToApp("denied");
-  }
-  if (!code || !state) {
-    return redirectToApp("error");
-  }
-
   const clientId = process.env.WHOOP_CLIENT_ID;
   const clientSecret = process.env.WHOOP_CLIENT_SECRET;
   const redirectUri = process.env.WHOOP_REDIRECT_URI;
 
-  if (!clientId || !clientSecret || !redirectUri) {
-    return redirectToApp("error");
-  }
+  // WHOOP hata durumunda da state'i geri yansıtır — platformu (varsa)
+  // erken çıkışlarda da doğru yönlendirebilmek için önce state'i çözmeyi dene.
+  const statePayload =
+    state && clientSecret ? await verifyOAuthState(state, clientSecret) : null;
+  const platform = statePayload?.platform;
 
-  const statePayload = await verifyOAuthState(state, clientSecret);
-  if (!statePayload) {
-    return redirectToApp("error");
+  if (error) {
+    return buildRedirect("denied", platform, request.url);
+  }
+  if (!code || !state || !statePayload) {
+    return buildRedirect("error", platform, request.url);
+  }
+  if (!clientId || !clientSecret || !redirectUri) {
+    return buildRedirect("error", platform, request.url);
   }
 
   try {
@@ -67,9 +80,9 @@ export async function GET(request: NextRequest) {
       is_active: true,
     });
 
-    return redirectToApp("success");
+    return buildRedirect("success", platform, request.url);
   } catch (err) {
     console.error("WHOOP OAuth callback error:", err);
-    return redirectToApp("error");
+    return buildRedirect("error", platform, request.url);
   }
 }

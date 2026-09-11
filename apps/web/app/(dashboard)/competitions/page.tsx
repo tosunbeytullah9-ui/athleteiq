@@ -1,13 +1,18 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getCompetitions } from "@athleteiq/db/queries/competitions";
+import {
+  getCompetitions,
+  getAthleteCompetitionEntries,
+} from "@athleteiq/db/queries/competitions";
 import { getAthletes } from "@athleteiq/db/queries/athletes";
 import { CompetitionsClient } from "./competitions-client";
+import { AthleteCompetitionsClient } from "./athlete-competitions-client";
 
 export default async function CompetitionsPage() {
   const supabase = await createClient();
   const cookieStore = await cookies();
   const orgId = cookieStore.get("aiq_org_id")?.value;
+  const role = cookieStore.get("aiq_role")?.value;
 
   if (!orgId) {
     return (
@@ -15,6 +20,33 @@ export default async function CompetitionsPage() {
         <p className="text-muted-foreground">Organizasyon bulunamadı.</p>
       </div>
     );
+  }
+
+  if (role === "athlete") {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    const { data: athlete } = user
+      ? await supabase
+          .from("athletes")
+          .select("id")
+          .eq("user_id", user.id)
+          .maybeSingle()
+      : { data: null };
+
+    if (!athlete) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">
+            Sporcu profili bulunamadı. Koçunuzla iletişime geçin.
+          </p>
+        </div>
+      );
+    }
+
+    const entries = await getAthleteCompetitionEntries(supabase, athlete.id);
+    return <AthleteCompetitionsClient entries={entries} />;
   }
 
   const [competitions, teamsResult, athletes] = await Promise.all([
