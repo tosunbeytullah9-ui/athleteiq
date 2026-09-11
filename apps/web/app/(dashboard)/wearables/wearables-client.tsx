@@ -197,7 +197,7 @@ export function WearablesClient({ connections, athletes }: Props) {
                         size="sm"
                         variant="outline"
                         disabled
-                        title="Wearable entegrasyonu yakında"
+                        title="Bağlantı sporcunun kendi mobil uygulamasından yapılır (Profil → Cihaz Bağlantıları)"
                       >
                         Bağla
                       </Button>

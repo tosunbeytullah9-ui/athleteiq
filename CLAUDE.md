@@ -26,7 +26,7 @@
 7. Sporcu davet sistemi (e-posta ile)
 
 **Gelecek özellikler (agent'lar şu an altyapı hazırlar):**
-- WHOOP v2 entegrasyonu (recovery, sleep, strain, HRV)
+- ~~WHOOP v2 entegrasyonu (recovery, sleep, strain, HRV)~~ — **AKTİF (2026-09-11)**, bkz. §11 Çalışan Özellikler
 - Polar AccessLink v4 entegrasyonu (nightly recharge, training load, exercises)
 - Stripe abonelik sistemi
 - AI-destekli yük analizi
@@ -878,22 +878,67 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 
 **Görev listesi:**
 ```
-[ ] packages/integrations/whoop/client.ts → v2 REST client (retry + rate limit)
-[ ] packages/integrations/whoop/oauth.ts → Auth code flow + rotating token refresh
-[ ] packages/integrations/whoop/types.ts → v2 Zod şemaları (Cycle, Sleep, Recovery, Workout)
-[ ] packages/integrations/whoop/normalize.ts → WHOOPRecovery → DailyMetrics
+[x] packages/integrations/whoop/client.ts → v2 REST client (429 retry + X-RateLimit-Reset backoff)
+[x] packages/integrations/whoop/oauth.ts → Auth code flow + rotating token refresh + revokeAccess + state imzalama
+[x] packages/integrations/whoop/types.ts → v2 Zod şemaları (Cycle, Sleep, Recovery, Workout, Profile, WebhookEvent)
+[x] packages/integrations/whoop/normalize.ts → WHOOPRecovery → DailyMetrics
 [ ] packages/integrations/polar/client.ts → v4 REST client
 [ ] packages/integrations/polar/oauth.ts → Auth code flow (long-lived token)
 [ ] packages/integrations/polar/transaction.ts → Transaction lifecycle manager
 [ ] packages/integrations/polar/types.ts → v4 Zod şemaları
 [ ] packages/integrations/polar/normalize.ts → PolarNightlyRecharge → DailyMetrics
-[ ] supabase/functions/whoop-webhook/ → Webhook receiver + signature validation
-[ ] supabase/functions/polar-sync/ → Cron: her saat Polar transaction çek
-[ ] apps/web/app/(dashboard)/wearables/whoop-connect/route.ts → OAuth callback
+[x] supabase/functions/whoop-webhook/ → Webhook receiver + signature validation + gerçek senkron (2026-09-11, v5)
+[ ] supabase/functions/polar-sync/ → Cron: her saat Polar transaction çek (dosya yok — CLAUDE.md'de "ACTIVE" yazıyordu, YANLIŞTI, düzeltildi)
+[x] apps/web/app/api/wearables/whoop/authorize/route.ts → İmzalı state üretir, WHOOP authorize URL'sine yönlendirir (Bearer auth, mobil çağırır)
+[x] apps/web/app/api/wearables/whoop/callback/route.ts → OAuth callback (WHOOP_REDIRECT_URI ile birebir eşleşir)
 [ ] apps/web/app/(dashboard)/wearables/polar-connect/route.ts → OAuth callback
-[ ] apps/mobile/app/(tabs)/profile/connect-whoop.tsx → Sporcu WHOOP bağlantı
-[ ] apps/mobile/app/(tabs)/profile/connect-polar.tsx → Sporcu Polar bağlantı
+[x] apps/mobile/app/(tabs)/profile/connect-whoop.tsx → Sporcu WHOOP bağlantı (expo-web-browser + Linking)
+[ ] apps/mobile/app/(tabs)/profile/connect-polar.tsx → Sporcu Polar bağlantı (hâlâ stub)
 ```
+
+**WHOOP entegrasyonu AKTİF (2026-09-11).** Orijinal görev listesindeki
+`apps/web/app/(dashboard)/wearables/whoop-connect/route.ts` yolu KULLANILMADI —
+gerçek gereksinim ortaya çıkınca değişti: bu callback WHOOP'un sunucusu
+tarafından çağrılır, mobil oturumun cookie'sini TAŞIMAZ, ve `(dashboard)`
+layout'unun role guard'ından geçmemesi gerekir. Bunun yerine `/api/wearables/whoop/*`
+altında, `.env`'deki `WHOOP_REDIRECT_URI` ile hizalı iki route kullanıldı:
+
+```
+Sporcu (mobil) → POST /api/wearables/whoop/authorize (Bearer <supabase access_token>)
+  → sporcu kimliği athletes.user_id'den çözülür, imzalı state üretilir
+    (packages/integrations/whoop/oauth.ts createOAuthState — ayrı bir "pending
+    oauth state" tablosu YOK, stateless HMAC imzalı payload, WHOOP_CLIENT_SECRET
+    ile imzalanır, 10 dk TTL)
+  → { url } WHOOP authorize sayfası döner
+→ Mobil: WebBrowser.openAuthSessionAsync(url, Linking.createURL("wearables/callback"))
+→ WHOOP kullanıcı onayından sonra GET /api/wearables/whoop/callback?code&state'e yönlendirir
+  → state doğrulanır → code token'a çevrilir → WHOOP profile'dan provider_user_id alınır
+    → wearable_connections upsert edilir (service-role, onConflict athlete_id+provider)
+  → 302 redirect: athleteiq://wearables/callback?status=success|denied|error
+→ WebBrowser bu redirect'i yakalayıp kapanır, mobil UI sonucu okur
+```
+
+Webhook senkronu (`supabase/functions/whoop-webhook`, v5): `recovery.updated` /
+`sleep.updated` / `workout.updated` event'lerinde (yalnızca `.updated`, `.deleted`
+şimdilik atlanır) ilgili sporcunun bağlantısı `provider_user_id`'den bulunur, token
+gerekirse yenilenir, en güncel cycle+sleep+recovery çekilip `wearable_daily_metrics`
++ `whoop_cycles`'a upsert edilir. İmza doğrulaması `X-WHOOP-Signature-Timestamp`
+header'ını ham body'nin ÖNÜNE ekleyip HMAC-SHA256 alır — ilk taslakta bu adım
+eksikti ve her imza doğrulaması sessizce başarısız olurdu, düzeltildi.
+
+**Devreye almak için manuel adımlar (yapılmadı, kullanıcı yapmalı):**
+1. developer.whoop.com'da bir uygulama kaydet → gerçek `WHOOP_CLIENT_ID` /
+   `WHOOP_CLIENT_SECRET` değerlerini `apps/web/.env.local`'e yaz (şu an placeholder).
+2. WHOOP dashboard'da redirect URI'yi `apps/web/.env.local`'deki `WHOOP_REDIRECT_URI`
+   ile BİREBİR aynı kaydet (prod'da gerçek domain, dev'de emülatör/LAN adresi).
+3. Supabase Dashboard → Edge Functions → whoop-webhook → Secrets: `WHOOP_CLIENT_ID`,
+   `WHOOP_CLIENT_SECRET`, `WHOOP_WEBHOOK_SECRET` ayarla (fonksiyon kodu deploy edildi,
+   secret'lar edge function ortamına AYRI ayarlanmalı — repo secret'ları set edemez).
+4. WHOOP dashboard'da webhook URL'i `https://nlmwcygmbbxmfpsubvmh.supabase.co/functions/v1/whoop-webhook`
+   olarak kaydet, aynı `WHOOP_WEBHOOK_SECRET`'ı gir.
+5. Fiziksel cihazda test için `apps/mobile/.env`'deki `EXPO_PUBLIC_APP_URL`'i
+   `10.0.2.2` yerine bilgisayarın LAN IP'sine çevir (Android emülatör varsayılanı
+   `10.0.2.2:3000`, gerçek cihaz bunu çözemez).
 
 **WHOOP Token Yönetimi (kritik):**
 ```typescript
@@ -1164,11 +1209,14 @@ Son otomatik senkron: 2026-09-09
   - `grant-athlete-access` / `reset-athlete-password` — ACTIVE (Parti 10) — sporcuya özel
   - `update-org-user` — yeni (2026-09-09), ACTIVE — ad/kullanıcı adı düzenler, username değişirse `auth.users.email`'i senkron günceller (bkz. §4.3)
   - `delete-org-user` — yeni (2026-09-09), ACTIVE — kullanıcı silme, `auth.users` cascade'iyle memberships/profiles otomatik temizlenir
-  - `whoop-webhook` / `polar-sync` — ACTIVE, wearable altyapısı (aktif sync henüz yok)
+  - `whoop-webhook` — ACTIVE, v5 (2026-09-11) — gerçek senkron mantığı devrede, bkz. §6 Agent 5
+  - `polar-sync` — **YOK** (bu listede önceden "ACTIVE" yazıyordu, bu YANLIŞTI — dosya hiç
+    oluşturulmamış, `list_edge_functions` ile 2026-09-11'de doğrulandı; Polar entegrasyonu
+    henüz başlanmadı, bkz. §6 Agent 5 görev listesi)
 
 ### Env Dosyaları
-- Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, WHOOP/Polar placeholders
-- Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+- Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `WHOOP_CLIENT_ID`/`WHOOP_CLIENT_SECRET`/`WHOOP_REDIRECT_URI`/`WHOOP_WEBHOOK_SECRET` (2026-09-11'de eklendi, hâlâ placeholder — gerçek WHOOP developer app kaydı gerekiyor), Polar placeholders
+- Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_APP_URL` (2026-09-11'de eklendi — WHOOP authorize/callback route'larını barındıran apps/web adresi, emülatörde `10.0.2.2:3000`)
 
 ### Test Hesapları
 - **Admin (super_admin), TGF:** giriş kimliği `beytullah.tosun@tgf` (tam sentetik email:
@@ -1199,6 +1247,11 @@ Son otomatik senkron: 2026-09-09
 - ✅ Yarışma: ekleme + listeleme + sporcu bazlı katılımcı (roster) seçimi — `competition_entries` tablosu, her yarışmaya yalnızca seçilen sporcular kayıtlı (2026-09-09)
 - ✅ Test sonuçları: ekleme + listeleme
 - ✅ Wearable altyapısı: tablolar + token saklama + normalize şema
+- ✅ WHOOP entegrasyonu (2026-09-11) — OAuth bağlanma (mobil), webhook ile gerçek zamanlı
+  senkron (recovery/sleep/cycle → `wearable_daily_metrics` + `whoop_cycles`), bağlantı
+  kesme + WHOOP tarafında yetki iptali (`revokeAccess`). Gerçek WHOOP developer app
+  kaydı ve secret'ların girilmesi bekliyor — bkz. §6 Agent 5 "Devreye almak için
+  manuel adımlar". Polar entegrasyonu henüz başlanmadı.
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
 
 ### Bekleyen Özellikler
@@ -1207,7 +1260,7 @@ Son otomatik senkron: 2026-09-09
 - ⏳ Seed verisi genişletme (şu an minimal: 1 org, 2 takım, 1 sporcu)
 - ⏳ Egzersiz kütüphanesi (005_exercises.sql)
 - ⏳ Program builder süperset sistemi
-- ⏳ Wearable aktif sync (WHOOP webhook + Polar transaction)
+- ⏳ Polar aktif sync (transaction modeli — WHOOP tamamlandı, bkz. Çalışan Özellikler)
 - ⏳ RLS izolasyon testleri
 - ⏳ E2E Playwright testleri
 

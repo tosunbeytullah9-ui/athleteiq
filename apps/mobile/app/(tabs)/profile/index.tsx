@@ -10,6 +10,7 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
+import { revokeWhoopAccess } from "@/lib/wearables";
 import type { Database } from "@athleteiq/db/types";
 
 type WearableConnection =
@@ -111,6 +112,14 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             if (!athlete) return;
+            if (provider === "whoop") {
+              const conn = connections.find(
+                (c) => c.provider === "whoop" && c.athlete_id === athlete.id
+              );
+              if (conn?.access_token) {
+                await revokeWhoopAccess(conn.access_token);
+              }
+            }
             await supabase
               .from("wearable_connections")
               .update({ is_active: false })

@@ -1,7 +1,15 @@
-import type { WHOOPRecovery, WHOOPSleep, WHOOPCycle, WHOOPTokens } from "./types";
+import type {
+  WHOOPRecovery,
+  WHOOPSleep,
+  WHOOPCycle,
+  WHOOPWorkout,
+  WHOOPProfile,
+  WHOOPTokens,
+} from "./types";
 import { refreshToken } from "./oauth";
 
 const BASE_URL = "https://api.prod.whoop.com/developer/v2";
+const MAX_RETRIES = 2;
 
 interface TokenStore {
   getToken(athleteId: string): Promise<{
@@ -10,6 +18,11 @@ interface TokenStore {
     expiresAt: Date;
   }>;
   saveTokens(athleteId: string, tokens: WHOOPTokens): Promise<void>;
+}
+
+interface Page<T> {
+  records: T[];
+  next_token?: string;
 }
 
 export class WHOOPClient {
@@ -42,7 +55,8 @@ export class WHOOPClient {
   private async request<T>(
     athleteId: string,
     path: string,
-    params?: Record<string, string>
+    params?: Record<string, string>,
+    attempt = 0
   ): Promise<T> {
     const token = await this.getValidToken(athleteId);
     const url = new URL(`${BASE_URL}${path}`);
@@ -55,6 +69,14 @@ export class WHOOPClient {
       headers: { Authorization: `Bearer ${token}` },
     });
 
+    // 429: X-RateLimit-Reset saniye cinsinden bekleme süresini verir.
+    if (res.status === 429 && attempt < MAX_RETRIES) {
+      const resetSeconds = Number(res.headers.get("X-RateLimit-Reset") ?? "1");
+      const waitMs = Math.min(Math.max(resetSeconds, 1), 30) * 1000;
+      await new Promise((resolve) => setTimeout(resolve, waitMs));
+      return this.request<T>(athleteId, path, params, attempt + 1);
+    }
+
     if (!res.ok) {
       throw new Error(`WHOOP API error ${res.status}: ${path}`);
     }
@@ -64,45 +86,60 @@ export class WHOOPClient {
 
   async getRecoveryList(
     athleteId: string,
-    params: { start: string; end: string; nextToken?: string }
+    params: { start?: string; end?: string; limit?: string; nextToken?: string } = {}
   ) {
-    return this.request<{ records: WHOOPRecovery[]; next_token?: string }>(
-      athleteId,
-      "/cycle",
-      {
-        start: params.start,
-        end: params.end,
-        ...(params.nextToken ? { nextToken: params.nextToken } : {}),
-      }
-    );
+    return this.request<Page<WHOOPRecovery>>(athleteId, "/recovery", {
+      ...(params.start ? { start: params.start } : {}),
+      ...(params.end ? { end: params.end } : {}),
+      ...(params.limit ? { limit: params.limit } : {}),
+      ...(params.nextToken ? { nextToken: params.nextToken } : {}),
+    });
   }
 
   async getSleepList(
     athleteId: string,
-    params: { start: string; end: string }
+    params: { start?: string; end?: string; limit?: string; nextToken?: string } = {}
   ) {
-    return this.request<{ records: WHOOPSleep[]; next_token?: string }>(
-      athleteId,
-      "/activity/sleep",
-      params
-    );
+    return this.request<Page<WHOOPSleep>>(athleteId, "/activity/sleep", {
+      ...(params.start ? { start: params.start } : {}),
+      ...(params.end ? { end: params.end } : {}),
+      ...(params.limit ? { limit: params.limit } : {}),
+      ...(params.nextToken ? { nextToken: params.nextToken } : {}),
+    });
   }
 
   async getCycleList(
     athleteId: string,
-    params: { start: string; end: string }
+    params: { start?: string; end?: string; limit?: string; nextToken?: string } = {}
   ) {
-    return this.request<{ records: WHOOPCycle[]; next_token?: string }>(
-      athleteId,
-      "/cycle",
-      params
-    );
+    return this.request<Page<WHOOPCycle>>(athleteId, "/cycle", {
+      ...(params.start ? { start: params.start } : {}),
+      ...(params.end ? { end: params.end } : {}),
+      ...(params.limit ? { limit: params.limit } : {}),
+      ...(params.nextToken ? { nextToken: params.nextToken } : {}),
+    });
+  }
+
+  async getWorkoutList(
+    athleteId: string,
+    params: { start?: string; end?: string; limit?: string; nextToken?: string } = {}
+  ) {
+    return this.request<Page<WHOOPWorkout>>(athleteId, "/activity/workout", {
+      ...(params.start ? { start: params.start } : {}),
+      ...(params.end ? { end: params.end } : {}),
+      ...(params.limit ? { limit: params.limit } : {}),
+      ...(params.nextToken ? { nextToken: params.nextToken } : {}),
+    });
+  }
+
+  // Belirli bir cycle'ın recovery'si — webhook'tan gelen cycle_id ile
+  // tek bir kaydı hedeflemek istendiğinde /recovery listesini taramaktan
+  // daha ucuzdur.
+  async getRecoveryForCycle(athleteId: string, cycleId: number) {
+    return this.request<WHOOPRecovery>(athleteId, `/cycle/${cycleId}/recovery`);
   }
 
   async getProfile(athleteId: string) {
-    return this.request<{ user_id: number; email: string; first_name: string; last_name: string }>(
-      athleteId,
-      "/user/profile/basic"
-    );
+    return this.request<WHOOPProfile>(athleteId, "/user/profile/basic");
   }
 }
