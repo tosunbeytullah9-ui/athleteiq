@@ -757,7 +757,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <Label>Süre (dakika)</Label>
+                          <Label>Tahmini Seans Süresi (dk)</Label>
                           <Input
                             type="number"
                             {...register(`sessions.${sessionIdx}.duration_min`, { valueAsNumber: true })}
