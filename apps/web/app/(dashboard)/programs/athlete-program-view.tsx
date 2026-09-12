@@ -10,13 +10,16 @@ import { buildMaxHistoryLookup, type Athlete1RMRecord } from "@athleteiq/db/quer
 import { isDateActive, sortAthletePrograms } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
 import { formatSetLoad, formatSetReps, SESSION_TYPE_LABELS, DAY_LABELS } from "@/lib/exercise-format";
+import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
 import { getTodayDayOfWeek, toLocalDateString } from "@/lib/date";
+
+type ExerciseWithSets = Tables<"exercises"> & {
+  exercise_sets: Tables<"exercise_sets">[];
+};
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
-    exercises: (Tables<"exercises"> & {
-      exercise_sets?: Tables<"exercise_sets">[];
-    })[];
+    exercises: ExerciseWithSets[];
   })[];
 };
 
@@ -32,6 +35,64 @@ const SESSION_TYPE_COLORS: Record<string, string> = {
 interface Props {
   programs: Program[];
   maxHistory: Athlete1RMRecord[];
+}
+
+function ExerciseDetailCard({
+  exercise,
+  index,
+  maxHistoryLookup,
+  programStartDate,
+}: {
+  exercise: ExerciseWithSets;
+  index: number;
+  maxHistoryLookup: Map<string, Athlete1RMRecord[]>;
+  programStartDate: string | null;
+}) {
+  const sets = (exercise.exercise_sets ?? []).slice().sort((a, b) => a.set_number - b.set_number);
+
+  return (
+    <div className="rounded-md border p-3">
+      <div className="flex items-start gap-2 mb-2">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
+          {index + 1}
+        </span>
+        <div className="flex-1">
+          <p className="font-medium text-sm">{exercise.name}</p>
+          {exercise.notes && <p className="text-xs text-muted-foreground mt-0.5">{exercise.notes}</p>}
+        </div>
+        {exercise.rest_sec ? (
+          <span className="shrink-0 text-xs text-muted-foreground">Dinlenme {exercise.rest_sec}sn</span>
+        ) : null}
+      </div>
+
+      {sets.length === 0 ? (
+        <p className="text-xs text-muted-foreground pl-8">Set bilgisi yok.</p>
+      ) : (
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b">
+              <th className="text-left py-1 pr-2 font-medium text-muted-foreground text-xs">Set</th>
+              <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">Tekrar/Süre</th>
+              <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">Yük</th>
+              <th className="text-left py-1 px-2 font-medium text-muted-foreground text-xs">RPE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sets.map((set) => (
+              <tr key={set.id} className="border-b last:border-0">
+                <td className="py-1.5 pr-2 text-xs text-muted-foreground">{set.set_number}</td>
+                <td className="py-1.5 px-2">{formatSetReps(set)}</td>
+                <td className="py-1.5 px-2 font-medium">
+                  {formatSetLoad(set, exercise.name, maxHistoryLookup, programStartDate)}
+                </td>
+                <td className="py-1.5 px-2">{set.rpe ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
 }
 
 function dayDate(startDate: string | null, dayOfWeek: number): Date | null {
@@ -200,32 +261,49 @@ export function AthleteProgramView({ programs, maxHistory }: Props) {
                         )}
                       </div>
                       <div className="space-y-2">
-                        {session.exercises
-                          .slice()
-                          .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-                          .map((ex, i) => {
-                            const sets = (ex.exercise_sets ?? []).slice().sort((a, b) => a.set_number - b.set_number);
-                            const firstSet = sets[0];
+                        {groupExercisesForRender(
+                          session.exercises
+                            .slice()
+                            .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                        ).map((unit, unitIndex) => {
+                          if (unit.kind === "single") {
                             return (
-                              <div key={ex.id} className="flex items-center gap-3 py-1.5 border-b last:border-0 text-sm">
-                                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
-                                  {i + 1}
-                                </span>
-                                <span className="font-medium">{ex.name}</span>
-                                {firstSet && (
-                                  <span className="ml-auto text-xs text-muted-foreground">
-                                    {sets.length} set · {formatSetReps(firstSet)} ·{" "}
-                                    {formatSetLoad(
-                                      firstSet,
-                                      ex.name,
-                                      maxHistoryLookup,
-                                      currentProgram.start_date
-                                    )}
-                                  </span>
-                                )}
-                              </div>
+                              <ExerciseDetailCard
+                                key={unit.exercise.id}
+                                exercise={unit.exercise}
+                                index={unitIndex}
+                                maxHistoryLookup={maxHistoryLookup}
+                                programStartDate={currentProgram.start_date}
+                              />
                             );
-                          })}
+                          }
+                          const borderColor = SUPERSET_COLORS[unit.groupKey] ?? "border-l-gray-400";
+                          return (
+                            <div
+                              key={unit.groupKey}
+                              className={`rounded-lg border-l-4 ${borderColor} border bg-muted/20 p-2 space-y-2`}
+                            >
+                              <p className="text-xs font-semibold text-muted-foreground px-1">{unit.label}</p>
+                              {unit.members.map((member, i) => (
+                                <div key={member.id}>
+                                  <ExerciseDetailCard
+                                    exercise={member}
+                                    index={i}
+                                    maxHistoryLookup={maxHistoryLookup}
+                                    programStartDate={currentProgram.start_date}
+                                  />
+                                  {i < unit.members.length - 1 && (
+                                    <div className="flex items-center justify-center -my-1.5 relative z-10">
+                                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                                        +
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   ))}

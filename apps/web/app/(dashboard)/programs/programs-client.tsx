@@ -18,7 +18,7 @@ import { AthleteProgramView } from "./athlete-program-view";
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
     exercises: (Tables<"exercises"> & {
-      exercise_sets?: Tables<"exercise_sets">[];
+      exercise_sets: Tables<"exercise_sets">[];
     })[];
   })[];
 };
