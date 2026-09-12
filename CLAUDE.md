@@ -266,7 +266,8 @@ AthleteIQ/
 │   │   ├── 20260818073627_parti_18s_secure_definer_functions.sql
 │   │   ├── 20260827122641_platform_exercises_delete.sql
 │   │   ├── 20260904124844_acwr_logs_update_policy.sql
-│   │   └── 20260909070021_athlete_delete_and_competition_entries.sql
+│   │   ├── 20260909070021_athlete_delete_and_competition_entries.sql
+│   │   └── 20260912072715_wod_sessions.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -819,6 +820,18 @@ code-exchange'i içindi).
 ```
 Not: `apps/web/app/(dashboard)/wearables/wearables-client.tsx`'teki admin/coach org-geneli görünümünün kaynağı olan `getWearableConnections()` RLS'i (`wearable_own`, yalnızca athlete-self + super_admin) admin/coach dalını kapsamıyor — bu ayrı, önceden var olan bir bulgu, bu Parti'de DOKUNULMADI (bkz. BUGS.md'ye eklenmesi önerilir).
 
+**Sonradan eklenen görevler (2026-09-12 — CrossFit tarzı WOD seans yapısı, kapsam BİLEREK dar):**
+```
+[x] 20260912072715_wod_sessions.sql → training_sessions'a workout_format (check constraint: amrap/emom/for_time/tabata/rounds_for_time/chipper) + time_cap_sec/rounds/work_sec/interval_rest_sec, exercises'a movement_detail (serbest metin) — hepsi opsiyonel, mevcut kuvvet akışı DEĞİŞMEDİ
+[x] insert_sessions_tree + copy_program_tree → aynı imza/yetkilendirme, yalnızca yeni kolonlar eklendi (RLS'e DOKUNULMADI)
+[x] apps/web/components/features/program-builder/wod-session-fields.tsx → YENİ: WORKOUT_FORMATS, wodMovementSchema (set/yük YOK), WodFormatFields (formata göre koşullu zaman alanları), WodMovementList (düz, sıralı hareket listesi — süperset/circuit gruplama kapsam dışı)
+[x] apps/web/lib/program-rpc.ts → buildSessionsPayload artık session.workout_format doluysa wod_movements'ı, boşsa mevcut exercises'ı aynı RPC alanına yazıyor (exercise-list.tsx/exerciseSchema'ya HİÇ dokunulmadı)
+[x] week-editor-form.tsx + new-program-client.tsx → seans kartına "Format" seçici; format seçiliyse ExerciseList yerine WodFormatFields+WodMovementList
+[x] apps/web/lib/exercise-format.ts (formatWodSummary/WORKOUT_FORMAT_LABELS) + program-detail-client.tsx + athlete-program-view.tsx → workout_format doluysa set tablosu/tonaj yerine kompakt WOD kartı (format özeti + düz hareket listesi)
+[x] apps/mobile/lib/wodFormat.ts + apps/mobile/components/WodSessionCard.tsx → web'in aynı mantığı, iki gün ekranında (program/[day].tsx, my-athletes/.../program/[day].tsx) da kablolu
+```
+Kapsam dışı (kullanıcı onaylı): timer/kronometre, skor/sonuç girişi, tonaj/1RM entegrasyonu, WOD içi süperset/circuit gruplama, mobilde program oluşturma (zaten yok). Bir seans ya standart (set bazlı) ya da WOD formatındadır, aynı seansta karışmaz.
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -1152,7 +1165,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-11
+Son otomatik senkron: 2026-09-12
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1212,6 +1225,7 @@ Son otomatik senkron: 2026-09-11
 - 20260827122641_platform_exercises_delete.sql
 - 20260904124844_acwr_logs_update_policy.sql
 - 20260909070021_athlete_delete_and_competition_entries.sql
+- 20260912072715_wod_sessions.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1252,6 +1266,7 @@ Son otomatik senkron: 2026-09-11
 - ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama + düzenleme + silme (Parti 16, düzenleme/silme 2026-09-09)
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay, düzenleme, pasife alma/kalıcı silme (2026-09-09 — bkz. §4.1, §6 Agent 3)
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish
+- ✅ CrossFit tarzı (WOD) seans yapısı (2026-09-12) — bir seans AMRAP/EMOM/For Time/Tabata/RFT/Chipper formatına çevrilebilir (format + zaman alanları + düz hareket listesi); set/yük/tonaj/skorlama kapsam dışı, kullanıcı onaylı
 - ✅ ACWR: log girişi + dashboard (aynı gün ikinci girişte/koç düzeltmesinde sessizce
   başarısız olan eksik UPDATE RLS politikası `040_acwr_logs_update_policy.sql` ile
   kapatıldı, bkz. Bekleyen Özellikler'in altındaki "03.09.2026 Eksiklikler" notu)

@@ -471,6 +471,7 @@ export type Database = {
           load_percent: number | null
           load_percent_1rm: number | null
           load_type: string | null
+          movement_detail: string | null
           name: string
           notes: string | null
           order_index: number | null
@@ -492,6 +493,7 @@ export type Database = {
           load_percent?: number | null
           load_percent_1rm?: number | null
           load_type?: string | null
+          movement_detail?: string | null
           name: string
           notes?: string | null
           order_index?: number | null
@@ -513,6 +515,7 @@ export type Database = {
           load_percent?: number | null
           load_percent_1rm?: number | null
           load_type?: string | null
+          movement_detail?: string | null
           name?: string
           notes?: string | null
           order_index?: number | null
@@ -1176,11 +1179,16 @@ export type Database = {
           description: string | null
           duration_min: number | null
           id: string
+          interval_rest_sec: number | null
           order_index: number | null
           program_id: string
+          rounds: number | null
           session_rpe: number | null
           session_type: string | null
+          time_cap_sec: number | null
           title: string | null
+          work_sec: number | null
+          workout_format: string | null
         }
         Insert: {
           athlete_session_notes?: string | null
@@ -1188,11 +1196,16 @@ export type Database = {
           description?: string | null
           duration_min?: number | null
           id?: string
+          interval_rest_sec?: number | null
           order_index?: number | null
           program_id: string
+          rounds?: number | null
           session_rpe?: number | null
           session_type?: string | null
+          time_cap_sec?: number | null
           title?: string | null
+          work_sec?: number | null
+          workout_format?: string | null
         }
         Update: {
           athlete_session_notes?: string | null
@@ -1200,11 +1213,16 @@ export type Database = {
           description?: string | null
           duration_min?: number | null
           id?: string
+          interval_rest_sec?: number | null
           order_index?: number | null
           program_id?: string
+          rounds?: number | null
           session_rpe?: number | null
           session_type?: string | null
+          time_cap_sec?: number | null
           title?: string | null
+          work_sec?: number | null
+          workout_format?: string | null
         }
         Relationships: [
           {

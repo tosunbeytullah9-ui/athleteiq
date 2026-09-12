@@ -48,6 +48,7 @@ import {
   formatSetReps,
   formatSetLoad,
   formatTonnage,
+  formatWodSummary,
   SESSION_TYPE_LABELS,
   DAY_LABELS,
 } from "@/lib/exercise-format";
@@ -158,6 +159,42 @@ function ExerciseCard({
         </table>
       ) : (
         <p className="text-xs text-muted-foreground">Set bilgisi yok.</p>
+      )}
+    </div>
+  );
+}
+
+// CrossFit tarzı (WOD) seans kartı — set/yük/tonaj YOK, yalnızca format
+// rozeti + düz, sıralı hareket listesi (isim + movement_detail). Bkz. plan
+// "expressive-weaving-candy".
+function WodSessionCard({ session }: { session: Program["training_sessions"][number] }) {
+  const movements = session.exercises
+    .slice()
+    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+
+  return (
+    <div className="space-y-2">
+      <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+        {formatWodSummary(session)}
+      </span>
+      {movements.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Hareket eklenmemiş.</p>
+      ) : (
+        <ol className="space-y-1.5">
+          {movements.map((m, i) => (
+            <li key={m.id} className="flex items-start gap-2 text-sm">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
+                {i + 1}
+              </span>
+              <span className="pt-0.5">
+                <span className="font-medium">{m.name}</span>
+                {m.movement_detail && (
+                  <span className="text-muted-foreground"> — {m.movement_detail}</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
       )}
     </div>
   );
@@ -591,68 +628,78 @@ export function ProgramDetailClient({
                             {session.description}
                           </p>
                         )}
-                        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                          <span className="font-medium text-foreground">
-                            {sessionTonnage.totalSetCount > 0 &&
-                            sessionTonnage.resolvedSetCount === 0
-                              ? "Tonaj hesaplanamıyor"
-                              : `Tonaj: ${formatTonnage(sessionTonnage.totalKg)}`}
-                          </span>
-                        </div>
-                        <TonnageBreakdown tonnage={sessionTonnage} />
+                        {!session.workout_format && (
+                          <>
+                            <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                              <span className="font-medium text-foreground">
+                                {sessionTonnage.totalSetCount > 0 &&
+                                sessionTonnage.resolvedSetCount === 0
+                                  ? "Tonaj hesaplanamıyor"
+                                  : `Tonaj: ${formatTonnage(sessionTonnage.totalKg)}`}
+                              </span>
+                            </div>
+                            <TonnageBreakdown tonnage={sessionTonnage} />
+                          </>
+                        )}
                       </CardHeader>
 
-                      {session.exercises.length > 0 && (
-                        <CardContent className="space-y-3">
-                          {groupExercisesForRender(
-                            session.exercises
-                              .slice()
-                              .sort(
-                                (a, b) =>
-                                  (a.order_index ?? 0) - (b.order_index ?? 0)
-                              )
-                          ).map((unit) => {
-                            if (unit.kind === "single") {
-                              return (
-                                <ExerciseCard
-                                  key={unit.exercise.id}
-                                  exercise={unit.exercise}
-                                  maxHistoryLookup={maxHistoryLookup}
-                                  programStartDate={program.start_date}
-                                />
-                              );
-                            }
-                            const borderColor =
-                              SUPERSET_COLORS[unit.groupKey] ??
-                              "border-l-gray-400";
-                            return (
-                              <div
-                                key={unit.groupKey}
-                                className={`rounded-lg border-l-4 ${borderColor} border bg-muted/20 p-2 space-y-2`}
-                              >
-                                <p className="text-xs font-semibold text-muted-foreground px-1">
-                                  {unit.label}
-                                </p>
-                                {unit.members.map((exercise, i) => (
-                                  <div key={exercise.id}>
-                                    <ExerciseCard
-                                      exercise={exercise}
-                                      maxHistoryLookup={maxHistoryLookup}
-                                      programStartDate={program.start_date}
-                                    />
-                                    {i < unit.members.length - 1 && (
-                                      <div className="flex items-center justify-center -my-1.5 relative z-10">
-                                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                                          +
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            );
-                          })}
+                      {session.workout_format ? (
+                        <CardContent>
+                          <WodSessionCard session={session} />
                         </CardContent>
+                      ) : (
+                        session.exercises.length > 0 && (
+                          <CardContent className="space-y-3">
+                            {groupExercisesForRender(
+                              session.exercises
+                                .slice()
+                                .sort(
+                                  (a, b) =>
+                                    (a.order_index ?? 0) - (b.order_index ?? 0)
+                                )
+                            ).map((unit) => {
+                              if (unit.kind === "single") {
+                                return (
+                                  <ExerciseCard
+                                    key={unit.exercise.id}
+                                    exercise={unit.exercise}
+                                    maxHistoryLookup={maxHistoryLookup}
+                                    programStartDate={program.start_date}
+                                  />
+                                );
+                              }
+                              const borderColor =
+                                SUPERSET_COLORS[unit.groupKey] ??
+                                "border-l-gray-400";
+                              return (
+                                <div
+                                  key={unit.groupKey}
+                                  className={`rounded-lg border-l-4 ${borderColor} border bg-muted/20 p-2 space-y-2`}
+                                >
+                                  <p className="text-xs font-semibold text-muted-foreground px-1">
+                                    {unit.label}
+                                  </p>
+                                  {unit.members.map((exercise, i) => (
+                                    <div key={exercise.id}>
+                                      <ExerciseCard
+                                        exercise={exercise}
+                                        maxHistoryLookup={maxHistoryLookup}
+                                        programStartDate={program.start_date}
+                                      />
+                                      {i < unit.members.length - 1 && (
+                                        <div className="flex items-center justify-center -my-1.5 relative z-10">
+                                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                                            +
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            })}
+                          </CardContent>
+                        )
                       )}
                     </Card>
                   );

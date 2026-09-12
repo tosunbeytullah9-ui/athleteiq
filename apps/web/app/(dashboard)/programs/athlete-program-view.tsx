@@ -9,7 +9,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/componen
 import { buildMaxHistoryLookup, type Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 import { isDateActive, sortAthletePrograms } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
-import { formatSetLoad, formatSetReps, SESSION_TYPE_LABELS, DAY_LABELS } from "@/lib/exercise-format";
+import {
+  formatSetLoad,
+  formatSetReps,
+  formatWodSummary,
+  SESSION_TYPE_LABELS,
+  DAY_LABELS,
+} from "@/lib/exercise-format";
 import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
 import { getTodayDayOfWeek, toLocalDateString } from "@/lib/date";
 
@@ -90,6 +96,41 @@ function ExerciseDetailCard({
             ))}
           </tbody>
         </table>
+      )}
+    </div>
+  );
+}
+
+// CrossFit tarzı (WOD) seans kartı — bkz. program-detail-client.tsx'teki
+// eşdeğeri (aynı format özeti + düz hareket listesi, set/yük/tonaj YOK).
+function WodSessionCard({ session }: { session: Program["training_sessions"][number] }) {
+  const movements = session.exercises
+    .slice()
+    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+
+  return (
+    <div className="space-y-2">
+      <span className="inline-flex rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+        {formatWodSummary(session)}
+      </span>
+      {movements.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Hareket eklenmemiş.</p>
+      ) : (
+        <ol className="space-y-1.5">
+          {movements.map((m, i) => (
+            <li key={m.id} className="flex items-start gap-2 text-sm">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
+                {i + 1}
+              </span>
+              <span className="pt-0.5">
+                <span className="font-medium">{m.name}</span>
+                {m.movement_detail && (
+                  <span className="text-muted-foreground"> — {m.movement_detail}</span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ol>
       )}
     </div>
   );
@@ -260,51 +301,55 @@ export function AthleteProgramView({ programs, maxHistory }: Props) {
                           </span>
                         )}
                       </div>
-                      <div className="space-y-2">
-                        {groupExercisesForRender(
-                          session.exercises
-                            .slice()
-                            .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-                        ).map((unit, unitIndex) => {
-                          if (unit.kind === "single") {
+                      {session.workout_format ? (
+                        <WodSessionCard session={session} />
+                      ) : (
+                        <div className="space-y-2">
+                          {groupExercisesForRender(
+                            session.exercises
+                              .slice()
+                              .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+                          ).map((unit, unitIndex) => {
+                            if (unit.kind === "single") {
+                              return (
+                                <ExerciseDetailCard
+                                  key={unit.exercise.id}
+                                  exercise={unit.exercise}
+                                  index={unitIndex}
+                                  maxHistoryLookup={maxHistoryLookup}
+                                  programStartDate={currentProgram.start_date}
+                                />
+                              );
+                            }
+                            const borderColor = SUPERSET_COLORS[unit.groupKey] ?? "border-l-gray-400";
                             return (
-                              <ExerciseDetailCard
-                                key={unit.exercise.id}
-                                exercise={unit.exercise}
-                                index={unitIndex}
-                                maxHistoryLookup={maxHistoryLookup}
-                                programStartDate={currentProgram.start_date}
-                              />
-                            );
-                          }
-                          const borderColor = SUPERSET_COLORS[unit.groupKey] ?? "border-l-gray-400";
-                          return (
-                            <div
-                              key={unit.groupKey}
-                              className={`rounded-lg border-l-4 ${borderColor} border bg-muted/20 p-2 space-y-2`}
-                            >
-                              <p className="text-xs font-semibold text-muted-foreground px-1">{unit.label}</p>
-                              {unit.members.map((member, i) => (
-                                <div key={member.id}>
-                                  <ExerciseDetailCard
-                                    exercise={member}
-                                    index={i}
-                                    maxHistoryLookup={maxHistoryLookup}
-                                    programStartDate={currentProgram.start_date}
-                                  />
-                                  {i < unit.members.length - 1 && (
-                                    <div className="flex items-center justify-center -my-1.5 relative z-10">
-                                      <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
-                                        +
+                              <div
+                                key={unit.groupKey}
+                                className={`rounded-lg border-l-4 ${borderColor} border bg-muted/20 p-2 space-y-2`}
+                              >
+                                <p className="text-xs font-semibold text-muted-foreground px-1">{unit.label}</p>
+                                {unit.members.map((member, i) => (
+                                  <div key={member.id}>
+                                    <ExerciseDetailCard
+                                      exercise={member}
+                                      index={i}
+                                      maxHistoryLookup={maxHistoryLookup}
+                                      programStartDate={currentProgram.start_date}
+                                    />
+                                    {i < unit.members.length - 1 && (
+                                      <div className="flex items-center justify-center -my-1.5 relative z-10">
+                                        <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">
+                                          +
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          );
-                        })}
-                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

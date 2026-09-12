@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import { ExerciseCard } from "@/components/ExerciseCard";
 import { SupersetGroup } from "@/components/SupersetGroup";
+import { WodSessionCard } from "@/components/WodSessionCard";
 import { groupExercisesForRender } from "@/lib/supersetGroups";
 import { getDaySessions } from "@athleteiq/db/queries/programs";
 import { getAthleteMaxes, buildMaxLookup } from "@athleteiq/db/queries/exercises";
@@ -178,7 +179,9 @@ export default function ProgramDayScreen() {
               )}
 
               {/* Egzersizler */}
-              {session.exercises.length === 0 ? (
+              {session.workout_format ? (
+                <WodSessionCard session={session} />
+              ) : session.exercises.length === 0 ? (
                 <Text className="text-gray-400 text-sm italic">
                   Egzersiz eklenmemiş.
                 </Text>

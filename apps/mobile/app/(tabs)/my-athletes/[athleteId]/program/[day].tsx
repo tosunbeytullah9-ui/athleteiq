@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import { ExerciseCard } from "@/components/ExerciseCard";
+import { WodSessionCard } from "@/components/WodSessionCard";
 import { getActiveProgramId, getDaySessions } from "@athleteiq/db/queries/programs";
 import { getAthleteMaxes, buildMaxLookup } from "@athleteiq/db/queries/exercises";
 import type { Tables } from "@athleteiq/db/types";
@@ -191,7 +192,9 @@ export default function CoachProgramDayScreen() {
               )}
 
               {/* Egzersizler */}
-              {session.exercises.length === 0 ? (
+              {session.workout_format ? (
+                <WodSessionCard session={session} />
+              ) : session.exercises.length === 0 ? (
                 <Text className="text-gray-400 text-sm italic">
                   Egzersiz eklenmemiş.
                 </Text>

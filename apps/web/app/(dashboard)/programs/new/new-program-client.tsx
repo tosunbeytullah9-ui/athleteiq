@@ -19,6 +19,13 @@ import type {
   Athlete1RMRecord,
 } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
+import {
+  WORKOUT_FORMATS,
+  WodFormatFields,
+  WodMovementList,
+  wodMovementSchema,
+  type WorkoutFormat,
+} from "@/components/features/program-builder/wod-session-fields";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -51,6 +58,19 @@ const sessionSchema = z.object({
   title: z.string().optional(),
   duration_min: z.number().int().positive().optional().or(z.literal(undefined)),
   exercises: z.array(exerciseSchema).default([]),
+  // CrossFit tarzı (WOD) seans alanları — boşsa davranış değişmez. Bkz.
+  // wod-session-fields.tsx / week-editor-form.tsx'teki aynı ekleme.
+  // "" native <select>'in seçilmemiş varsayılan değeri — bkz. week-editor-form.tsx'teki
+  // aynı düzeltme (phase alanındaki AYNI sınıf, önceden var olan bug'ı tekrarlamamak için).
+  workout_format: z
+    .enum(["amrap", "emom", "for_time", "tabata", "rounds_for_time", "chipper", ""])
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  time_cap_min: z.number().positive().optional(),
+  rounds: z.number().int().positive().optional(),
+  work_sec: z.number().int().positive().optional(),
+  interval_rest_sec: z.number().int().positive().optional(),
+  wod_movements: z.array(wodMovementSchema).default([]),
 });
 
 const programSchema = z.object({
@@ -166,6 +186,7 @@ export function NewProgramClient({
       session_type: "strength",
       title: "",
       exercises: [],
+      wod_movements: [],
     });
     setActiveSession(sessionFields.length);
   }
@@ -511,7 +532,10 @@ export function NewProgramClient({
                             {session?.title || SESSION_TYPES.find((t) => t.value === session?.session_type)?.label || "Seans"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {session?.exercises?.length ?? 0} egzersiz
+                            {session?.workout_format
+                              ? session.wod_movements?.length ?? 0
+                              : session?.exercises?.length ?? 0}{" "}
+                            {session?.workout_format ? "hareket" : "egzersiz"}
                           </p>
                         </div>
                       </button>
@@ -554,27 +578,58 @@ export function NewProgramClient({
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <Label>Süre (dakika)</Label>
-                        <Input
-                          type="number"
-                          {...register(`sessions.${sessionIdx}.duration_min`, { valueAsNumber: true })}
-                          placeholder="60"
-                          className="w-32"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>Süre (dakika)</Label>
+                          <Input
+                            type="number"
+                            {...register(`sessions.${sessionIdx}.duration_min`, { valueAsNumber: true })}
+                            placeholder="60"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Format</Label>
+                          <select
+                            {...register(`sessions.${sessionIdx}.workout_format`)}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            <option value="">Standart (set bazlı)</option>
+                            {WORKOUT_FORMATS.map((f) => (
+                              <option key={f.value} value={f.value}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
 
-                      <ExerciseList
-                        sessionIdx={sessionIdx}
-                        register={register}
-                        control={control}
-                        watch={watch}
-                        setValue={setValue}
-                        platformExercises={platformExercises}
-                        orgExercises={orgExercises}
-                        categories={categories}
-                        athleteMaxes={pickerAthleteMaxes}
-                      />
+                      {session?.workout_format ? (
+                        <>
+                          <WodFormatFields
+                            sessionIdx={sessionIdx}
+                            format={session.workout_format as WorkoutFormat}
+                            register={register}
+                          />
+                          <WodMovementList
+                            sessionIdx={sessionIdx}
+                            register={register}
+                            control={control}
+                            watch={watch}
+                          />
+                        </>
+                      ) : (
+                        <ExerciseList
+                          sessionIdx={sessionIdx}
+                          register={register}
+                          control={control}
+                          watch={watch}
+                          setValue={setValue}
+                          platformExercises={platformExercises}
+                          orgExercises={orgExercises}
+                          categories={categories}
+                          athleteMaxes={pickerAthleteMaxes}
+                        />
+                      )}
                     </CardContent>
                   )}
                 </Card>
@@ -641,7 +696,8 @@ export function NewProgramClient({
                                   "Seans"}
                               </span>
                               <span className="text-muted-foreground">
-                                {s.exercises?.length ?? 0} egzersiz
+                                {s.workout_format ? s.wod_movements?.length ?? 0 : s.exercises?.length ?? 0}{" "}
+                                {s.workout_format ? "hareket" : "egzersiz"}
                               </span>
                             </li>
                           ))}

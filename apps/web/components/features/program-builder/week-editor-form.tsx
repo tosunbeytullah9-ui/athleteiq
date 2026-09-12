@@ -22,6 +22,13 @@ import type {
 } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
 import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
+import {
+  WORKOUT_FORMATS,
+  WodFormatFields,
+  WodMovementList,
+  wodMovementSchema,
+  type WorkoutFormat,
+} from "@/components/features/program-builder/wod-session-fields";
 import { AthleteDataWarningDialog } from "@/components/features/program-builder/athlete-data-warning-dialog";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
 
@@ -81,6 +88,20 @@ const sessionSchema = z.object({
   title: z.string().optional(),
   duration_min: z.number().int().positive().optional().or(z.literal(undefined)),
   exercises: z.array(exerciseSchema).default([]),
+  // CrossFit tarzı (WOD) seans alanları — boşsa (mevcut programlar) davranış
+  // değişmez. Bkz. wod-session-fields.tsx.
+  // "" native <select>'in seçilmemiş varsayılan değeri (bkz. Format seçicisindeki
+  // boş "Standart" option'ı) — phase alanındaki AYNI sınıf bug'ı tekrar etmemek
+  // için burada açıkça kabul edilip undefined'a çevriliyor.
+  workout_format: z
+    .enum(["amrap", "emom", "for_time", "tabata", "rounds_for_time", "chipper", ""])
+    .optional()
+    .transform((v) => (v ? v : undefined)),
+  time_cap_min: z.number().positive().optional(),
+  rounds: z.number().int().positive().optional(),
+  work_sec: z.number().int().positive().optional(),
+  interval_rest_sec: z.number().int().positive().optional(),
+  wod_movements: z.array(wodMovementSchema).default([]),
 });
 
 // scope/team_id/athlete_id BİLEREK yok — update_program_week RPC'si (020/026)
@@ -190,48 +211,70 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
   const defaultSessions = program.training_sessions
     .slice()
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-    .map((s) => ({
-      day_of_week: s.day_of_week ?? 1,
-      session_type: (s.session_type as ProgramForm["sessions"][number]["session_type"]) ?? undefined,
-      title: s.title ?? undefined,
-      duration_min: s.duration_min ?? undefined,
-      exercises: s.exercises
-        .slice()
-        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-        .map((e) => {
-          const ex = e as typeof e & {
-            superset_group?: string | null;
-            superset_order?: number | null;
-          };
-          const dbSets = (ex.exercise_sets ?? [])
-            .slice()
-            .sort((a, b) => a.set_number - b.set_number);
-          const isDurationBased = dbSets.some((row) => row.duration_sec != null);
-          return {
-            name: ex.name,
-            category: ex.category ?? undefined,
-            is_duration_based: isDurationBased,
-            rest_sec: ex.rest_sec ?? undefined,
-            notes: ex.notes ?? undefined,
-            superset_group: ex.superset_group ?? undefined,
-            superset_order: ex.superset_order ?? 0,
-            exercise_sets:
-              dbSets.length > 0
-                ? dbSets.map((row) => ({
-                    reps: row.reps ?? undefined,
-                    duration_sec: row.duration_sec ?? undefined,
-                    load_type: deriveLoadType(row),
-                    load_kg: row.load_kg ?? undefined,
-                    percent_1rm: row.percent_1rm ?? undefined,
-                    band_resistance:
-                      (row.band_resistance as ExerciseSetFormValues["band_resistance"]) ?? undefined,
-                    rpe: row.rpe ?? undefined,
-                    notes: row.notes ?? undefined,
-                  }))
-                : [{ load_type: "kg" as const }],
-          };
-        }),
-    }));
+    .map((s) => {
+      const workoutFormat = (s.workout_format as WorkoutFormat | null) ?? undefined;
+      return {
+        day_of_week: s.day_of_week ?? 1,
+        session_type: (s.session_type as ProgramForm["sessions"][number]["session_type"]) ?? undefined,
+        title: s.title ?? undefined,
+        duration_min: s.duration_min ?? undefined,
+        workout_format: workoutFormat,
+        time_cap_min: s.time_cap_sec != null ? s.time_cap_sec / 60 : undefined,
+        rounds: s.rounds ?? undefined,
+        work_sec: s.work_sec ?? undefined,
+        interval_rest_sec: s.interval_rest_sec ?? undefined,
+        exercises: workoutFormat
+          ? []
+          : s.exercises
+              .slice()
+              .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+              .map((e) => {
+                const ex = e as typeof e & {
+                  superset_group?: string | null;
+                  superset_order?: number | null;
+                };
+                const dbSets = (ex.exercise_sets ?? [])
+                  .slice()
+                  .sort((a, b) => a.set_number - b.set_number);
+                const isDurationBased = dbSets.some((row) => row.duration_sec != null);
+                return {
+                  name: ex.name,
+                  category: ex.category ?? undefined,
+                  is_duration_based: isDurationBased,
+                  rest_sec: ex.rest_sec ?? undefined,
+                  notes: ex.notes ?? undefined,
+                  superset_group: ex.superset_group ?? undefined,
+                  superset_order: ex.superset_order ?? 0,
+                  exercise_sets:
+                    dbSets.length > 0
+                      ? dbSets.map((row) => ({
+                          reps: row.reps ?? undefined,
+                          duration_sec: row.duration_sec ?? undefined,
+                          load_type: deriveLoadType(row),
+                          load_kg: row.load_kg ?? undefined,
+                          percent_1rm: row.percent_1rm ?? undefined,
+                          band_resistance:
+                            (row.band_resistance as ExerciseSetFormValues["band_resistance"]) ?? undefined,
+                          rpe: row.rpe ?? undefined,
+                          notes: row.notes ?? undefined,
+                        }))
+                      : [{ load_type: "kg" as const }],
+                };
+              }),
+        wod_movements: workoutFormat
+          ? s.exercises
+              .slice()
+              .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+              .map((e) => ({
+                name: e.name,
+                movement_detail:
+                  (e as typeof e & { movement_detail?: string | null }).movement_detail ?? undefined,
+                notes: e.notes ?? undefined,
+                order_index: e.order_index ?? 0,
+              }))
+          : [],
+      };
+    });
 
   const {
     register,
@@ -291,6 +334,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
       session_type: "strength",
       title: "",
       exercises: [],
+      wod_movements: [],
     });
     setActiveSession(sessionFields.length);
   }
@@ -665,7 +709,10 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                             {session?.title || SESSION_TYPES.find((t) => t.value === session?.session_type)?.label || "Seans"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {session?.exercises?.length ?? 0} egzersiz
+                            {session?.workout_format
+                              ? session.wod_movements?.length ?? 0
+                              : session?.exercises?.length ?? 0}{" "}
+                            {session?.workout_format ? "hareket" : "egzersiz"}
                           </p>
                         </div>
                       </button>
@@ -708,27 +755,58 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                         </div>
                       </div>
 
-                      <div className="space-y-1.5">
-                        <Label>Süre (dakika)</Label>
-                        <Input
-                          type="number"
-                          {...register(`sessions.${sessionIdx}.duration_min`, { valueAsNumber: true })}
-                          placeholder="60"
-                          className="w-32"
-                        />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                          <Label>Süre (dakika)</Label>
+                          <Input
+                            type="number"
+                            {...register(`sessions.${sessionIdx}.duration_min`, { valueAsNumber: true })}
+                            placeholder="60"
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label>Format</Label>
+                          <select
+                            {...register(`sessions.${sessionIdx}.workout_format`)}
+                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                          >
+                            <option value="">Standart (set bazlı)</option>
+                            {WORKOUT_FORMATS.map((f) => (
+                              <option key={f.value} value={f.value}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
 
-                      <ExerciseList
-                        sessionIdx={sessionIdx}
-                        register={register}
-                        control={control}
-                        watch={watch}
-                        setValue={setValue}
-                        platformExercises={platformExercises}
-                        orgExercises={orgExercises}
-                        categories={categories}
-                        athleteMaxes={pickerAthleteMaxes}
-                      />
+                      {session?.workout_format ? (
+                        <>
+                          <WodFormatFields
+                            sessionIdx={sessionIdx}
+                            format={session.workout_format as WorkoutFormat}
+                            register={register}
+                          />
+                          <WodMovementList
+                            sessionIdx={sessionIdx}
+                            register={register}
+                            control={control}
+                            watch={watch}
+                          />
+                        </>
+                      ) : (
+                        <ExerciseList
+                          sessionIdx={sessionIdx}
+                          register={register}
+                          control={control}
+                          watch={watch}
+                          setValue={setValue}
+                          platformExercises={platformExercises}
+                          orgExercises={orgExercises}
+                          categories={categories}
+                          athleteMaxes={pickerAthleteMaxes}
+                        />
+                      )}
                     </CardContent>
                   )}
                 </Card>
@@ -795,7 +873,8 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                                   "Seans"}
                               </span>
                               <span className="text-muted-foreground">
-                                {s.exercises?.length ?? 0} egzersiz
+                                {s.workout_format ? s.wod_movements?.length ?? 0 : s.exercises?.length ?? 0}{" "}
+                                {s.workout_format ? "hareket" : "egzersiz"}
                               </span>
                             </li>
                           ))}
