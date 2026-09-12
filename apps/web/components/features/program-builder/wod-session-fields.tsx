@@ -105,7 +105,7 @@ export function WodFormatFields<TFieldValues extends WodProgramFormShape>({
 
       {format === "emom" && (
         <div className="space-y-1.5">
-          <Label className="text-xs">Aralık (sn)</Label>
+          <Label className="text-xs">Interval Uzunluğu (sn)</Label>
           <Input
             type="number"
             {...register(`${base}.work_sec` as Path<TFieldValues>, { setValueAs: numberOrUndefined })}
