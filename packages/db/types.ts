@@ -1470,6 +1470,68 @@ export type Database = {
           },
         ]
       }
+      whoop_workouts: {
+        Row: {
+          altitude_gain_meter: number | null
+          athlete_id: string
+          avg_hr: number | null
+          created_at: string
+          distance_meter: number | null
+          end_time: string | null
+          id: string
+          kilojoules: number | null
+          max_hr: number | null
+          percent_recorded: number | null
+          raw_data: Json | null
+          sport_name: string | null
+          start_time: string
+          strain_score: number | null
+          whoop_workout_id: string
+        }
+        Insert: {
+          altitude_gain_meter?: number | null
+          athlete_id: string
+          avg_hr?: number | null
+          created_at?: string
+          distance_meter?: number | null
+          end_time?: string | null
+          id?: string
+          kilojoules?: number | null
+          max_hr?: number | null
+          percent_recorded?: number | null
+          raw_data?: Json | null
+          sport_name?: string | null
+          start_time: string
+          strain_score?: number | null
+          whoop_workout_id: string
+        }
+        Update: {
+          altitude_gain_meter?: number | null
+          athlete_id?: string
+          avg_hr?: number | null
+          created_at?: string
+          distance_meter?: number | null
+          end_time?: string | null
+          id?: string
+          kilojoules?: number | null
+          max_hr?: number | null
+          percent_recorded?: number | null
+          raw_data?: Json | null
+          sport_name?: string | null
+          start_time?: string
+          strain_score?: number | null
+          whoop_workout_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "whoop_workouts_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

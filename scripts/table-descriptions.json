@@ -25,5 +25,6 @@
   "wearable_connections": "Sporcunun WHOOP/Polar hesabına bağlı OAuth access/refresh token'ları (şifreli saklanır) (004_wearables.sql).",
   "wearable_daily_metrics": "WHOOP ve Polar'dan normalize edilmiş, ortak şemaya dönüştürülmüş günlük recovery/sleep/strain verisi (004_wearables.sql).",
   "wellness_checkins": "Sporcunun günlük 5 maddelik özbildirim wellness anketi (McLean ve ark. 2010 ölçeği, 1=en kötü/5=en iyi, reverse-coding yok); readiness katmanının ham girdisi — üründe \"Hooper Index\" olarak ADLANDIRILMAZ (012_wellness.sql).",
-  "whoop_cycles": "WHOOP'a özel, cycle bazlı ham strain/recovery verisi (004_wearables.sql)."
+  "whoop_cycles": "WHOOP'a özel, cycle bazlı ham strain/recovery verisi (004_wearables.sql).",
+  "whoop_workouts": "WHOOP'a özel, tekil antrenman (workout) kaydı — whoop_cycles'ın günlük tek strain agregatının aksine bir günde birden fazla satır olabilir; webhook her workout.updated event'inde yalnızca o event'in kaydını çeker (20260913123732_whoop_workouts.sql)."
 }

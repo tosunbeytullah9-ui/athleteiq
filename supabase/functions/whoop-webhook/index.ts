@@ -114,6 +114,17 @@ async function fetchLatest<T>(path: string, accessToken: string): Promise<T | nu
   return data.records?.[0] ?? null;
 }
 
+async function fetchById<T>(path: string, id: string | number, accessToken: string): Promise<T | null> {
+  const res = await fetch(`${WHOOP_API}${path}/${id}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    console.error(`WHOOP GET ${path}/${id} failed: ${res.status}`);
+    return null;
+  }
+  return (await res.json()) as T;
+}
+
 // score_state SCORED değilse (PENDING_SCORE/UNSCORABLE) score alanı null gelir —
 // bkz. developer.whoop.com/docs/tutorials/get-current-recovery-score.
 interface WHOOPCycle {
@@ -144,6 +155,22 @@ interface WHOOPRecovery {
     hrv_rmssd_milli: number;
     resting_heart_rate: number;
     spo2_percentage?: number;
+  } | null;
+}
+interface WHOOPWorkout {
+  id: string;
+  start: string;
+  end: string;
+  sport_name: string;
+  score_state: string;
+  score: {
+    strain: number;
+    average_heart_rate: number;
+    max_heart_rate: number;
+    kilojoule: number;
+    percent_recorded: number;
+    distance_meter?: number;
+    altitude_gain_meter?: number;
   } | null;
 }
 
@@ -220,6 +247,44 @@ async function syncAthleteWhoopData(
     .eq("id", connection.id);
 }
 
+// Cycle/sleep/recovery'nin aksine bir günde birden fazla workout olabilir —
+// bu yüzden "en son"u çekip günü ezmek yerine event'in TEKİL ID'siyle o
+// workout'u çekip whoop_workout_id üzerinden upsert ediyoruz (geçmiş/backfill
+// senkronu bilinçli olarak kapsam dışı, bkz. CLAUDE.md §6 Agent 5).
+async function syncAthleteWorkout(
+  supabase: ReturnType<typeof createClient>,
+  connection: WearableConnectionRow,
+  accessToken: string,
+  workoutId: string | number
+) {
+  const workout = await fetchById<WHOOPWorkout>("/activity/workout", workoutId, accessToken);
+  if (!workout) return;
+
+  await supabase.from("whoop_workouts").upsert(
+    {
+      athlete_id: connection.athlete_id,
+      whoop_workout_id: workout.id,
+      sport_name: workout.sport_name,
+      start_time: workout.start,
+      end_time: workout.end,
+      strain_score: workout.score?.strain ?? null,
+      avg_hr: workout.score?.average_heart_rate ?? null,
+      max_hr: workout.score?.max_heart_rate ?? null,
+      kilojoules: workout.score?.kilojoule ?? null,
+      distance_meter: workout.score?.distance_meter ?? null,
+      altitude_gain_meter: workout.score?.altitude_gain_meter ?? null,
+      percent_recorded: workout.score?.percent_recorded ?? null,
+      raw_data: workout,
+    },
+    { onConflict: "whoop_workout_id" }
+  );
+
+  await supabase
+    .from("wearable_connections")
+    .update({ last_synced_at: new Date().toISOString() })
+    .eq("id", connection.id);
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -274,7 +339,11 @@ Deno.serve(async (req: Request) => {
     const clientId = Deno.env.get("WHOOP_CLIENT_ID")!;
     const clientSecret = Deno.env.get("WHOOP_CLIENT_SECRET")!;
     const accessToken = await ensureFreshToken(supabase, connection, clientId, clientSecret);
-    await syncAthleteWhoopData(supabase, connection, accessToken);
+    if (event.type === "workout.updated") {
+      await syncAthleteWorkout(supabase, connection, accessToken, event.id);
+    } else {
+      await syncAthleteWhoopData(supabase, connection, accessToken);
+    }
   } catch (err) {
     console.error("WHOOP webhook sync error:", err);
     // 200 döndürülür — token/geçici API hatasında WHOOP'un 5 kez tekrar

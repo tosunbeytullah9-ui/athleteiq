@@ -267,7 +267,8 @@ AthleteIQ/
 │   │   ├── 20260827122641_platform_exercises_delete.sql
 │   │   ├── 20260904124844_acwr_logs_update_policy.sql
 │   │   ├── 20260909070021_athlete_delete_and_competition_entries.sql
-│   │   └── 20260912072715_wod_sessions.sql
+│   │   ├── 20260912072715_wod_sessions.sql
+│   │   └── 20260913123732_whoop_workouts.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -327,6 +328,7 @@ AthleteIQ/
 - **wearable_daily_metrics** — WHOOP ve Polar'dan normalize edilmiş, ortak şemaya dönüştürülmüş günlük recovery/sleep/strain verisi (004_wearables.sql).
 - **wellness_checkins** — Sporcunun günlük 5 maddelik özbildirim wellness anketi (McLean ve ark. 2010 ölçeği, 1=en kötü/5=en iyi, reverse-coding yok); readiness katmanının ham girdisi — üründe "Hooper Index" olarak ADLANDIRILMAZ (012_wellness.sql).
 - **whoop_cycles** — WHOOP'a özel, cycle bazlı ham strain/recovery verisi (004_wearables.sql).
+- **whoop_workouts** — WHOOP'a özel, tekil antrenman (workout) kaydı — whoop_cycles'ın günlük tek strain agregatının aksine bir günde birden fazla satır olabilir; webhook her workout.updated event'inde yalnızca o event'in kaydını çeker (20260913123732_whoop_workouts.sql).
 <!-- AUTO-GENERATED:SCHEMA:END -->
 
 ---
@@ -832,6 +834,14 @@ Not: `apps/web/app/(dashboard)/wearables/wearables-client.tsx`'teki admin/coach 
 ```
 Kapsam dışı (kullanıcı onaylı): timer/kronometre, skor/sonuç girişi, tonaj/1RM entegrasyonu, WOD içi süperset/circuit gruplama, mobilde program oluşturma (zaten yok). Bir seans ya standart (set bazlı) ya da WOD formatındadır, aynı seansta karışmaz.
 
+**Sonradan eklenen görevler (2026-09-13 — koç/admin tarafında WHOOP verisi + tekil antrenman kayıtları):**
+```
+[x] apps/web/app/(dashboard)/wearables/wearables-client.tsx → Her sporcu satırına "Detay" linki (/wearables/[athleteId]) — önceki halinde yalnızca bağlantı durumu (Bağlı/Bağlı Değil) vardı, hiçbir wearable verisi render edilmiyordu (RLS açığı DEĞİL, eksik özellikti)
+[x] apps/web/app/(dashboard)/wearables/[athleteId]/page.tsx + athlete-wearable-detail-client.tsx → YENİ: 14 günlük recovery/strain/RHR trend grafiği (Recharts, athletes/[id] ACWR grafiğiyle aynı stil) + aynı aralıktaki whoop_workouts kayıtlarının tablosu (spor, süre, strain, ort/maks nabız, kalori)
+[x] packages/db/queries/wearables.ts → getWorkouts() eklendi (getWearableMetrics ile aynı desen)
+```
+Middleware/layout'ta EK değişiklik gerekmedi: ATHLETE GUARD `pathname === "/wearables"` tam eşleşmesi kullanıyor, bu yüzden `/wearables/[athleteId]` sporcu rolü için zaten otomatik bloklanıyor (bkz. `apps/web/middleware.ts`).
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -915,7 +925,7 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 [ ] packages/integrations/polar/transaction.ts → Transaction lifecycle manager
 [ ] packages/integrations/polar/types.ts → v4 Zod şemaları
 [ ] packages/integrations/polar/normalize.ts → PolarNightlyRecharge → DailyMetrics
-[x] supabase/functions/whoop-webhook/ → Webhook receiver + signature validation + gerçek senkron (2026-09-11, v5)
+[x] supabase/functions/whoop-webhook/ → Webhook receiver + signature validation + gerçek senkron (2026-09-11, v5) + tekil workout senkronu (2026-09-13, v8)
 [ ] supabase/functions/polar-sync/ → Cron: her saat Polar transaction çek (dosya yok — CLAUDE.md'de "ACTIVE" yazıyordu, YANLIŞTI, düzeltildi)
 [x] apps/web/app/api/wearables/whoop/authorize/route.ts → İmzalı state üretir, WHOOP authorize URL'sine yönlendirir (Bearer auth, mobil çağırır)
 [x] apps/web/app/api/wearables/whoop/callback/route.ts → OAuth callback (WHOOP_REDIRECT_URI ile birebir eşleşir)
@@ -946,15 +956,31 @@ Sporcu (mobil) → POST /api/wearables/whoop/authorize (Bearer <supabase access_
 → WebBrowser bu redirect'i yakalayıp kapanır, mobil UI sonucu okur
 ```
 
-Webhook senkronu (`supabase/functions/whoop-webhook`, v5): `recovery.updated` /
+Webhook senkronu (`supabase/functions/whoop-webhook`, v8): `recovery.updated` /
 `sleep.updated` / `workout.updated` event'lerinde (yalnızca `.updated`, `.deleted`
 şimdilik atlanır) ilgili sporcunun bağlantısı `provider_user_id`'den bulunur, token
-gerekirse yenilenir, en güncel cycle+sleep+recovery çekilip `wearable_daily_metrics`
-+ `whoop_cycles`'a upsert edilir. İmza doğrulaması `X-WHOOP-Signature-Timestamp`
+gerekirse yenilenir. `recovery.updated`/`sleep.updated` en güncel cycle+sleep+recovery'yi
+çekip `wearable_daily_metrics` + `whoop_cycles`'a upsert eder (günlük TEK satır — bir
+günde en fazla bir cycle/sleep/recovery olur varsayımıyla "en son"u çekmek yeterli).
+`workout.updated` FARKLI bir yoldan gider (2026-09-13): bir günde birden fazla workout
+olabileceği için "en son"u çekip günü ezmek yerine, event'in TEKİL ID'siyle
+`GET /v2/activity/workout/{id}` çekilip `whoop_workouts` tablosuna `whoop_workout_id`
+üzerinden upsert edilir — geçmiş/backfill senkronu bilinçli olarak kapsam dışı, yalnızca
+ileriye dönük event'ler işlenir. İmza doğrulaması `X-WHOOP-Signature-Timestamp`
 header'ını ham body'nin ÖNÜNE ekleyip HMAC-SHA256 alır — ilk taslakta bu adım
 eksikti ve her imza doğrulaması sessizce başarısız olurdu, düzeltildi.
 
-**Devreye almak için manuel adımlar (yapılmadı, kullanıcı yapmalı):**
+Koç/admin tarafı (2026-09-13): `/wearables` sayfası önceden yalnızca bağlantı durumunu
+(Bağlı/Bağlı Değil + son senkron) gösteriyordu, hiçbir wearable verisini render etmiyordu
+— bu bir RLS açığı DEĞİL, eksik bir özellikti (`wearable_metrics_select` RLS'i coach/admin'i
+zaten kapsıyordu). Her satıra "Detay" linki eklendi → `/wearables/[athleteId]`
+(`getWorkouts`, `packages/db/queries/wearables.ts`): son 14 günün recovery/strain/RHR trend
+grafiği (Recharts, `athletes/[id]` ACWR grafiğiyle aynı stil) + aynı aralıktaki tüm
+`whoop_workouts` kayıtlarının tablosu (spor, süre, strain, ort/maks nabız, kalori).
+
+**Devreye almak için manuel adımlar (1–4 kullanıcı tarafından 2026-09-13'e kadar yapıldı —
+Nazlı Savranbaşı'nın hesabı canlı bağlı ve senkron oluyor, bkz. yukarıdaki Env Dosyaları
+notu; 5 hâlâ duruma göre gerekebilir):**
 1. developer.whoop.com'da bir uygulama kaydet → gerçek `WHOOP_CLIENT_ID` /
    `WHOOP_CLIENT_SECRET` değerlerini `apps/web/.env.local`'e yaz (şu an placeholder).
 2. WHOOP dashboard'da redirect URI'yi `apps/web/.env.local`'deki `WHOOP_REDIRECT_URI`
@@ -1165,7 +1191,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-12
+Son otomatik senkron: 2026-09-13
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1226,6 +1252,7 @@ Son otomatik senkron: 2026-09-12
 - 20260904124844_acwr_logs_update_policy.sql
 - 20260909070021_athlete_delete_and_competition_entries.sql
 - 20260912072715_wod_sessions.sql
+- 20260913123732_whoop_workouts.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1238,13 +1265,13 @@ Son otomatik senkron: 2026-09-12
   - `grant-athlete-access` / `reset-athlete-password` — ACTIVE (Parti 10) — sporcuya özel
   - `update-org-user` — yeni (2026-09-09), ACTIVE — ad/kullanıcı adı düzenler, username değişirse `auth.users.email`'i senkron günceller (bkz. §4.3)
   - `delete-org-user` — yeni (2026-09-09), ACTIVE — kullanıcı silme, `auth.users` cascade'iyle memberships/profiles otomatik temizlenir
-  - `whoop-webhook` — ACTIVE, v5 (2026-09-11) — gerçek senkron mantığı devrede, bkz. §6 Agent 5
+  - `whoop-webhook` — ACTIVE, v8 (2026-09-13) — gerçek senkron mantığı devrede + tekil workout senkronu, bkz. §6 Agent 5
   - `polar-sync` — **YOK** (bu listede önceden "ACTIVE" yazıyordu, bu YANLIŞTI — dosya hiç
     oluşturulmamış, `list_edge_functions` ile 2026-09-11'de doğrulandı; Polar entegrasyonu
     henüz başlanmadı, bkz. §6 Agent 5 görev listesi)
 
 ### Env Dosyaları
-- Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `WHOOP_CLIENT_ID`/`WHOOP_CLIENT_SECRET`/`WHOOP_REDIRECT_URI`/`WHOOP_WEBHOOK_SECRET` (2026-09-11'de eklendi, hâlâ placeholder — gerçek WHOOP developer app kaydı gerekiyor), Polar placeholders
+- Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `WHOOP_CLIENT_ID`/`WHOOP_CLIENT_SECRET`/`WHOOP_REDIRECT_URI`/`WHOOP_WEBHOOK_SECRET` (2026-09-11'de eklendi; 2026-09-13 itibarıyla GERÇEK developer app kaydıyla dolduruldu — Nazlı Savranbaşı'nın hesabı canlı bağlı, `wearable_connections`'da aktif token + yakın zamanlı `last_synced_at` doğrulandı), Polar placeholders (hâlâ)
 - Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_APP_URL` (2026-09-11'de eklendi — WHOOP authorize/callback route'larını barındıran apps/web adresi, emülatörde `10.0.2.2:3000`)
 
 ### Test Hesapları
@@ -1277,12 +1304,15 @@ Son otomatik senkron: 2026-09-12
 - ✅ Yarışma: ekleme + listeleme + sporcu bazlı katılımcı (roster) seçimi — `competition_entries` tablosu, her yarışmaya yalnızca seçilen sporcular kayıtlı (2026-09-09). Sporcu web'de `/competitions`'ta kendi kayıtlı olduğu yarışmaları salt-okunur görür (2026-09-11).
 - ✅ Test sonuçları: ekleme + listeleme
 - ✅ Wearable altyapısı: tablolar + token saklama + normalize şema
-- ✅ WHOOP entegrasyonu (2026-09-11) — OAuth bağlanma (mobil + web, ikisi de aynı
-  callback'i platform state'ine göre paylaşır), webhook ile gerçek zamanlı senkron
+- ✅ WHOOP entegrasyonu (2026-09-11, CANLI 2026-09-13) — OAuth bağlanma (mobil + web, ikisi
+  de aynı callback'i platform state'ine göre paylaşır), webhook ile gerçek zamanlı senkron
   (recovery/sleep/cycle → `wearable_daily_metrics` + `whoop_cycles`), bağlantı kesme
-  (mobil + web) + WHOOP tarafında yetki iptali (`revokeAccess`). Gerçek WHOOP developer
-  app kaydı ve secret'ların girilmesi bekliyor — bkz. §6 Agent 5 "Devreye almak için
-  manuel adımlar". Polar entegrasyonu henüz başlanmadı.
+  (mobil + web) + WHOOP tarafında yetki iptali (`revokeAccess`). Gerçek WHOOP developer app
+  kaydı yapıldı, Nazlı Savranbaşı'nın hesabı canlı bağlı ve senkron oluyor. Koç/admin
+  görünümü (2026-09-13): `/wearables` → sporcu satırındaki "Detay" linki →
+  `/wearables/[athleteId]` — 14 günlük recovery/strain/RHR trend grafiği + tekil antrenman
+  (workout) kayıtları tablosu (`whoop_workouts`, event-bazlı senkron, backfill yok — bkz.
+  §6 Agent 5). Polar entegrasyonu henüz başlanmadı.
 - ✅ Sporcu web profili: `/profile` — sporcu kendi bilgilerini (ad, takım, org, fiziksel
   veriler) salt-okunur görür, düzenleme yok (RLS'te athlete self-update izni yok) (2026-09-11)
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { Activity, Watch, Users } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Label } from "@athleteiq/ui/components/label";
@@ -192,7 +193,10 @@ export function WearablesClient({ connections, athletes }: Props) {
                           })
                         : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right space-x-2">
+                      <Button size="sm" variant="outline" asChild>
+                        <Link href={`/wearables/${s.id}`}>Detay</Link>
+                      </Button>
                       <Button
                         size="sm"
                         variant="outline"
