@@ -811,6 +811,62 @@ export type Database = {
         }
         Relationships: []
       }
+      polar_exercises: {
+        Row: {
+          athlete_id: string
+          avg_hr: number | null
+          calories: number | null
+          created_at: string
+          distance_meter: number | null
+          duration_sec: number | null
+          id: string
+          max_hr: number | null
+          polar_exercise_id: string
+          raw_data: Json | null
+          sport: string | null
+          start_time: string
+          training_load: number | null
+        }
+        Insert: {
+          athlete_id: string
+          avg_hr?: number | null
+          calories?: number | null
+          created_at?: string
+          distance_meter?: number | null
+          duration_sec?: number | null
+          id?: string
+          max_hr?: number | null
+          polar_exercise_id: string
+          raw_data?: Json | null
+          sport?: string | null
+          start_time: string
+          training_load?: number | null
+        }
+        Update: {
+          athlete_id?: string
+          avg_hr?: number | null
+          calories?: number | null
+          created_at?: string
+          distance_meter?: number | null
+          duration_sec?: number | null
+          id?: string
+          max_hr?: number | null
+          polar_exercise_id?: string
+          raw_data?: Json | null
+          sport?: string | null
+          start_time?: string
+          training_load?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polar_exercises_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       polar_sync_state: {
         Row: {
           athlete_id: string

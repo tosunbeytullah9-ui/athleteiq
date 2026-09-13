@@ -2,7 +2,15 @@ import type { PolarExercise } from "./types";
 import { PolarExerciseSchema } from "./types";
 import { z } from "zod";
 
-const BASE_URL = "https://www.polaraccesslink.com/v4";
+// Egzersiz transaction'ları KLASİK "AccessLink" API'sindedir (v3) — bkz.
+// oauth.ts'teki not. Önceki taslak hem yanlış versiyon (v4) hem de eksik alt
+// path segmentleri (liste "/exercises" ile bitmeli, commit "/commit" ile
+// bitmeli) kullanıyordu; polar.com/accesslink-api/ dokümantasyonuyla çapraz
+// doğrulanıp düzeltildi (2026-09-13). Transaction modeli Polar'ın kendi
+// dokümantasyonunda "deprecated" işaretli ama hâlâ çalışıyor — modern
+// alternatif (GET /v3/exercises, tarih aralığı filtresi olmayan bir poll
+// endpoint'i) ayrı bir iş olarak değerlendirilebilir.
+const BASE_URL = "https://www.polaraccesslink.com/v3";
 
 export interface TransactionResult {
   transactionId: string;
@@ -35,7 +43,7 @@ export async function fetchExerciseTransaction(
 
   // 2. Antrenmanları listele
   const listRes = await fetch(
-    `${BASE_URL}/users/${polarUserId}/exercise-transactions/${transactionId}`,
+    `${BASE_URL}/users/${polarUserId}/exercise-transactions/${transactionId}/exercises`,
     {
       headers: { Authorization: `Bearer ${accessToken}` },
     }
@@ -58,7 +66,7 @@ export async function commitTransaction(
   transactionId: string
 ): Promise<void> {
   const res = await fetch(
-    `${BASE_URL}/users/${polarUserId}/exercise-transactions/${transactionId}`,
+    `${BASE_URL}/users/${polarUserId}/exercise-transactions/${transactionId}/commit`,
     {
       method: "PUT",
       headers: { Authorization: `Bearer ${accessToken}` },

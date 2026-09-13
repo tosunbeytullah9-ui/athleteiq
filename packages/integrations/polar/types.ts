@@ -6,44 +6,51 @@ export const PolarTokensSchema = z.object({
   x_user_id: z.number(),
 });
 
+// GERÇEK AccessLink v3 şeması — www.polar.com/accesslink-api/swagger.yaml
+// dosyasından birebir alındı (2026-09-13, canlı testte iki YANLIŞ varsayımdan
+// sonra doğrulandı: önce WHOOP tarzı flat snake_case alanlar hayal edilmişti,
+// sonra yanlışlıkla "Dynamic API v4"ün camelCase/iç-içe şemasına geçilmişti —
+// nightly-recharge/sleep aslında AYRI bir v4 ürünü DEĞİL, klasik v3'ün parçası).
+// Zorunlu olmayan/az kullanılan alanlar risksiz olsun diye .optional() bırakıldı.
 export const PolarNightlyRechargeSchema = z.object({
-  polar_user: z.string(),
+  polar_user: z.string().optional(),
   date: z.string(),
-  heart_rate_avg: z.number(),
-  breathing_rate_avg: z.number(),
-  hrv_avg_ms: z.number().optional(),
-  nightly_recharge_status: z.number(),
-  ans_charge: z.number(),
-  ans_charge_status: z.string(),
-  sleep_charge: z.number().optional(),
-  sleep_charge_status: z.string().optional(),
+  heart_rate_avg: z.number().nullable().optional(),
+  beat_to_beat_avg: z.number().nullable().optional(),
+  heart_rate_variability_avg: z.number().nullable().optional(),
+  breathing_rate_avg: z.number().nullable().optional(),
+  nightly_recharge_status: z.number().nullable().optional(), // 1 (çok kötü) – 6 (çok iyi)
+  ans_charge: z.number().nullable().optional(), // -10.0 .. +10.0
+  ans_charge_status: z.number().nullable().optional(), // 1 (çok düşük) – 5 (çok yüksek)
+  hrv_samples: z.unknown().optional(),
+  breathing_samples: z.unknown().optional(),
 });
 
 export const PolarSleepResultSchema = z.object({
-  polar_user: z.string(),
+  polar_user: z.string().optional(),
   date: z.string(),
-  sleep_start_time: z.string(),
-  sleep_end_time: z.string(),
-  device_id: z.string(),
-  continuity: z.number(),
-  continuity_class: z.number(),
-  light_sleep: z.number(),
-  deep_sleep: z.number(),
-  rem_sleep: z.number(),
-  unrecognized_sleep_stage: z.number(),
-  sleep_score: z.number(),
-  total_interruption_duration: z.number(),
-  interruptions: z.number(),
-  long_interruption_duration: z.number(),
-  long_interruptions: z.number(),
-  sleep_cycles: z.number(),
-  group_duration_score: z.number(),
-  group_solidity_score: z.number(),
-  group_regenerative_quality_score: z.number(),
-  short_interruption_duration: z.number(),
-  short_interruptions: z.number(),
-  hypnogram_5min: z.string(),
-  skin_temperature: z.number().optional(),
+  sleep_start_time: z.string().optional(),
+  sleep_end_time: z.string().optional(),
+  device_id: z.string().optional(),
+  continuity: z.number().nullable().optional(), // 1.0 – 5.0
+  continuity_class: z.number().nullable().optional(),
+  light_sleep: z.number().nullable().optional(), // saniye
+  deep_sleep: z.number().nullable().optional(), // saniye
+  rem_sleep: z.number().nullable().optional(), // saniye
+  unrecognized_sleep_stage: z.number().nullable().optional(), // saniye
+  sleep_score: z.number().nullable().optional(), // 1 – 100
+  total_interruption_duration: z.number().nullable().optional(), // saniye
+  sleep_charge: z.number().nullable().optional(), // 1 (çok düşük) – 5 (çok yüksek)
+  sleep_goal: z.number().nullable().optional(), // saniye
+  sleep_rating: z.number().nullable().optional(), // 0-5, kullanıcının kendi değerlendirmesi
+  short_interruption_duration: z.number().nullable().optional(),
+  long_interruption_duration: z.number().nullable().optional(),
+  sleep_cycles: z.number().nullable().optional(),
+  group_duration_score: z.number().nullable().optional(),
+  group_solidity_score: z.number().nullable().optional(),
+  group_regeneration_score: z.number().nullable().optional(),
+  hypnogram: z.unknown().optional(),
+  heart_rate_samples: z.unknown().optional(),
 });
 
 export const PolarExerciseSchema = z.object({

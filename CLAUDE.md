@@ -113,6 +113,7 @@ Playwright (E2E testler)
 ```
 AthleteIQ/
 ├── .claude/
+│   ├── scheduled_tasks.lock
 │   └── settings.local.json
 ├── apps/
 │   ├── mobile/
@@ -268,7 +269,8 @@ AthleteIQ/
 │   │   ├── 20260904124844_acwr_logs_update_policy.sql
 │   │   ├── 20260909070021_athlete_delete_and_competition_entries.sql
 │   │   ├── 20260912072715_wod_sessions.sql
-│   │   └── 20260913123732_whoop_workouts.sql
+│   │   ├── 20260913123732_whoop_workouts.sql
+│   │   └── 20260913131022_polar_exercises.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -316,6 +318,7 @@ AthleteIQ/
 - **org_exercises** — Bir organizasyona özel, platform kütüphanesinde bulunmayan egzersiz tanımları (005_exercises.sql).
 - **organizations** — Her müşteri (federasyon/kulüp) için bir tenant kaydı; plan (free/pro/enterprise) ve slug (URL prefix) burada tutulur (001_schema.sql).
 - **platform_exercises** — Platform genelinde salt-okunur, global egzersiz kütüphanesi (135 egzersiz, 16 hareket paterni — 006_exercise_seed.sql ile dolduruldu) (005_exercises.sql).
+- **polar_exercises** — Polar'a özel, tekil antrenman (exercise) kaydı — whoop_workouts'un Polar karşılığı, ancak alan adları Polar AccessLink v4 exercise şemasına göre (calories, training_load, distance_meter); manuel "Senkronize Et" butonuyla transaction lifecycle (aç→listele→commit) ile çekilir (20260913131022_polar_exercises.sql).
 - **polar_sync_state** — Polar'ın transaction-tabanlı senkronizasyon modelinde, kaynak tipi başına son commit edilen transaction ID'si (004_wearables.sql).
 - **profiles** — auth.users ile 1:1, org kapsamlı kullanıcı adı + görünen ad; sentetik email desenindeki ({username}@{org_slug}.athleteiq.app) org_id/username kaynağı, yalnızca service-role Edge Function'lar yazar (032_profiles.sql, Parti 16).
 - **program_blocks** — Birden fazla haftalık training_programs satırını ortak bir döneme (örn. "8 Haftalık Hazırlık Dönemi") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).
@@ -633,35 +636,80 @@ export class WHOOPClient {
 }
 ```
 
-### 5.2 Polar AccessLink v4
+### 5.2 Polar AccessLink v3 (2026-09-13 canlı testte doğrulandı — swagger.yaml esas alındı)
+
+**KRİTİK:** Her şey `https://www.polaraccesslink.com/v3/` altında — TEK bir API,
+TEK bir version. "v4" DİYE BİR ŞEY YOK bu proje için (polar.com/polar-api-v4/
+adında AYRI bir "Dynamic API v4" ürünü dokümantasyonda var ama bu AccessLink
+client'ıyla İLGİSİ YOK, o ürüne kayıt gerektiriyor gibi görünüyor — karıştırılmasın).
+Bu bölümün önceki iki sürümü de (v4 tabanlı, sonra "iki ayrı ürün" varsayımıyla)
+canlı testte YANLIŞ çıktı; buradaki bilgi `https://www.polar.com/accesslink-api/swagger.yaml`
+dosyasının birebir okunmasıyla doğrulandı, artık güvenilir kaynak budur.
 
 ```
-Base URL: https://www.polaraccesslink.com/v4/
+Base URL: https://www.polaraccesslink.com/v3/
 Admin: https://admin.polaraccesslink.com
-Auth: OAuth 2.0 (erişim token'ı SONA ERME YOK — uzun ömürlü)
-Kayıt: Kullanıcı OAuth sonrası POST /v4/users ile kayıt edilmeli!
-
-Scopes: activity:read sleep:read nightly_recharge:read
-         training_sessions:read continuous_samples:read
+Auth: OAuth 2.0 (erişim token'ı SONA ERME YOK — uzun ömürlü, refresh token yok)
+Scope: TEK bir birleşik scope — "accesslink.read_all" — sleep/nightly-recharge/
+       exercise dahil TÜM v3 endpoint'leri bunu kullanır. WHOOP tarzı granular
+       scope isimleri ("sleep:read", "nightly_recharge:read" vb.) YANLIŞ —
+       "invalid_scope" ile reddedilir (iki farklı granular kombinasyon denendi,
+       ikisi de başarısız oldu, ancak "accesslink.read_all" çalıştı).
+Kayıt: OAuth sonrası POST /v3/users ile kayıt edilmeli (409 = zaten kayıtlı).
 
 Temel endpoint'ler:
-GET /v4/data/nightly-recharge-results  → ANS charge + HRV + sleep charge
-GET /v4/data/sleep-results             → Uyku kalite + safhalar
-GET /v4/data/continuous-samples        → Sürekli kalp atışı (30 gün maks)
-POST /v4/users/{userId}/exercise-transactions  → Transaction aç (ZORUNLU)
-GET /v4/users/{userId}/exercise-transactions/{txId}  → Antrenmanları listele
-PUT /v4/users/{userId}/exercise-transactions/{txId}  → COMMIT (veriyi işaretle)
+GET    /v3/users/sleep                                            → son 28 gün uyku listesi (wrapper: "nights")
+GET    /v3/users/nightly-recharge                                 → son 28 gün nightly recharge listesi (wrapper: "recharges")
+  (İKİSİ DE from/to PARAMETRESİ KABUL ETMİYOR — otomatik son 28 gün döner)
+POST   /v3/users/{userId}/exercise-transactions                   → transaction aç
+GET    /v3/users/{userId}/exercise-transactions/{txId}/exercises  → antrenmanları listele
+PUT    /v3/users/{userId}/exercise-transactions/{txId}/commit     → COMMIT
+DELETE /v3/users/{userId}                                         → kayıt silme (disconnect)
+
+(Not: swagger.yaml'da transaction modeli "deprecated" değil ama Polar'ın prose
+dokümantasyonunda modern bir alternatif olarak tarih filtresi olmayan bir poll
+endpoint'inden — GET /v3/exercises, son 30 gün — bahsediliyor; bu proje hâlâ
+transaction modelini kullanıyor, ikisi de geçerli.)
 
 KRİTİK — Transaction Modeli:
-  1. POST transaction aç → transaction_id al
-  2. GET içindeki antrenmanları çek
+  1. POST transaction aç → transaction_id al (204 = yeni veri yok)
+  2. GET .../exercises ile içindeki antrenmanları çek
   3. Her antremanı işle + DB'ye kaydet
-  4. PUT ile commit et → Polar "teslim edildi" işaretler
+  4. PUT .../commit ile commit et → Polar "teslim edildi" işaretler
   → Commit edilmezse aynı veri tekrar gelir (at-least-once garantisi)
   → Commit sonrası veri bir daha gelmez — önce işle, sonra commit!
 
+Gerçek alan adları (swagger.yaml'dan, WHOOP tarzı varsayımsal isimler DEĞİL):
+  nightly-recharge: heart_rate_avg, heart_rate_variability_avg, breathing_rate_avg,
+    nightly_recharge_status (1 çok kötü – 6 çok iyi), ans_charge (-10.0..+10.0),
+    ans_charge_status (1-5, integer — string DEĞİL)
+  sleep: light_sleep/deep_sleep/rem_sleep (saniye), sleep_score (1-100),
+    continuity (1.0-5.0), sleep_charge (1-5) — "efficiency" kavramı YOK, en yakını
+    "continuity" ama farklı bir ölçek, normalizePolarMetrics bilinçli olarak
+    sleep_efficiency'i null bırakıyor.
+  normalizePolarMetrics (packages/integrations/polar/normalize.ts): recovery_score
+    = (nightly_recharge_status - 1) / 5 * 100 (0-100'e doğrusal dönüşüm).
+
 Rate limit: Per-client dynamic scaling (kullanıcı sayısına göre)
 ```
+
+**İlk taslağın hataları (2026-09-13'te canlı testte bulundu, düzeltildi):**
+Önceki oturumda yazılan `packages/integrations/polar/{oauth,transaction,client,types,normalize}.ts`
+iskeleti hiç canlı test edilmemişti ve şu hataları içeriyordu: (1) `buildAuthUrl` WHOOP tarzı bir
+`scope` parametresi gönderiyordu → Polar `invalid_scope` ile reddediyordu; (2) `registerUser`/
+`deregisterUser`/transaction endpoint'leri yanlışlıkla `/v4/` altındaydı (doğrusu `/v3/`) → Tomcat
+seviyesinde çıplak bir 401 (JSON hata gövdesi bile yok) dönüyordu; (3) transaction listele/commit
+path'lerinde eksik alt segmentler vardı (`/exercises`, `/commit`); (4) `PolarNightlyRechargeSchema`/
+`PolarSleepResultSchema` tamamen varsayımsal düz (flat) alanlar içeriyordu (`heart_rate_avg`,
+`ans_charge`, `light_sleep` vb.) — gerçek Dynamic API v4 yanıtı camelCase VE iç içe (`ansStatus`,
+`recoveryIndicatorSubLevel`, `sleepScore.sleepScore`, `sleepEvaluation.phaseDurations` vb.), hiçbiri
+eşleşmiyordu. Şemalar gerçek alan adlarıyla düzeltildi ama uyku süresi (dakika)/HRV/dinlenik nabız
+için gerçek API'nin döndürdüğü string-duration/nested alanların TAM formatı dokümantasyon
+taramasından netleşmedi — `normalizePolarMetrics` (`packages/integrations/polar/normalize.ts`)
+bu yüzden bilinçli olarak yalnızca yüksek güvenle eşlenen alanları (`recoveryIndicatorSubLevel`
+→ recovery_score, `meanNightlyRecoveryRmssd` → hrv_rmssd, `sleepScore.sleepScore`/`efficiencyScore`)
+kullanıyor, geri kalanı (`totalSleepMin`/`deepSleepMin`/`remSleepMin`/`restingHr`) null bırakıyor —
+`raw_data` ham JSON'ı sakladığı için gerçek bir yanıt görüldükten sonra bu eşleme genişletilebilir.
 
 ### 5.3 Normalize Edilmiş Ortak Şema
 
@@ -920,18 +968,18 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 [x] packages/integrations/whoop/oauth.ts → Auth code flow + rotating token refresh + revokeAccess + state imzalama
 [x] packages/integrations/whoop/types.ts → v2 Zod şemaları (Cycle, Sleep, Recovery, Workout, Profile, WebhookEvent)
 [x] packages/integrations/whoop/normalize.ts → WHOOPRecovery → DailyMetrics
-[ ] packages/integrations/polar/client.ts → v4 REST client
-[ ] packages/integrations/polar/oauth.ts → Auth code flow (long-lived token)
-[ ] packages/integrations/polar/transaction.ts → Transaction lifecycle manager
-[ ] packages/integrations/polar/types.ts → v4 Zod şemaları
-[ ] packages/integrations/polar/normalize.ts → PolarNightlyRecharge → DailyMetrics
+[x] packages/integrations/polar/client.ts → v4 REST client (nightly-recharge + sleep GET, direct model)
+[x] packages/integrations/polar/oauth.ts → Auth code flow (süresiz token, refresh yok) + registerUser/deregisterUser + state imzalama (2026-09-13)
+[x] packages/integrations/polar/transaction.ts → Transaction lifecycle manager (egzersizler için aç→listele→commit)
+[x] packages/integrations/polar/types.ts → v4 Zod şemaları
+[x] packages/integrations/polar/normalize.ts → PolarNightlyRecharge → DailyMetrics
 [x] supabase/functions/whoop-webhook/ → Webhook receiver + signature validation + gerçek senkron (2026-09-11, v5) + tekil workout senkronu (2026-09-13, v8)
-[ ] supabase/functions/polar-sync/ → Cron: her saat Polar transaction çek (dosya yok — CLAUDE.md'de "ACTIVE" yazıyordu, YANLIŞTI, düzeltildi)
+[ ] supabase/functions/polar-sync/ → Cron: her saat Polar transaction çek — BİLİNÇLİ OLARAK YOK, Polar'da webhook yok ve pg_cron/pg_net kurulumu ayrı bir infra işi olarak ertelendi; bunun yerine manuel "Senkronize Et" butonu var, bkz. aşağıdaki "Polar entegrasyonu" notu
 [x] apps/web/app/api/wearables/whoop/authorize/route.ts → İmzalı state üretir, WHOOP authorize URL'sine yönlendirir (Bearer auth, mobil çağırır)
 [x] apps/web/app/api/wearables/whoop/callback/route.ts → OAuth callback (WHOOP_REDIRECT_URI ile birebir eşleşir)
-[ ] apps/web/app/(dashboard)/wearables/polar-connect/route.ts → OAuth callback
+[x] apps/web/app/api/wearables/polar/connect/route.ts + callback/route.ts + disconnect/route.ts + sync/route.ts → YENİ (2026-09-13), whoop/connect-callback-disconnect'in web-only kopyası + manuel senkron route'u (bkz. aşağıdaki "Polar entegrasyonu" notu). Eski görev listesindeki `apps/web/app/(dashboard)/wearables/polar-connect/route.ts` yolu KULLANILMADI (WHOOP'taki stale `whoop-connect/route.ts` girdisiyle aynı durum, bkz. yukarıdaki not).
 [x] apps/mobile/app/(tabs)/profile/connect-whoop.tsx → Sporcu WHOOP bağlantı (expo-web-browser + Linking)
-[ ] apps/mobile/app/(tabs)/profile/connect-polar.tsx → Sporcu Polar bağlantı (hâlâ stub)
+[ ] apps/mobile/app/(tabs)/profile/connect-polar.tsx → Sporcu Polar bağlantı (hâlâ stub — Polar bilinçli olarak yalnızca web'den bağlanıyor, bkz. aşağıdaki not)
 ```
 
 **WHOOP entegrasyonu AKTİF (2026-09-11).** Orijinal görev listesindeki
@@ -1003,15 +1051,56 @@ notu; 5 hâlâ duruma göre gerekebilir):**
 // 4. Asla eski refresh token'ı tekrar kullanma
 ```
 
-**Polar Transaction (kritik):**
-```typescript
-// SIRA ZORUNLU:
-// 1. POST transaction → tx_id al
-// 2. Antrenmanları çek + işle + DB'ye kaydet
-// 3. Hata yoksa PUT commit et
-// 4. polar_sync_state tablosuna last_tx_id yaz
-// ASLA önce commit, sonra işleme yapma!
+**Polar entegrasyonu (2026-09-13, web-only, manuel senkron).** WHOOP'tan iki kritik
+farkı var: (1) access token **süresiz** — refresh token yok, `ensureFreshToken` gibi bir
+mekanizma gerekmiyor; (2) **webhook yok** — hem nightly-recharge/uyku hem egzersizler
+GET/transaction ile manuel çekiliyor, bu yüzden WHOOP'un aksine otomatik senkron YOK,
+kullanıcı `/wearables`'ta (sporcu kendi sayfasında) veya `/wearables/[athleteId]`'da
+(koç/admin) **"Senkronize Et"** butonuna basmalı. Tüm endpoint'ler `/v3/` altında TEK
+bir API'dir — bkz. §5.2'deki düzeltme notu (canlı testte iki yanlış varsayımdan sonra
+gerçek swagger.yaml'la doğrulandı):
+
 ```
+Sporcu (web) → GET /api/wearables/polar/connect (cookie oturumu)
+  → athlete id çözülür, imzalı state üretilir (packages/integrations/polar/oauth.ts
+    createOAuthState — whoop/oauth.ts'teki HMAC imzalama koduyla birebir aynı,
+    ayrı bir paylaşılan util yok, her provider kendi dosyasında taşıyor)
+  → buildAuthUrl'e (flow.polar.com, scope=accesslink.read_all) yönlendirilir
+→ Polar onayından sonra GET /api/wearables/polar/callback?code&state
+  → state doğrulanır → exchangeCode → registerUser(accessToken, athleteId)
+    (POST /v3/users, 409 = zaten kayıtlı, normal)
+    → wearable_connections upsert (provider:'polar', provider_user_id: x_user_id,
+      refresh_token/token_expires_at: null — ikisi de Polar'da yok)
+  → redirect: /wearables?status=success|denied|error (WHOOP'un web dalıyla aynı,
+    mobil deep-link dalı YOK — Polar bilinçli olarak yalnızca web'den bağlanıyor)
+→ POST /api/wearables/polar/sync { athleteId }
+  → yetki: çağıranın kendi cookie oturumuyla o athleteId'yi SELECT edebilmesi yeterli
+    (RLS athletes_select zaten self/admin/coach-team dışını engeller) — bu sayede
+    hem sporcunun kendi sayfası hem koçun/admin'in detay sayfası AYNI route'u kullanır
+  → direct pull: GET /v3/users/nightly-recharge + /v3/users/sleep (parametresiz, son 28
+    gün otomatik) → normalizePolarMetrics → wearable_daily_metrics (provider:'polar')
+    upsert — BU İKİSİ ile transaction pull BİRBİRİNDEN BAĞIMSIZ try/catch'lerde, biri
+    hata verse bile diğeri denenir, route sonucu metricsError/exercisesError alanlarıyla
+    kısmi başarıyı UI'a bildirir
+  → transaction pull: fetchExerciseTransaction (POST+GET .../exercise-transactions) →
+    polar_exercises upsert (onConflict polar_exercise_id) → BAŞARILIYSA commitTransaction
+    (önce yaz, sonra commit — ASLA tersi, commit sonrası aynı veri bir daha gelmez)
+→ Disconnect: POST /api/wearables/polar/disconnect → deregisterUser best-effort →
+  is_active=false (whoop/disconnect ile aynı desen)
+```
+
+`polar_sync_state` tablosu (004_wearables.sql) BİLİNÇLİ OLARAK kullanılmıyor — manuel
+tetiklemede transaction zaten kendi durumunu (commit) sunucu tarafında tuttuğu, direct
+pull de otomatik "son 28 gün" döndüğü için gereksiz; ileride otomatik/periyodik senkrona
+geçilirse devreye girer. Mobil bağlantı ekranı (`connect-polar.tsx`) bilinçli olarak stub
+bırakıldı — yalnızca web akışı kuruldu.
+
+**Devreye alma canlı testte tamamlandı (2026-09-13):** admin.polaraccesslink.com'da
+gerçek bir uygulama kaydedildi, `POLAR_CLIENT_ID`/`POLAR_CLIENT_SECRET`/
+`POLAR_REDIRECT_URI` `apps/web/.env.local`'e girildi. Bu süreçte kod tabanındaki
+gerçek hatalar bulunup düzeltildi (bkz. §5.2'nin başındaki not): yanlış OAuth scope
+string'i, yanlış API version prefix'i (v4 yerine v3), eksik path segmentleri, ve
+tamamen varsayımsal/yanlış Zod şemaları.
 
 **Normalize etme:**
 ```typescript
@@ -1253,6 +1342,7 @@ Son otomatik senkron: 2026-09-13
 - 20260909070021_athlete_delete_and_competition_entries.sql
 - 20260912072715_wod_sessions.sql
 - 20260913123732_whoop_workouts.sql
+- 20260913131022_polar_exercises.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1312,7 +1402,14 @@ Son otomatik senkron: 2026-09-13
   görünümü (2026-09-13): `/wearables` → sporcu satırındaki "Detay" linki →
   `/wearables/[athleteId]` — 14 günlük recovery/strain/RHR trend grafiği + tekil antrenman
   (workout) kayıtları tablosu (`whoop_workouts`, event-bazlı senkron, backfill yok — bkz.
-  §6 Agent 5). Polar entegrasyonu henüz başlanmadı.
+  §6 Agent 5).
+- ✅ Polar entegrasyonu (2026-09-13) — gerçek developer app kaydedildi, OAuth bağlanma
+  (yalnızca web, mobil `connect-polar.tsx` bilinçli olarak stub) canlı testte çalıştı.
+  Manuel "Senkronize Et" butonuyla direct pull (nightly-recharge/uyku) + transaction
+  pull (egzersizler → `polar_exercises`), bağlantı kesme (`deregisterUser`). Canlı
+  testte üç ayrı yanlış varsayım bulunup düzeltildi (yanlış scope, yanlış API version
+  prefix'i, yanlış Zod şemaları — bkz. §5.2 ve §6 Agent 5) — son düzeltmeden sonraki
+  uçtan uca doğrulama devam ediyor.
 - ✅ Sporcu web profili: `/profile` — sporcu kendi bilgilerini (ad, takım, org, fiziksel
   veriler) salt-okunur görür, düzenleme yok (RLS'te athlete self-update izni yok) (2026-09-11)
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
@@ -1323,7 +1420,8 @@ Son otomatik senkron: 2026-09-13
 - ⏳ Seed verisi genişletme (şu an minimal: 1 org, 2 takım, 1 sporcu)
 - ⏳ Egzersiz kütüphanesi (005_exercises.sql)
 - ⏳ Program builder süperset sistemi
-- ⏳ Polar aktif sync (transaction modeli — WHOOP tamamlandı, bkz. Çalışan Özellikler)
+- ⏳ Polar gerçek developer app kaydı + otomatik/periyodik senkron (pg_cron) — kod hazır,
+  bkz. Çalışan Özellikler
 - ⏳ RLS izolasyon testleri
 - ⏳ E2E Playwright testleri
 

@@ -51,20 +51,29 @@ export default async function WearablesPage({ searchParams }: PageProps) {
       );
     }
 
-    // Polar için henüz bir OAuth connect akışı yok (bkz. CLAUDE.md §11) — kart
-    // bilinçli olarak "Yakında" gösteriliyor, bağlantı durumu sorgulanmıyor.
-    const whoopConnection = await getWearableConnection(supabase, athlete.id, "whoop");
-
     const today = toLocalDateString(new Date());
     const weekAgo = toLocalDateString(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
-    const metrics = whoopConnection?.is_active
-      ? await getWearableMetrics(supabase, athlete.id, "whoop", weekAgo, today)
-      : [];
+
+    const [whoopConnection, polarConnection] = await Promise.all([
+      getWearableConnection(supabase, athlete.id, "whoop"),
+      getWearableConnection(supabase, athlete.id, "polar"),
+    ]);
+
+    const [whoopMetrics, polarMetrics] = await Promise.all([
+      whoopConnection?.is_active
+        ? getWearableMetrics(supabase, athlete.id, "whoop", weekAgo, today)
+        : Promise.resolve([]),
+      polarConnection?.is_active
+        ? getWearableMetrics(supabase, athlete.id, "polar", weekAgo, today)
+        : Promise.resolve([]),
+    ]);
 
     return (
       <AthleteWearableClient
         whoopConnection={whoopConnection}
-        metrics={metrics}
+        whoopMetrics={whoopMetrics}
+        polarConnection={polarConnection}
+        polarMetrics={polarMetrics}
         status={status ?? null}
       />
     );
