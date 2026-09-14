@@ -6,33 +6,52 @@ import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import {
   createExercise1RMRatio,
   updateExercise1RMRatio,
 } from "@athleteiq/db/queries/exercises";
-import type { Exercise1RMRatio } from "@athleteiq/db/queries/exercises";
+import type { Exercise1RMRatio, PlatformExercise } from "@athleteiq/db/queries/exercises";
+import {
+  ExercisePickerModal,
+  type PickedExercise,
+} from "@/components/features/exercises/exercise-picker-modal";
 
 interface Props {
   editing: Exercise1RMRatio | null;
+  platformExercises: PlatformExercise[];
   onClose: () => void;
   onSaved: (ratio: Exercise1RMRatio) => void;
 }
 
-export function Exercise1RMRatioModal({ editing, onClose, onSaved }: Props) {
+type PickerTarget = "derived" | "base" | null;
+
+export function Exercise1RMRatioModal({ editing, platformExercises, onClose, onSaved }: Props) {
   const [exerciseName, setExerciseName] = useState(editing?.exercise_name ?? "");
   const [baseExerciseName, setBaseExerciseName] = useState(editing?.base_exercise_name ?? "");
   const [ratio, setRatio] = useState(editing ? String(editing.ratio) : "");
   const [notes, setNotes] = useState(editing?.notes ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pickerTarget, setPickerTarget] = useState<PickerTarget>(null);
+
+  function handlePick(ex: PickedExercise) {
+    if (pickerTarget === "derived") setExerciseName(ex.name);
+    else if (pickerTarget === "base") setBaseExerciseName(ex.name);
+    setPickerTarget(null);
+  }
 
   async function handleSubmit() {
     const name = exerciseName.trim();
     const baseName = baseExerciseName.trim();
     const ratioValue = Number(ratio.replace(",", "."));
 
-    if (!name) { setError("Türetilen egzersiz adı gerekli."); return; }
-    if (!baseName) { setError("Temel egzersiz adı gerekli."); return; }
+    if (!name) { setError("Türetilen egzersizi kütüphaneden seçin."); return; }
+    if (!baseName) { setError("Temel egzersizi kütüphaneden seçin."); return; }
+    if (normalizeExerciseName(name) === normalizeExerciseName(baseName)) {
+      setError("Türetilen ve temel egzersiz aynı olamaz.");
+      return;
+    }
     if (!Number.isFinite(ratioValue) || ratioValue <= 0) {
       setError("Oran pozitif bir sayı olmalı.");
       return;
@@ -85,19 +104,25 @@ export function Exercise1RMRatioModal({ editing, onClose, onSaved }: Props) {
         <div className="overflow-y-auto p-6 space-y-4">
           <div>
             <Label className="text-xs">Türetilen Egzersiz</Label>
-            <Input
-              value={exerciseName}
-              onChange={(e) => setExerciseName(e.target.value)}
-              placeholder="Front Squat"
-            />
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start font-normal"
+              onClick={() => setPickerTarget("derived")}
+            >
+              {exerciseName || "Kütüphaneden seçmek için tıklayın"}
+            </Button>
           </div>
           <div>
             <Label className="text-xs">Temel Egzersiz</Label>
-            <Input
-              value={baseExerciseName}
-              onChange={(e) => setBaseExerciseName(e.target.value)}
-              placeholder="Back Squat"
-            />
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-start font-normal"
+              onClick={() => setPickerTarget("base")}
+            >
+              {baseExerciseName || "Kütüphaneden seçmek için tıklayın"}
+            </Button>
           </div>
           <div>
             <Label className="text-xs">Oran</Label>
@@ -130,6 +155,16 @@ export function Exercise1RMRatioModal({ editing, onClose, onSaved }: Props) {
           </Button>
         </div>
       </div>
+
+      {pickerTarget && (
+        <ExercisePickerModal
+          platformExercises={platformExercises}
+          orgExercises={[]}
+          categories={[]}
+          onClose={() => setPickerTarget(null)}
+          onPick={handlePick}
+        />
+      )}
     </div>
   );
 }

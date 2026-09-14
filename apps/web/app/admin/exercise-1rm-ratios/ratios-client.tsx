@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { deleteExercise1RMRatio } from "@athleteiq/db/queries/exercises";
-import type { Exercise1RMRatio } from "@athleteiq/db/queries/exercises";
+import type { Exercise1RMRatio, PlatformExercise } from "@athleteiq/db/queries/exercises";
 import { Exercise1RMRatioModal } from "@/components/features/exercises/exercise-1rm-ratio-modal";
 import { DeleteConfirmDialog } from "@/components/features/exercises/delete-confirm-dialog";
 import {
@@ -20,9 +20,10 @@ import { Input } from "@/components/ui/input";
 
 interface Props {
   initialRatios: Exercise1RMRatio[];
+  platformExercises: PlatformExercise[];
 }
 
-export function RatiosClient({ initialRatios }: Props) {
+export function RatiosClient({ initialRatios, platformExercises }: Props) {
   const [ratios, setRatios] = useState<Exercise1RMRatio[]>(initialRatios);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
@@ -129,6 +130,7 @@ export function RatiosClient({ initialRatios }: Props) {
       {showCreate && (
         <Exercise1RMRatioModal
           editing={null}
+          platformExercises={platformExercises}
           onClose={() => setShowCreate(false)}
           onSaved={(r) => {
             upsert(r);
@@ -140,6 +142,7 @@ export function RatiosClient({ initialRatios }: Props) {
       {editing && (
         <Exercise1RMRatioModal
           editing={editing}
+          platformExercises={platformExercises}
           onClose={() => setEditing(null)}
           onSaved={(r) => {
             upsert(r);

@@ -119,15 +119,17 @@ export function ExercisePickerModal({
             >
               Tümü ({combined.length})
             </button>
-            <button
-              type="button"
-              onClick={() => setFilterMode("org")}
-              className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
-                filterMode === "org" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent"
-              }`}
-            >
-              Org Egzersizleri ({orgExercises.length})
-            </button>
+            {orgExercises.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("org")}
+                className={`w-full text-left px-3 py-1.5 text-xs transition-colors ${
+                  filterMode === "org" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                Org Egzersizleri ({orgExercises.length})
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setFilterMode("platform")}

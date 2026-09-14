@@ -1,10 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
-import { getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
+import { getExercise1RMRatios, getPlatformExercises } from "@athleteiq/db/queries/exercises";
 import { RatiosClient } from "./ratios-client";
 
 export default async function AdminExercise1RMRatiosPage() {
   const supabase = await createClient();
-  const ratios = await getExercise1RMRatios(supabase as any);
+  const [ratios, platformExercises] = await Promise.all([
+    getExercise1RMRatios(supabase as any),
+    getPlatformExercises(supabase as any),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -17,7 +20,7 @@ export default async function AdminExercise1RMRatiosPage() {
           tahmini hesaplamak için kullanılır — {ratios.length} ilişki
         </p>
       </div>
-      <RatiosClient initialRatios={ratios} />
+      <RatiosClient initialRatios={ratios} platformExercises={platformExercises} />
     </div>
   );
 }
