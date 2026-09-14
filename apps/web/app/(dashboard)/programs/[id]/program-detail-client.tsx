@@ -34,7 +34,7 @@ import {
   deleteProgramBlock,
 } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
-import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
+import type { Athlete1RMRecord, Exercise1RMRatio } from "@athleteiq/db/queries/exercises";
 import {
   buildMaxHistoryLookup,
   calculateProgramTonnage,
@@ -84,6 +84,7 @@ interface Props {
   athlete: { id: string; full_name: string; weight_kg: number | null } | null;
   team: { id: string; name: string } | null;
   athleteMaxHistory: Athlete1RMRecord[];
+  ratios: Exercise1RMRatio[];
 }
 
 type ExerciseWithSets = Tables<"exercises"> & {
@@ -212,6 +213,7 @@ export function ProgramDetailClient({
   athlete,
   team,
   athleteMaxHistory,
+  ratios,
 }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
@@ -235,8 +237,8 @@ export function ProgramDetailClient({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const maxHistoryLookup = useMemo(
-    () => buildMaxHistoryLookup(athleteMaxHistory),
-    [athleteMaxHistory]
+    () => buildMaxHistoryLookup(athleteMaxHistory, ratios),
+    [athleteMaxHistory, ratios]
   );
   const tonnageContext: TonnageContext = useMemo(
     () => ({

@@ -69,6 +69,20 @@ export type Athlete1RMRecord = {
   created_at: string | null;
 };
 
+/**
+ * Egzersizler arası 1RM oran ilişkisi (örn. Front Squat = Back Squat * 0.85).
+ * Platform geneli, super admin panelinden yönetilir (bkz. apps/web/app/admin/exercise-1rm-ratios).
+ */
+export type Exercise1RMRatio = {
+  id: string;
+  exercise_name: string;
+  base_exercise_name: string;
+  ratio: number;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
 export type CombinedExercise =
   | (PlatformExercise & { _source: "platform"; custom_category_id?: null })
   | (OrgExercise & { _source: "org" });
@@ -500,13 +514,75 @@ export async function deleteAthlete1RMRecord(client: DbClient, id: string): Prom
   if (error) throw error;
 }
 
-/** Her egzersiz adı için en güncel 1RM kaydına hızlı erişim (isim normalize edilerek anahtarlanır). */
-export function buildMaxLookup(athleteMaxes: Athlete1RMRecord[]): Map<string, number> {
+export async function getExercise1RMRatios(client: DbClient): Promise<Exercise1RMRatio[]> {
+  const { data, error } = await (client as any)
+    .from("exercise_1rm_ratios")
+    .select("*")
+    .order("exercise_name", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as Exercise1RMRatio[];
+}
+
+export async function createExercise1RMRatio(
+  client: DbClient,
+  data: Pick<Exercise1RMRatio, "exercise_name" | "base_exercise_name" | "ratio"> &
+    Partial<Pick<Exercise1RMRatio, "notes">>
+): Promise<Exercise1RMRatio> {
+  const { data: result, error } = await (client as any)
+    .from("exercise_1rm_ratios")
+    .insert(data)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result;
+}
+
+export async function updateExercise1RMRatio(
+  client: DbClient,
+  id: string,
+  data: Partial<Pick<Exercise1RMRatio, "exercise_name" | "base_exercise_name" | "ratio" | "notes">>
+): Promise<Exercise1RMRatio> {
+  const { data: result, error } = await (client as any)
+    .from("exercise_1rm_ratios")
+    .update(data)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return result;
+}
+
+export async function deleteExercise1RMRatio(client: DbClient, id: string): Promise<void> {
+  const { error } = await (client as any).from("exercise_1rm_ratios").delete().eq("id", id);
+  if (error) throw error;
+}
+
+/**
+ * Her egzersiz adı için en güncel 1RM kaydına hızlı erişim (isim normalize edilerek anahtarlanır).
+ * `ratios` verilirse, doğrudan kaydı olmayan türetilmiş egzersizler (örn. Front Squat) için temel
+ * egzersizin (örn. Back Squat) değeri * oran ile TEK SEVİYELİ bir tahmin eklenir — zincirleme
+ * (türetilenin türetileni) desteklenmez, ihtiyaç yok.
+ */
+export function buildMaxLookup(
+  athleteMaxes: Athlete1RMRecord[],
+  ratios: Exercise1RMRatio[] = []
+): Map<string, number> {
   const lookup = new Map<string, number>();
   for (const record of athleteMaxes) {
     const key = normalizeExerciseName(record.exercise_name);
     if (!lookup.has(key)) {
       lookup.set(key, record.weight_kg);
+    }
+  }
+  for (const r of ratios) {
+    const derivedKey = normalizeExerciseName(r.exercise_name);
+    if (lookup.has(derivedKey)) continue;
+    const baseValue = lookup.get(normalizeExerciseName(r.base_exercise_name));
+    if (baseValue != null) {
+      lookup.set(derivedKey, baseValue * r.ratio);
     }
   }
   return lookup;
@@ -528,9 +604,16 @@ export function resolveOneRepMaxKg(
   return roundToPlateKg((percent1rm / 100) * oneRm);
 }
 
-/** Egzersiz adına göre (normalize edilerek) gruplanmış tam 1RM geçmişi — her grup test_date desc sıralı. */
+/**
+ * Egzersiz adına göre (normalize edilerek) gruplanmış tam 1RM geçmişi — her grup test_date
+ * desc sıralı. `ratios` verilirse, doğrudan geçmişi olmayan türetilmiş egzersizler için temel
+ * egzersizin TÜM geçmişi orana göre yansıtılır (tarihe göre çözümleme —
+ * `resolveOneRepMaxKgForDate` — türetilmiş egzersiz için de doğru çalışsın diye). Tek seviyeli
+ * fallback, `buildMaxLookup` ile aynı mantık.
+ */
 export function buildMaxHistoryLookup(
-  history: Athlete1RMRecord[]
+  history: Athlete1RMRecord[],
+  ratios: Exercise1RMRatio[] = []
 ): Map<string, Athlete1RMRecord[]> {
   const lookup = new Map<string, Athlete1RMRecord[]>();
   for (const record of history) {
@@ -544,6 +627,16 @@ export function buildMaxHistoryLookup(
   }
   for (const bucket of lookup.values()) {
     bucket.sort((a, b) => (a.test_date < b.test_date ? 1 : a.test_date > b.test_date ? -1 : 0));
+  }
+  for (const r of ratios) {
+    const derivedKey = normalizeExerciseName(r.exercise_name);
+    if (lookup.has(derivedKey)) continue;
+    const baseRecords = lookup.get(normalizeExerciseName(r.base_exercise_name));
+    if (!baseRecords) continue;
+    lookup.set(
+      derivedKey,
+      baseRecords.map((b) => ({ ...b, exercise_name: r.exercise_name, weight_kg: b.weight_kg * r.ratio }))
+    );
   }
   return lookup;
 }

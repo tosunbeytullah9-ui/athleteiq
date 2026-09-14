@@ -65,6 +65,9 @@ export default async function SuperAdminPage() {
           <Button variant="outline" asChild>
             <Link href="/admin/exercises">Egzersiz Kütüphanesi</Link>
           </Button>
+          <Button variant="outline" asChild>
+            <Link href="/admin/exercise-1rm-ratios">1RM Oran İlişkileri</Link>
+          </Button>
           <Button asChild>
             <Link href="/admin/organizations/new">Organizasyon Ekle</Link>
           </Button>

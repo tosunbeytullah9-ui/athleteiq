@@ -15,7 +15,11 @@ import { SupersetGroup } from "@/components/SupersetGroup";
 import { WodSessionCard } from "@/components/WodSessionCard";
 import { groupExercisesForRender } from "@/lib/supersetGroups";
 import { getDaySessions } from "@athleteiq/db/queries/programs";
-import { getAthleteMaxes, buildMaxLookup } from "@athleteiq/db/queries/exercises";
+import {
+  getAthleteMaxes,
+  buildMaxLookup,
+  getExercise1RMRatios,
+} from "@athleteiq/db/queries/exercises";
 import type { Tables } from "@athleteiq/db/types";
 
 type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: Tables<"exercise_sets">[] };
@@ -58,9 +62,10 @@ export default function ProgramDayScreen() {
 
     async function fetchDaySessions() {
       try {
-        const [data, athleteMaxes] = await Promise.all([
+        const [data, athleteMaxes, ratios] = await Promise.all([
           getDaySessions(supabase, programId!, dayNum),
           getAthleteMaxes(supabase, athlete!.id),
+          getExercise1RMRatios(supabase),
         ]);
 
         const withSortedExercises = (data as SessionWithExercises[]).map((s) => ({
@@ -70,7 +75,7 @@ export default function ProgramDayScreen() {
           ),
         }));
         setSessions(withSortedExercises);
-        setMaxLookup(buildMaxLookup(athleteMaxes));
+        setMaxLookup(buildMaxLookup(athleteMaxes, ratios));
       } finally {
         setLoading(false);
       }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getPrograms } from "@athleteiq/db/queries/programs";
-import { getAthleteMaxHistory } from "@athleteiq/db/queries/exercises";
+import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
 import { ProgramsClient } from "./programs-client";
 
 export default async function ProgramsPage() {
@@ -33,6 +33,7 @@ export default async function ProgramsPage() {
   // Sporcu için %1RM çözümlemesi (formatSetLoad) amacıyla kendi 1RM geçmişi de
   // çekilir — RLS zaten yalnızca kendi kaydına izin veriyor.
   let athleteMaxHistory: Awaited<ReturnType<typeof getAthleteMaxHistory>> = [];
+  let ratios: Awaited<ReturnType<typeof getExercise1RMRatios>> = [];
   if (role === "athlete") {
     const {
       data: { user },
@@ -45,7 +46,10 @@ export default async function ProgramsPage() {
           .maybeSingle()
       : { data: null };
     if (athlete) {
-      athleteMaxHistory = await getAthleteMaxHistory(supabase, athlete.id);
+      [athleteMaxHistory, ratios] = await Promise.all([
+        getAthleteMaxHistory(supabase, athlete.id),
+        getExercise1RMRatios(supabase),
+      ]);
     }
   }
 
@@ -55,6 +59,7 @@ export default async function ProgramsPage() {
       teams={teamsResult.data ?? []}
       athletes={athletesResult.data ?? []}
       athleteMaxHistory={athleteMaxHistory}
+      ratios={ratios}
     />
   );
 }

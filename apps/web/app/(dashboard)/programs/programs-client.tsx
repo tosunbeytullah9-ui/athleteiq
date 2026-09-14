@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
 import { setProgramsArchived } from "@athleteiq/db/queries/programs";
-import { getAthleteMaxHistory } from "@athleteiq/db/queries/exercises";
+import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent } from "@athleteiq/ui/components/card";
@@ -28,6 +28,7 @@ interface Props {
   teams: { id: string; name: string }[];
   athletes: { id: string; full_name: string; team_id: string | null }[];
   athleteMaxHistory?: Awaited<ReturnType<typeof getAthleteMaxHistory>>;
+  ratios?: Awaited<ReturnType<typeof getExercise1RMRatios>>;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -49,6 +50,7 @@ export function ProgramsClient({
   teams,
   athletes,
   athleteMaxHistory = [],
+  ratios = [],
 }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
@@ -104,7 +106,7 @@ export function ProgramsClient({
   }, [programs, filter, isAthlete, showArchived]);
 
   if (isAthlete) {
-    return <AthleteProgramView programs={filtered} maxHistory={athleteMaxHistory} />;
+    return <AthleteProgramView programs={filtered} maxHistory={athleteMaxHistory} ratios={ratios} />;
   }
 
   const activePrograms = programs.filter((p) => !p.is_archived);

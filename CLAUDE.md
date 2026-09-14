@@ -169,6 +169,7 @@ AthleteIQ/
 │   │   ├── tsconfig.json
 │   │   └── types.ts
 │   ├── integrations/
+│   │   ├── fitbit/
 │   │   ├── polar/
 │   │   ├── whoop/
 │   │   ├── package.json
@@ -270,7 +271,9 @@ AthleteIQ/
 │   │   ├── 20260909070021_athlete_delete_and_competition_entries.sql
 │   │   ├── 20260912072715_wod_sessions.sql
 │   │   ├── 20260913123732_whoop_workouts.sql
-│   │   └── 20260913131022_polar_exercises.sql
+│   │   ├── 20260913131022_polar_exercises.sql
+│   │   ├── 20260913201909_fitbit_activities.sql
+│   │   └── 20260914075144_exercise_1rm_ratios.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -311,8 +314,10 @@ AthleteIQ/
 - **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql).
 - **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
 - **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
+- **exercise_1rm_ratios** — Egzersizler arası bilinen 1RM oran ilişkisi (örn. Front Squat = Back Squat * 0.85); platform geneli, super admin panelinden yönetilir, sporcunun türetilen egzersizde doğrudan kaydı yoksa %1RM çözümlemesinde sessiz fallback olarak kullanılır (20260914075144_exercise_1rm_ratios.sql).
 - **exercise_sets** — Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).
 - **exercises** — Bir seansa ait tekil egzersiz kaydı (sets/reps/load) — set bazlı detay için bkz. exercise_sets (001_schema.sql).
+- **fitbit_activities** — Fitbit'e özel, tekil antrenman (activity log) kaydı — whoop_workouts/polar_exercises'ın Fitbit karşılığı; manuel "Senkronize Et" butonuyla GET /1/user/-/activities/list.json ile çekilir, mesafe kullanıcının hesap birimine (km/mil) bağlı olduğundan distance_meter bilinçli olarak null bırakılır (20260913201909_fitbit_activities.sql).
 - **memberships** — Kullanıcı-organizasyon-takım-rol ilişkisi (admin/coach/athlete); bir kullanıcının bir org'daki tek yetkisi (001_schema.sql).
 - **org_exercise_categories** — Bir organizasyona özel, platform kütüphanesini genişleten egzersiz kategorileri (005_exercises.sql).
 - **org_exercises** — Bir organizasyona özel, platform kütüphanesinde bulunmayan egzersiz tanımları (005_exercises.sql).
@@ -711,7 +716,45 @@ bu yüzden bilinçli olarak yalnızca yüksek güvenle eşlenen alanları (`reco
 kullanıyor, geri kalanı (`totalSleepMin`/`deepSleepMin`/`remSleepMin`/`restingHr`) null bırakıyor —
 `raw_data` ham JSON'ı sakladığı için gerçek bir yanıt görüldükten sonra bu eşleme genişletilebilir.
 
-### 5.3 Normalize Edilmiş Ortak Şema
+### 5.3 Fitbit Web API (2026-09-13 — dev.fitbit.com resmi dokümantasyonuyla doğrulandı)
+
+WHOOP/Polar'ın aksine bu üçüncüsü sıfırdan yazıldı ve canlı test öncesi
+dev.fitbit.com'un resmi, güncel dokümantasyonu doğrudan taranarak kuruldu —
+Polar'daki "varsayımsal şema" hatasını tekrarlamamak için.
+
+```
+Authorize: https://www.fitbit.com/oauth2/authorize
+  ?client_id&response_type=code&scope=sleep%20heartrate%20activity&redirect_uri&state
+Token: POST https://api.fitbit.com/oauth2/token (Basic client_id:client_secret)
+  → { access_token, refresh_token, expires_in:28800 (8sa), token_type, user_id }
+Refresh: aynı endpoint, grant_type=refresh_token — refresh_token TEK KULLANIMLIK,
+  her refresh'te YENİSİ döner (WHOOP ile aynı rotasyon deseni — Polar'ın aksine
+  burada ensureFreshToken GEREKLİ, apps/web/app/api/wearables/fitbit/sync/route.ts
+  içinde WHOOP webhook'undakiyle aynı mantıkla ama Next.js route'a taşınmış).
+Revoke: POST https://api.fitbit.com/oauth2/revoke (Basic auth, body: token=...)
+
+Scope: authorize isteğinde DİNAMİK istenir ("sleep heartrate activity") — Polar'daki
+       gibi uygulama panelinde önceden seçilen sabit bir "data type" YOK.
+
+Sleep (aralık):  GET /1.2/user/-/sleep/date/{start}/{end}.json (maks 100 gün)
+Heart Rate:      GET /1/user/-/activities/heart/date/{date}/{period}.json (period=7d/30d, tek çağrıda aralık)
+HRV (aralık):    GET /1/user/-/hrv/date/{start}/{end}.json (maks 30 gün)
+Activity Log:    GET /1/user/-/activities/list.json?beforeDate&sort&limit&offset
+```
+
+**Fitbit'in public Web API'sinde karşılığı OLMAYAN alanlar** (tahmin edilmeye
+çalışılmadan dürüstçe null bırakılır, `packages/integrations/fitbit/normalize.ts`):
+`recovery_score` (Fitbit'in "Daily Readiness Score"u Premium/ayrı bir üründe),
+`sleep_score` (sayısal 1-100 skor yok, en yakını `efficiency` → `sleep_efficiency`
+kolonuna gider), `strain_score`/`muscle_load`/`active_calories` (direkt karşılığı
+yok). `fitbit_activities.distance_meter` de aynı sebeple hep null — Fitbit
+"distance" alanı kullanıcının hesap birimine (km/mil) bağlı, birim garantisi yok.
+
+Web-only, manuel "Senkronize Et" butonu (Fitbit'in gerçek webhook desteği —
+Subscriptions API— var ama subscriber doğrulama + ayrı bir Edge Function
+gerektirdiği için bilinçli olarak ertelendi, kullanıcı onaylı karar).
+
+### 5.4 Normalize Edilmiş Ortak Şema
 
 Her iki provider verisi `wearable_daily_metrics` tablosunda birleşir:
 
@@ -890,6 +933,12 @@ Kapsam dışı (kullanıcı onaylı): timer/kronometre, skor/sonuç girişi, ton
 ```
 Middleware/layout'ta EK değişiklik gerekmedi: ATHLETE GUARD `pathname === "/wearables"` tam eşleşmesi kullanıyor, bu yüzden `/wearables/[athleteId]` sporcu rolü için zaten otomatik bloklanıyor (bkz. `apps/web/middleware.ts`).
 
+**Sonradan eklenen görevler (2026-09-13 — üçüncü wearable provider: Fitbit):**
+```
+[x] `athlete-wearable-client.tsx`'teki generic `ProviderCard` + `[athleteId]/athlete-wearable-detail-client.tsx`'teki generic `ProviderSection` bileşenlerine ÜÇÜNCÜ bir çağrı eklendi (yeni bileşen YAZILMADI) — WHOOP/Polar'dan sonra kurulan generic tasarımın tam olarak beklendiği gibi üçüncü provider'a kolayca genişlediğini doğruladı
+[x] `wearables-client.tsx` (koç/admin liste) özet kartlarına "Fitbit Bağlı" + tabloya üçüncü durum kolonu eklendi
+```
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -980,6 +1029,9 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 [x] apps/web/app/api/wearables/polar/connect/route.ts + callback/route.ts + disconnect/route.ts + sync/route.ts → YENİ (2026-09-13), whoop/connect-callback-disconnect'in web-only kopyası + manuel senkron route'u (bkz. aşağıdaki "Polar entegrasyonu" notu). Eski görev listesindeki `apps/web/app/(dashboard)/wearables/polar-connect/route.ts` yolu KULLANILMADI (WHOOP'taki stale `whoop-connect/route.ts` girdisiyle aynı durum, bkz. yukarıdaki not).
 [x] apps/mobile/app/(tabs)/profile/connect-whoop.tsx → Sporcu WHOOP bağlantı (expo-web-browser + Linking)
 [ ] apps/mobile/app/(tabs)/profile/connect-polar.tsx → Sporcu Polar bağlantı (hâlâ stub — Polar bilinçli olarak yalnızca web'den bağlanıyor, bkz. aşağıdaki not)
+[x] packages/integrations/fitbit/{client,oauth,types,normalize,index}.ts → YENİ (2026-09-13), dev.fitbit.com resmi dokümantasyonuyla doğrulanarak sıfırdan yazıldı (bkz. §5.3)
+[x] apps/web/app/api/wearables/fitbit/{connect,callback,disconnect,sync}/route.ts → YENİ (2026-09-13), Polar'ın web-only + manuel senkron deseninin üçüncü kopyası, sync route'unda WHOOP tarzı ensureFreshToken (Fitbit token'ları 8sa'da sona eriyor)
+[ ] apps/mobile/app/(tabs)/profile/connect-fitbit.tsx → YOK, Fitbit bilinçli olarak yalnızca web'den bağlanıyor (Polar ile aynı kullanıcı tercihi)
 ```
 
 **WHOOP entegrasyonu AKTİF (2026-09-11).** Orijinal görev listesindeki
@@ -1101,6 +1153,23 @@ gerçek bir uygulama kaydedildi, `POLAR_CLIENT_ID`/`POLAR_CLIENT_SECRET`/
 gerçek hatalar bulunup düzeltildi (bkz. §5.2'nin başındaki not): yanlış OAuth scope
 string'i, yanlış API version prefix'i (v4 yerine v3), eksik path segmentleri, ve
 tamamen varsayımsal/yanlış Zod şemaları.
+
+**Fitbit entegrasyonu (2026-09-13, web-only, manuel senkron, kod hazır — canlı test
+bekliyor).** WHOOP/Polar'dan farklı olarak dev.fitbit.com'un resmi dokümantasyonu
+canlı taranarak (WebFetch) doğrulanmış gerçek endpoint/alan adlarıyla sıfırdan
+yazıldı — bkz. §5.3. Kısaca: WHOOP gibi rotating refresh token (8sa'da sona erer,
+`ensureFreshToken` gerekli), Polar gibi webhook yok (manuel "Senkronize Et"),
+scope authorize isteğinde dinamik istenir ("sleep heartrate activity", Polar'daki
+gibi panelde önceden seçilen sabit bir tip YOK). `recovery_score`/`sleep_score`
+gibi Fitbit'in public API'sinde karşılığı olmayan alanlar dürüstçe null bırakılır.
+
+**Devreye almak için manuel adımlar (yapılmadı, kullanıcı yapmalı):**
+1. dev.fitbit.com'da hesap açıp **"Server"** tipinde yeni bir uygulama kaydet →
+   gerçek `FITBIT_CLIENT_ID`/`FITBIT_CLIENT_SECRET` değerlerini `apps/web/.env.local`'e
+   yaz (şu an placeholder).
+2. Redirect URL'i `apps/web/.env.local`'deki `FITBIT_REDIRECT_URI` ile BİREBİR aynı
+   kaydet (`.env.example`'da zaten `http://localhost:3000/api/wearables/fitbit/callback`).
+3. Dev server'ı yeniden başlat (env değişikliği için).
 
 **Normalize etme:**
 ```typescript
@@ -1280,7 +1349,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-13
+Son otomatik senkron: 2026-09-14
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1343,6 +1412,8 @@ Son otomatik senkron: 2026-09-13
 - 20260912072715_wod_sessions.sql
 - 20260913123732_whoop_workouts.sql
 - 20260913131022_polar_exercises.sql
+- 20260913201909_fitbit_activities.sql
+- 20260914075144_exercise_1rm_ratios.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1361,7 +1432,7 @@ Son otomatik senkron: 2026-09-13
     henüz başlanmadı, bkz. §6 Agent 5 görev listesi)
 
 ### Env Dosyaları
-- Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `WHOOP_CLIENT_ID`/`WHOOP_CLIENT_SECRET`/`WHOOP_REDIRECT_URI`/`WHOOP_WEBHOOK_SECRET` (2026-09-11'de eklendi; 2026-09-13 itibarıyla GERÇEK developer app kaydıyla dolduruldu — Nazlı Savranbaşı'nın hesabı canlı bağlı, `wearable_connections`'da aktif token + yakın zamanlı `last_synced_at` doğrulandı), Polar placeholders (hâlâ)
+- Web: `apps/web/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `WHOOP_CLIENT_ID`/`WHOOP_CLIENT_SECRET`/`WHOOP_REDIRECT_URI`/`WHOOP_WEBHOOK_SECRET` (2026-09-11'de eklendi; 2026-09-13 itibarıyla GERÇEK developer app kaydıyla dolduruldu — Nazlı Savranbaşı'nın hesabı canlı bağlı, `wearable_connections`'da aktif token + yakın zamanlı `last_synced_at` doğrulandı), `POLAR_CLIENT_ID`/`POLAR_CLIENT_SECRET`/`POLAR_REDIRECT_URI` (2026-09-13'te eklendi, GERÇEK developer app kaydıyla dolduruldu, canlı bağlantı doğrulandı — bkz. §6 Agent 5), `FITBIT_CLIENT_ID`/`FITBIT_CLIENT_SECRET`/`FITBIT_REDIRECT_URI` placeholder (henüz gerçek developer app kaydı yapılmadı)
 - Mobile: `apps/mobile/.env` — `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`, `EXPO_PUBLIC_APP_URL` (2026-09-11'de eklendi — WHOOP authorize/callback route'larını barındıran apps/web adresi, emülatörde `10.0.2.2:3000`)
 
 ### Test Hesapları
@@ -1410,6 +1481,14 @@ Son otomatik senkron: 2026-09-13
   testte üç ayrı yanlış varsayım bulunup düzeltildi (yanlış scope, yanlış API version
   prefix'i, yanlış Zod şemaları — bkz. §5.2 ve §6 Agent 5) — son düzeltmeden sonraki
   uçtan uca doğrulama devam ediyor.
+- ✅ Fitbit entegrasyonu (2026-09-13, kod hazır) — dev.fitbit.com resmi
+  dokümantasyonuyla doğrulanarak sıfırdan yazıldı (bkz. §5.3), WHOOP/Polar'dan
+  sonra kurulan generic `ProviderCard`/`ProviderSection` UI bileşenlerine üçüncü
+  provider olarak eklendi. Web-only OAuth (8sa'da sona eren, rotating refresh
+  token — WHOOP ile aynı desen) + manuel "Senkronize Et" (uyku/kalp atışı/HRV
+  + `fitbit_activities`). Gerçek Fitbit developer app kaydı ve secret'ların
+  girilmesi bekliyor — bkz. §6 Agent 5 "Devreye almak için manuel adımlar"
+  (WHOOP/Polar'dakiyle aynı desen).
 - ✅ Sporcu web profili: `/profile` — sporcu kendi bilgilerini (ad, takım, org, fiziksel
   veriler) salt-okunur görür, düzenleme yok (RLS'te athlete self-update izni yok) (2026-09-11)
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
@@ -1422,6 +1501,7 @@ Son otomatik senkron: 2026-09-13
 - ⏳ Program builder süperset sistemi
 - ⏳ Polar gerçek developer app kaydı + otomatik/periyodik senkron (pg_cron) — kod hazır,
   bkz. Çalışan Özellikler
+- ⏳ Fitbit gerçek developer app kaydı + canlı uçtan uca test — kod hazır, bkz. Çalışan Özellikler
 - ⏳ RLS izolasyon testleri
 - ⏳ E2E Playwright testleri
 

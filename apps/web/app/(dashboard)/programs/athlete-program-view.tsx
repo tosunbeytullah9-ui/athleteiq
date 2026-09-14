@@ -6,7 +6,11 @@ import { ChevronLeft, ChevronRight, Clock, MessageSquare } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
-import { buildMaxHistoryLookup, type Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
+import {
+  buildMaxHistoryLookup,
+  type Athlete1RMRecord,
+  type Exercise1RMRatio,
+} from "@athleteiq/db/queries/exercises";
 import { isDateActive, sortAthletePrograms } from "@athleteiq/db/queries/programs";
 import type { Tables } from "@athleteiq/db/types";
 import {
@@ -41,6 +45,7 @@ const SESSION_TYPE_COLORS: Record<string, string> = {
 interface Props {
   programs: Program[];
   maxHistory: Athlete1RMRecord[];
+  ratios?: Exercise1RMRatio[];
 }
 
 function ExerciseDetailCard({
@@ -144,8 +149,11 @@ function dayDate(startDate: string | null, dayOfWeek: number): Date | null {
   return d;
 }
 
-export function AthleteProgramView({ programs, maxHistory }: Props) {
-  const maxHistoryLookup = useMemo(() => buildMaxHistoryLookup(maxHistory), [maxHistory]);
+export function AthleteProgramView({ programs, maxHistory, ratios = [] }: Props) {
+  const maxHistoryLookup = useMemo(
+    () => buildMaxHistoryLookup(maxHistory, ratios),
+    [maxHistory, ratios]
+  );
   const todayIso = toLocalDateString(new Date());
   const todayDow = getTodayDayOfWeek();
 

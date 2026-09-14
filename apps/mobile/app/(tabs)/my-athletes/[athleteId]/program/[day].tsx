@@ -13,7 +13,11 @@ import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import { ExerciseCard } from "@/components/ExerciseCard";
 import { WodSessionCard } from "@/components/WodSessionCard";
 import { getActiveProgramId, getDaySessions } from "@athleteiq/db/queries/programs";
-import { getAthleteMaxes, buildMaxLookup } from "@athleteiq/db/queries/exercises";
+import {
+  getAthleteMaxes,
+  buildMaxLookup,
+  getExercise1RMRatios,
+} from "@athleteiq/db/queries/exercises";
 import type { Tables } from "@athleteiq/db/types";
 
 type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: Tables<"exercise_sets">[] };
@@ -59,9 +63,10 @@ export default function CoachProgramDayScreen() {
 
         if (!programId) return;
 
-        const [data, athleteMaxes] = await Promise.all([
+        const [data, athleteMaxes, ratios] = await Promise.all([
           getDaySessions(supabase, programId, dayNum),
           getAthleteMaxes(supabase, athlete!.id),
+          getExercise1RMRatios(supabase),
         ]);
 
         const withSortedExercises = (data as SessionWithExercises[]).map((s) => ({
@@ -71,7 +76,7 @@ export default function CoachProgramDayScreen() {
           ),
         }));
         setSessions(withSortedExercises);
-        setMaxLookup(buildMaxLookup(athleteMaxes));
+        setMaxLookup(buildMaxLookup(athleteMaxes, ratios));
       } finally {
         setLoading(false);
       }

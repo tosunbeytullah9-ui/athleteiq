@@ -408,6 +408,36 @@ export type Database = {
           },
         ]
       }
+      exercise_1rm_ratios: {
+        Row: {
+          base_exercise_name: string
+          created_at: string | null
+          exercise_name: string
+          id: string
+          notes: string | null
+          ratio: number
+          updated_at: string | null
+        }
+        Insert: {
+          base_exercise_name: string
+          created_at?: string | null
+          exercise_name: string
+          id?: string
+          notes?: string | null
+          ratio: number
+          updated_at?: string | null
+        }
+        Update: {
+          base_exercise_name?: string
+          created_at?: string | null
+          exercise_name?: string
+          id?: string
+          notes?: string | null
+          ratio?: number
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       exercise_sets: {
         Row: {
           band_resistance: string | null
@@ -534,6 +564,56 @@ export type Database = {
             columns: ["session_id"]
             isOneToOne: false
             referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      fitbit_activities: {
+        Row: {
+          activity_name: string | null
+          athlete_id: string
+          avg_hr: number | null
+          calories: number | null
+          created_at: string
+          distance_meter: number | null
+          duration_sec: number | null
+          fitbit_log_id: string
+          id: string
+          raw_data: Json | null
+          start_time: string
+        }
+        Insert: {
+          activity_name?: string | null
+          athlete_id: string
+          avg_hr?: number | null
+          calories?: number | null
+          created_at?: string
+          distance_meter?: number | null
+          duration_sec?: number | null
+          fitbit_log_id: string
+          id?: string
+          raw_data?: Json | null
+          start_time: string
+        }
+        Update: {
+          activity_name?: string | null
+          athlete_id?: string
+          avg_hr?: number | null
+          calories?: number | null
+          created_at?: string
+          distance_meter?: number | null
+          duration_sec?: number | null
+          fitbit_log_id?: string
+          id?: string
+          raw_data?: Json | null
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fitbit_activities_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
             referencedColumns: ["id"]
           },
         ]
