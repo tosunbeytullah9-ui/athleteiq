@@ -30,11 +30,13 @@ type WearableConnection = Tables<"wearable_connections">;
 type WearableMetric = Tables<"wearable_daily_metrics">;
 type WhoopWorkout = Tables<"whoop_workouts">;
 type PolarExercise = Tables<"polar_exercises">;
+type FitbitActivity = Tables<"fitbit_activities">;
 
 interface Props {
   athlete: Athlete;
   whoop: { connection: WearableConnection | null; metrics: WearableMetric[]; workouts: WhoopWorkout[] };
   polar: { connection: WearableConnection | null; metrics: WearableMetric[]; exercises: PolarExercise[] };
+  fitbit: { connection: WearableConnection | null; metrics: WearableMetric[]; activities: FitbitActivity[] };
 }
 
 function formatSyncTime(iso: string | null): string {
@@ -87,6 +89,19 @@ function polarExerciseToRow(e: PolarExercise): WorkoutRow {
     loadLabel: "Yük",
     hr: `${e.avg_hr ?? "—"} / ${e.max_hr ?? "—"}`,
     calories: e.calories != null ? String(e.calories) : "—",
+  };
+}
+
+function fitbitActivityToRow(a: FitbitActivity): WorkoutRow {
+  return {
+    id: a.id,
+    start: a.start_time,
+    sport: a.activity_name ?? "—",
+    durationLabel: a.duration_sec != null ? formatDurationMin(Math.round(a.duration_sec / 60)) : "—",
+    load: "—",
+    loadLabel: "Yük",
+    hr: `${a.avg_hr ?? "—"} / —`,
+    calories: a.calories != null ? String(a.calories) : "—",
   };
 }
 
@@ -263,9 +278,10 @@ function ProviderSection({ label, connection, metrics, rows, syncHref, athleteId
   );
 }
 
-export function AthleteWearableDetailClient({ athlete, whoop, polar }: Props) {
+export function AthleteWearableDetailClient({ athlete, whoop, polar, fitbit }: Props) {
   const whoopRows = whoop.workouts.map(whoopWorkoutToRow);
   const polarRows = polar.exercises.map(polarExerciseToRow);
+  const fitbitRows = fitbit.activities.map(fitbitActivityToRow);
 
   return (
     <div className="space-y-6">
@@ -296,6 +312,15 @@ export function AthleteWearableDetailClient({ athlete, whoop, polar }: Props) {
         metrics={polar.metrics}
         rows={polarRows}
         syncHref="/api/wearables/polar/sync"
+        athleteId={athlete.id}
+      />
+
+      <ProviderSection
+        label="Fitbit"
+        connection={fitbit.connection}
+        metrics={fitbit.metrics}
+        rows={fitbitRows}
+        syncHref="/api/wearables/fitbit/sync"
         athleteId={athlete.id}
       />
     </div>

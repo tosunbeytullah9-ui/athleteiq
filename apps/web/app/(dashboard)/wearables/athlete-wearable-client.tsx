@@ -16,6 +16,8 @@ interface Props {
   whoopMetrics: WearableMetric[];
   polarConnection: WearableConnection | null;
   polarMetrics: WearableMetric[];
+  fitbitConnection: WearableConnection | null;
+  fitbitMetrics: WearableMetric[];
   status: string | null;
 }
 
@@ -217,6 +219,8 @@ export function AthleteWearableClient({
   whoopMetrics,
   polarConnection,
   polarMetrics,
+  fitbitConnection,
+  fitbitMetrics,
   status,
 }: Props) {
   const router = useRouter();
@@ -236,11 +240,11 @@ export function AthleteWearableClient({
       <div>
         <h1 className="text-2xl font-bold">Wearable</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          WHOOP veya Polar hesabını bağla, toparlanma ve uyku verini otomatik senkronize et.
+          WHOOP, Polar veya Fitbit hesabını bağla, toparlanma ve uyku verini senkronize et.
         </p>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 items-start">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 items-start">
         <ProviderCard
           label="WHOOP"
           badgeClass="bg-black text-white"
@@ -258,6 +262,15 @@ export function AthleteWearableClient({
           disconnectHref="/api/wearables/polar/disconnect"
           syncHref="/api/wearables/polar/sync"
         />
+        <ProviderCard
+          label="Fitbit"
+          badgeClass="bg-teal-600 text-white"
+          connection={fitbitConnection}
+          metrics={fitbitMetrics}
+          connectHref="/api/wearables/fitbit/connect"
+          disconnectHref="/api/wearables/fitbit/disconnect"
+          syncHref="/api/wearables/fitbit/sync"
+        />
       </div>
 
       <div className="flex gap-3 rounded-xl border bg-muted/40 p-4">
@@ -267,7 +280,7 @@ export function AthleteWearableClient({
           <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
             Bağladığın wearable&apos;dan gelen toparlanma, uyku ve strain verileri koçun ve
             organizasyon yöneticin tarafından görülebilir — antrenman yükünü buna göre ayarlarlar.
-            Polar otomatik senkronize olmaz, güncel veri için &quot;Senkronize Et&quot;e basman gerekir.
+            Polar ve Fitbit otomatik senkronize olmaz, güncel veri için &quot;Senkronize Et&quot;e basman gerekir.
           </p>
         </div>
       </div>

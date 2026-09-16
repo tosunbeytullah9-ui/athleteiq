@@ -2,7 +2,7 @@ import type { WHOOPRecovery, WHOOPSleep, WHOOPCycle } from "./types";
 
 export interface DailyMetrics {
   athleteId: string;
-  provider: "whoop" | "polar";
+  provider: "whoop" | "polar" | "fitbit";
   metricDate: string;
   recoveryScore: number | null;
   hrvRmssd: number | null;

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import {
+  getFitbitActivities,
   getPolarExercises,
   getWearableConnection,
   getWearableMetrics,
@@ -30,21 +31,38 @@ export default async function AthleteWearableDetailPage({ params }: PageProps) {
   const rangeStartIso = `${rangeStart}T00:00:00`;
   const rangeEndIso = `${today}T23:59:59`;
 
-  const [whoopConnection, whoopMetrics, workouts, polarConnection, polarMetrics, polarExercises] =
-    await Promise.all([
-      getWearableConnection(supabase, athlete.id, "whoop"),
-      getWearableMetrics(supabase, athlete.id, "whoop", rangeStart, today),
-      getWorkouts(supabase, athlete.id, rangeStartIso, rangeEndIso),
-      getWearableConnection(supabase, athlete.id, "polar"),
-      getWearableMetrics(supabase, athlete.id, "polar", rangeStart, today),
-      getPolarExercises(supabase, athlete.id, rangeStartIso, rangeEndIso),
-    ]);
+  const [
+    whoopConnection,
+    whoopMetrics,
+    workouts,
+    polarConnection,
+    polarMetrics,
+    polarExercises,
+    fitbitConnection,
+    fitbitMetrics,
+    fitbitActivities,
+  ] = await Promise.all([
+    getWearableConnection(supabase, athlete.id, "whoop"),
+    getWearableMetrics(supabase, athlete.id, "whoop", rangeStart, today),
+    getWorkouts(supabase, athlete.id, rangeStartIso, rangeEndIso),
+    getWearableConnection(supabase, athlete.id, "polar"),
+    getWearableMetrics(supabase, athlete.id, "polar", rangeStart, today),
+    getPolarExercises(supabase, athlete.id, rangeStartIso, rangeEndIso),
+    getWearableConnection(supabase, athlete.id, "fitbit"),
+    getWearableMetrics(supabase, athlete.id, "fitbit", rangeStart, today),
+    getFitbitActivities(supabase, athlete.id, rangeStartIso, rangeEndIso),
+  ]);
 
   return (
     <AthleteWearableDetailClient
       athlete={athlete}
       whoop={{ connection: whoopConnection, metrics: whoopMetrics, workouts: workouts ?? [] }}
       polar={{ connection: polarConnection, metrics: polarMetrics, exercises: polarExercises ?? [] }}
+      fitbit={{
+        connection: fitbitConnection,
+        metrics: fitbitMetrics,
+        activities: fitbitActivities ?? [],
+      }}
     />
   );
 }

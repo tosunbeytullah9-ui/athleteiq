@@ -35,6 +35,7 @@ interface AthleteStatus {
   full_name: string;
   whoop: boolean;
   polar: boolean;
+  fitbit: boolean;
   lastSynced: string | null;
 }
 
@@ -60,22 +61,24 @@ export function WearablesClient({ connections, athletes }: Props) {
       );
       const whoop = conns.some((c) => c.provider === "whoop");
       const polar = conns.some((c) => c.provider === "polar");
+      const fitbit = conns.some((c) => c.provider === "fitbit");
       const lastSynced = conns
         .map((c) => c.last_synced_at)
         .filter((d): d is string => !!d)
         .sort()
         .reverse()[0] ?? null;
-      return { id: a.id, full_name: a.full_name, whoop, polar, lastSynced };
+      return { id: a.id, full_name: a.full_name, whoop, polar, fitbit, lastSynced };
     });
   }, [athletes, connections]);
 
   const totalAthletes = athletes.length;
   const whoopConnected = statuses.filter((s) => s.whoop).length;
   const polarConnected = statuses.filter((s) => s.polar).length;
+  const fitbitConnected = statuses.filter((s) => s.fitbit).length;
 
   const filtered = useMemo(() => {
     return statuses.filter((s) => {
-      const anyConnected = s.whoop || s.polar;
+      const anyConnected = s.whoop || s.polar || s.fitbit;
       if (filter === "connected") return anyConnected;
       if (filter === "disconnected") return !anyConnected;
       return true;
@@ -92,7 +95,7 @@ export function WearablesClient({ connections, athletes }: Props) {
       </div>
 
       {/* Özet kartları */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -136,6 +139,22 @@ export function WearablesClient({ connections, athletes }: Props) {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">
+              Fitbit Bağlı
+            </CardTitle>
+            <Watch className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {fitbitConnected}{" "}
+              <span className="text-base font-normal text-muted-foreground">
+                / {totalAthletes}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filtreler */}
@@ -170,6 +189,7 @@ export function WearablesClient({ connections, athletes }: Props) {
                   <TableHead>Sporcu</TableHead>
                   <TableHead>WHOOP</TableHead>
                   <TableHead>Polar</TableHead>
+                  <TableHead>Fitbit</TableHead>
                   <TableHead>Son Senkronizasyon</TableHead>
                   <TableHead className="text-right">İşlem</TableHead>
                 </TableRow>
@@ -183,6 +203,9 @@ export function WearablesClient({ connections, athletes }: Props) {
                     </TableCell>
                     <TableCell>
                       <StatusBadge connected={s.polar} />
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge connected={s.fitbit} />
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {s.lastSynced

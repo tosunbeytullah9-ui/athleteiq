@@ -4,7 +4,8 @@
   "private": true,
   "exports": {
     "./whoop": "./whoop/index.ts",
-    "./polar": "./polar/index.ts"
+    "./polar": "./polar/index.ts",
+    "./fitbit": "./fitbit/index.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

@@ -54,17 +54,21 @@ export default async function WearablesPage({ searchParams }: PageProps) {
     const today = toLocalDateString(new Date());
     const weekAgo = toLocalDateString(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
 
-    const [whoopConnection, polarConnection] = await Promise.all([
+    const [whoopConnection, polarConnection, fitbitConnection] = await Promise.all([
       getWearableConnection(supabase, athlete.id, "whoop"),
       getWearableConnection(supabase, athlete.id, "polar"),
+      getWearableConnection(supabase, athlete.id, "fitbit"),
     ]);
 
-    const [whoopMetrics, polarMetrics] = await Promise.all([
+    const [whoopMetrics, polarMetrics, fitbitMetrics] = await Promise.all([
       whoopConnection?.is_active
         ? getWearableMetrics(supabase, athlete.id, "whoop", weekAgo, today)
         : Promise.resolve([]),
       polarConnection?.is_active
         ? getWearableMetrics(supabase, athlete.id, "polar", weekAgo, today)
+        : Promise.resolve([]),
+      fitbitConnection?.is_active
+        ? getWearableMetrics(supabase, athlete.id, "fitbit", weekAgo, today)
         : Promise.resolve([]),
     ]);
 
@@ -74,6 +78,8 @@ export default async function WearablesPage({ searchParams }: PageProps) {
         whoopMetrics={whoopMetrics}
         polarConnection={polarConnection}
         polarMetrics={polarMetrics}
+        fitbitConnection={fitbitConnection}
+        fitbitMetrics={fitbitMetrics}
         status={status ?? null}
       />
     );

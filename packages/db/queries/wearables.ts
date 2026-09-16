@@ -1,7 +1,7 @@
 import type { DbClient } from "./_client";
 import type { TablesInsert, TablesUpdate } from "../types";
 
-type Provider = "whoop" | "polar";
+type Provider = "whoop" | "polar" | "fitbit";
 
 export async function getWearableConnection(
   client: DbClient,
@@ -101,6 +101,24 @@ export async function getPolarExercises(
 ) {
   const { data, error } = await client
     .from("polar_exercises")
+    .select("*")
+    .eq("athlete_id", athleteId)
+    .gte("start_time", from)
+    .lte("start_time", to)
+    .order("start_time", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}
+
+export async function getFitbitActivities(
+  client: DbClient,
+  athleteId: string,
+  from: string,
+  to: string
+) {
+  const { data, error } = await client
+    .from("fitbit_activities")
     .select("*")
     .eq("athlete_id", athleteId)
     .gte("start_time", from)
