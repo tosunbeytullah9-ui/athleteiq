@@ -1,6 +1,36 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-09-16 (**Parti 21-AI — Süper Admin'e Özel Wearable AI Analiz Asistanı** —
+> Son güncelleme: 2026-09-16 (**AI Asistanı Düzeltmesi — "AI çalışmıyor"** — kullanıcı Parti 21-AI'da
+> eklenen asistanın canlıda hiç çalışmadığını bildirdi. **Öncesinde bulunan durum:** `llm.ts`'te
+> önceki bir teşhis oturumundan kalan, commit edilmemiş geçici `console.error` satırları vardı —
+> bunlar modelin tam çıktısını ve sağlayıcının ham hata gövdesini logluyordu (CLAUDE.md § AI Katmanı
+> Kuralları #3 ihlali), kaldırıldılar. **Teşhis:** `athlete_ai_insights` tablosundaki 4 hata kaydı
+> (`llm_http_404` → `llm_http_400` → `invalid_output` ×2) ve edge function logları okundu. `AI_ENABLED`
+> zaten `true`, secrets girilmiş, sağlayıcı Groq — yani yetki/feature-flag/config katmanları
+> sağlamdı, sorun tamamen LLM yanıtının işlenmesindeydi. **Kök neden 1 (asıl):** `max_tokens: 1200`
+> bütçesi akıl yürüten modellerde (Groq `openai/gpt-oss-120b`) reasoning token'larını da kapsıyor;
+> bütçe reasoning'e gidip model JSON şemanın ortasında kesiliyordu (logdaki gerçek çıktı `ozet` +
+> 4 `bulgular` içerip `oneriler`/`guven`'i hiç içermeden kapanmıştı). Kesin kanıt: düzeltme sonrası
+> ilk başarılı çağrı **1437 completion token** harcadı — eski sınır yapısal olarak yetersizdi.
+> **Kök neden 2:** `validateOutput`'un ya-hep-ya-hiç doğrulaması en küçük sapmada tüm analizi
+> `invalid_output`'a çeviriyordu, "1 tekrar" mekanizması da aynı bütçeyle çalıştığı için kurtarma
+> sağlamıyordu. **Düzeltme:** `max_tokens` 4000; `validateOutput` yerine `parseModelContent` +
+> `normalizeOutput` (+ `repairTruncatedJson` — kesilmiş JSON açık `{ [ "` yapıları kapatılarak
+> onarılır); sınır aşımları kırpılır, bozuk öğeler elenir, `guven` diyakritikten bağımsız eşlenir;
+> ikinci deneme de eksikse **kısmi analiz artık atılmıyor**, `veri_uyarilari`'na not eklenip
+> sunuluyor; yeni `llm_truncated` hata kodu; UI'da sağlayıcı hata kodları (401/403/404/429/timeout/
+> network/truncated) eşlendi ve ham kod toast açıklamasında gösteriliyor (panel zaten süper
+> admin'e özel) — yanlış model adının teşhisini geciktiren şey bu eksiklikti. **Yan bulgu:** ilk
+> hata `AI_MODEL=llama-3.1-8b-instant`'ın Groq tarafından emekliye ayrılmış olmasıydı (404);
+> kullanıcı secret'ı değiştirince hata `invalid_output`'a kaymıştı. **Doğrulama:** ayrıştırma/
+> normalizasyon katmanı `__internal` üzerinden Node tip-soyma modunda (`node --experimental-strip-types`,
+> Deno bu ortamda hâlâ kurulu değil) **23/23 senaryo** geçti — canlı logdan alınan gerçek kesik
+> çıktı dahil; `apps/web` `tsc --noEmit` temiz; edge function `supabase functions deploy` ile v13'e
+> çıkıldı; **uçtan uca canlı test gerçek süper admin JWT'siyle: HTTP 200, `status:ok`**, 5 bulgu /
+> 4 öneri / 3 soru, 3.2sn, 2011 in / 1437 out token; yeni tanı logu `round=0 finish=stop parsed=true
+> complete=true` — tek turda, sağlık verisi loglamadan. Asistan artık canlıda çalışıyor. Şema/route/
+> klasör değişmediği için `pnpm docs:sync` gerekmedi. Detay: BUGS.md § Kritik, CLAUDE.md "AGENT 21-AI".)
+> Önceki: 2026-09-16 (**Parti 21-AI — Süper Admin'e Özel Wearable AI Analiz Asistanı** —
 > kullanıcının paylaştığı bir görev dokümanından (Google Docs) başlatıldı. Önkoşullar (Parti 20-S:
 > `is_super_admin()` `app_metadata` okuyor; Parti 20-W: `whoop-webhook`'ta `refreshRecentCycles`
 > deploy v9) canlı doğrulandı. **Öncesinde bulunan durum:** `parti-20-whoop-strain` branch'i

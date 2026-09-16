@@ -28,9 +28,20 @@ interface Props {
 
 // ai_disabled/rate_limited: doc'taki eşleme. insufficient_data 200 ile döner
 // (status alanından ayrı ele alınır), diğer her şey "Genel hata" varsayılanına düşer.
+// Sağlayıcı kaynaklı kodlar (llm_*) ayrıca eşlenir: canlı testte yanlış model adı
+// "Analiz oluşturulamadı" olarak görünüp teşhisi geciktirmişti.
 const ERROR_MESSAGES: Record<string, string> = {
   ai_disabled: "AI analizi şu an kapalı.",
   rate_limited: "Bu sporcu için günlük analiz limiti doldu.",
+  athlete_not_found: "Sporcu bulunamadı veya pasif.",
+  llm_http_401: "AI sağlayıcı anahtarı geçersiz (401). AI_API_KEY secret'ını kontrol edin.",
+  llm_http_403: "AI sağlayıcı erişimi reddetti (403). Anahtarın yetkilerini kontrol edin.",
+  llm_http_404: "AI modeli bulunamadı (404). AI_MODEL secret'ını kontrol edin.",
+  llm_http_429: "AI sağlayıcı kotası doldu (429). Bir süre sonra tekrar deneyin.",
+  llm_timeout: "AI sağlayıcı zaman aşımına uğradı.",
+  llm_network_error: "AI sağlayıcıya ulaşılamadı.",
+  llm_truncated: "Model yanıtı token sınırına takıldı.",
+  invalid_output: "Model geçerli bir değerlendirme üretemedi.",
 };
 const DEFAULT_ERROR_MESSAGE = "Analiz oluşturulamadı, daha sonra tekrar deneyin.";
 
@@ -85,6 +96,9 @@ export function AiInsightPanel({ athleteId, initialHistory }: Props) {
         }
         toast({
           title: (errorCode && ERROR_MESSAGES[errorCode]) ?? DEFAULT_ERROR_MESSAGE,
+          // Ham kod yalnızca süper admin'in gördüğü bu panelde gösterilir —
+          // eşlenmemiş bir hata da teşhis edilebilir kalsın.
+          description: errorCode ? `Hata kodu: ${errorCode}` : undefined,
           variant: "destructive",
         });
         return;

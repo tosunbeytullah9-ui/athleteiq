@@ -1221,8 +1221,26 @@ yalnızca süper admin'in gördüğü/tetiklediği AI katmanı.
   LLM'e gider. İsim/kullanıcı adı/UUID/doğum tarihi/email/not/org/takım/`raw_data` ASLA gönderilmez.
 - `prompt.ts` (`PROMPT_VERSION = "insight-v1"`, sistem mesajı sabit — bkz. doc, değiştirilemez) +
   `llm.ts` — OpenAI uyumlu `POST {AI_BASE_URL}/chat/completions`, `response_format: json_object`,
-  45sn timeout, 429/5xx'te retry-after'a uyan 1 tekrar, geçersiz JSON çıktısında ek talimatla 1
-  tekrar, nihai `guven` = modelin döndürdüğü değer ile `confidence_cap`'ten **düşük olanı**.
+  `max_tokens: 4000`, 45sn timeout, 429/5xx'te retry-after'a uyan 1 tekrar, eksik/şemadan sapmış
+  çıktıda ek talimatla 1 tekrar, nihai `guven` = modelin döndürdüğü değer ile `confidence_cap`'ten
+  **düşük olanı**.
+
+  **Model çıktısı hoşgörülü ayrıştırılır (2026-09-16 düzeltmesi — bkz. BUGS.md "AI asistanı hiç
+  çalışmıyordu").** İlk sürüm `validateOutput` ile ya-hep-ya-hiç doğrulama yapıyordu: şemadan en
+  küçük sapma (eksik `oneriler`, 6. bulgu, `"YÜKSEK"` yazımı) tüm analizi `invalid_output`'a
+  çeviriyordu. Artık `parseModelContent` + `normalizeOutput` zinciri kullanılır: kod bloğu soyulur,
+  etrafındaki düz metin atılır, **kesilmiş JSON açık `{ [ "` yapıları kapatılarak onarılır**
+  (`repairTruncatedJson`), bozuk diziler/öğeler tek tek elenir, sınır aşımları kırpılır (reddedilmez),
+  `guven` diyakritik/büyük-küçük harf farkından bağımsız eşlenir. Yanıt şemanın tamamını içermiyorsa
+  bir kez daha denenir; ikinci deneme de eksikse **elde olan kısmi analiz atılmaz**, yalnızca
+  `veri_uyarilari`'na "Model yanıtı eksik döndü" notu eklenir. Yalnızca `ozet` VE (bulgular, oneriler)
+  tamamen kurtarılamazsa hata döner — `finish_reason === "length"` ise `llm_truncated`, aksi halde
+  `invalid_output`.
+
+  **`max_tokens` akıl yürüten modellerde reasoning token'larını da kapsar.** Kök neden buydu:
+  Groq `openai/gpt-oss-120b` ile 1200'lük bütçe reasoning'e gidiyor, JSON şemanın ortasında
+  kesiliyordu. Gerçek bir başarılı çağrı 1437 completion token harcadı — yani eski sınır yapısal
+  olarak yetersizdi. Sağlayıcı/model değiştirilirse bu bütçe yeniden gözden geçirilmeli.
 - `index.ts` — yetki: çağıranın Authorization header'ıyla anon-key istemcisi + `rpc('is_super_admin')`
   (403 değilse), `AI_ENABLED!=='true'` → 503, girdi doğrulama (athlete_id UUID, date opsiyonel
   YYYY-MM-DD, verilmezse Europe/Istanbul bugünü), rate limit (sporcu başına 24 saatte ≥5 → 429),
@@ -1251,13 +1269,18 @@ supabase secrets set AI_ENABLED=false --project-ref nlmwcygmbbxmfpsubvmh
 supabase secrets set AI_BASE_URL=<saglayici-url> AI_MODEL=<model-adi> AI_API_KEY=<anahtar> --project-ref nlmwcygmbbxmfpsubvmh
 ```
 Sağlayıcı örnekleri: Gemini `https://generativelanguage.googleapis.com/v1beta/openai`, Groq
-`https://api.groq.com/openai/v1`. Gerçek sporcu verisiyle kullanım (`AI_ENABLED=true`) kararı
-KVKK açısından Beyto'ya aittir — bu Parti bilinçli olarak `false` bırakılmış deploy yaptı.
+`https://api.groq.com/openai/v1`.
+
+**Bu adımlar 2026-09-16'da tamamlandı:** `AI_ENABLED=true`, `AI_BASE_URL=https://api.groq.com/openai/v1`,
+`AI_MODEL=openai/gpt-oss-120b`. **Model adı secret'tır ve sağlayıcılar model emekliye ayırır** —
+`llama-3.1-8b-instant` ilk denemede `model_not_found` (404) döndürdü. `AI_MODEL` değiştirilirken
+`max_tokens` bütçesi de gözden geçirilmeli (bkz. yukarıdaki `llm.ts` notu).
 
 **Test kriteri:** `features.test.ts`/`payload.test.ts` (Deno) yazıldı — bu ortamda Deno kurulu
-olmadığı için ÇALIŞTIRILAMADI, yalnızca elle izlendi (bkz. PROGRESS.md § Parti 21-AI). AI_ENABLED
-false iken 503, süper admin olmayan çağrı 403, geçersiz athlete_id 400 — canlı doğrulama Beyto'nun
-gerçek bir süper admin JWT'siyle yapacağı manuel testlere kaldı.
+olmadığı için ÇALIŞTIRILAMADI. `llm.ts`'in ayrıştırma/normalizasyon katmanı 2026-09-16'da Node'un
+tip-soyma modu (`node --experimental-strip-types`) ile `__internal` üzerinden 23 senaryoyla
+doğrulandı — canlı logdan alınan gerçek kesik çıktı dahil. Uçtan uca canlı doğrulama da aynı gün
+gerçek süper admin JWT'siyle yapıldı (HTTP 200, `status:ok`).
 
 ---
 
@@ -1571,8 +1594,10 @@ Son otomatik senkron: 2026-09-16
 - ✅ Sporcu web profili: `/profile` — sporcu kendi bilgilerini (ad, takım, org, fiziksel
   veriler) salt-okunur görür, düzenleme yok (RLS'te athlete self-update izni yok) (2026-09-11)
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
-- ✅ Süper admin'e özel WHOOP AI analiz asistanı (2026-09-16, Parti 21-AI, kod hazır —
-  `AI_ENABLED=false` olduğu için üretimde KAPALI) — `/wearables/[athleteId]`'da yalnızca süper
+- ✅ Süper admin'e özel WHOOP AI analiz asistanı (2026-09-16, Parti 21-AI; **CANLI 2026-09-16** —
+  secrets girildi, `AI_ENABLED=true`, sağlayıcı Groq / `openai/gpt-oss-120b`, uçtan uca gerçek
+  sporcu verisiyle doğrulandı: `status:ok`, 5 bulgu / 4 öneri / 3 soru, ~3.2sn, 2011 in / 1437 out
+  token) — `/wearables/[athleteId]`'da yalnızca süper
   admin'e görünen `AiInsightPanel`, `athlete-ai-insight` Edge Function'ını (`supabase.functions.invoke`)
   tetikleyip seçili tarih için Türkçe koç değerlendirmesi üretir. 3 katman: `features.ts` (saf,
   deterministik — HRV/RHR/solunum z-skorları, recovery/uyku/yük/wellness göstergeleri, 8 bayrak,
@@ -1597,9 +1622,9 @@ Son otomatik senkron: 2026-09-16
 - ⏳ Polar gerçek developer app kaydı + otomatik/periyodik senkron (pg_cron) — kod hazır,
   bkz. Çalışan Özellikler
 - ⏳ Fitbit gerçek developer app kaydı + canlı uçtan uca test — kod hazır, bkz. Çalışan Özellikler
-- ⏳ AI analiz asistanı secrets'ı (`AI_ENABLED`/`AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL`) + canlı uçtan
-  uca test — kod hazır ve deploy edildi, `AI_ENABLED=false` bilinçli varsayılan, Beyto'nun onayı ve
-  secrets'ı bekliyor (bkz. Çalışan Özellikler, "AGENT 21-AI" notu)
+- ✅ ~~AI analiz asistanı secrets'ı + canlı uçtan uca test~~ — 2026-09-16'da tamamlandı
+  (`AI_ENABLED=true`, Groq `openai/gpt-oss-120b`), bkz. Çalışan Özellikler. KVKK kararı Beyto
+  tarafından verilmiş sayılır — gerçek sporcu verisi artık sağlayıcıya gidiyor.
 - ⏳ RLS izolasyon testleri
 - ⏳ E2E Playwright testleri
 
