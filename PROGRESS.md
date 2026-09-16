@@ -1,6 +1,43 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-09-05 (**Parti 20 — Attendance, Training Groups, Egzersiz Taksonomisi
+> Son güncelleme: 2026-09-16 (**Parti 20-S — Süper Admin Yetkisinin app_metadata'ya Taşınması
+> (KRİTİK GÜVENLİK)** — kullanıcının paylaştığı bir görev dokümanından başlatıldı. `is_super_admin()`
+> (`002_rls.sql`/`009_security_fixes.sql`) yetkiyi `auth.users.raw_user_meta_data` (`user_metadata`)
+> üzerinden okuyordu; bu alan oturum açmış HERHANGİ BİR kullanıcı tarafından istemciden
+> `supabase.auth.updateUser({ data: { platform_role: 'super_admin' } })` ile değiştirilebiliyordu —
+> herhangi bir sporcu/koç kendini süper admin yapıp `is_super_admin()`'in kullanıldığı onlarca RLS
+> politikası + 8 Edge Function üzerinden tüm organizasyonların (TGF, Koç Üniversitesi) verisine
+> erişebilirdi. Canlı taramada tek bir hesapta (meşru süper admin) bu bayrak bulundu, istismar
+> edilmediği doğrulandı. **Keşif:** repo genelinde 14 okuma noktası bulundu — web (5): `middleware.ts`
+> (2 yer), `app/page.tsx`, `lib/hooks/useUserContext.ts`, `(dashboard)/settings/users/page.tsx`,
+> `api/memberships/[id]/team/route.ts`; Edge Functions (8 dosya, 9 okuma): `update-org-user`,
+> `delete-org-user` (2 yer), `create-athlete-account`, `grant-athlete-access`,
+> `reset-athlete-password`, `create-org-user`, `reset-user-password`, `invite-member` (ölü kod —
+> 410 döner, tutarlılık için yine düzeltildi). Hepsi sunucu tarafı doğrulanmış `getUser()`/
+> `getUserById()` kullanıyordu, `platform_role`'ü **yazan** hiçbir kod yolu yoktu. **Düzeltme:**
+> migration `20260916084250_super_admin_app_metadata.sql` (MCP `apply_migration`, kendi zaman
+> damgasını atadı — CLAUDE.md §4.1 presedanıyla aynı, dosya buna göre hizalandı) mevcut süper
+> admin(ler)i `app_metadata`'ya kopyaladı, `is_super_admin()`'i aynı imza/dil/security
+> definer/search_path ile `raw_app_meta_data` okuyacak + `coalesce(...,false)` ile sarılı şekilde
+> yeniden tanımladı, eski `user_metadata.platform_role` anahtarını temizledi. 14 kod okuması
+> `app_metadata`'ya çevrildi, 8 Edge Function yeniden deploy edildi (`deploy_edge_function`,
+> `update-org-user` v4, `delete-org-user` v4, `create-athlete-account` v6, `grant-athlete-access`
+> v5, `reset-athlete-password` v4, `create-org-user` v4, `reset-user-password` v4, `invite-member`
+> v9). CLAUDE.md §4.1'e kalıcı kural eklendi: "Yetkilendirme asla user_metadata okumaz." Regresyon
+> script'i eklendi: `scripts/security/check-metadata-escalation.mjs` (bir test hesabıyla
+> `updateUser({data:{platform_role:'super_admin'}})` sonrası `is_super_admin()` hâlâ `false`
+> döndüğünü doğrular — kendiliğinden çalıştırılmadı, test hesabı kimlik bilgisi gerekiyor).
+> **DOĞRULAMA (canlı, `nlmwcygmbbxmfpsubvmh`):** `pg_get_functiondef` ile fonksiyonun
+> `raw_app_meta_data` okuduğu + `coalesce` ile sarılı olduğu doğrulandı; `app=1, um=0` (tam
+> beklenen); `routine_privileges` ile `authenticated`/`service_role`/`postgres` EXECUTE'a sahip,
+> `anon`'un OLMADIĞI doğrulandı (RLS regresyonsuz). `get_advisors` (security) migration sonrası
+> YENİ uyarı üretmedi — yalnızca önceden belgelenmiş `authenticated`/`anon` SECURITY DEFINER
+> uyarıları (Parti 18-S'te değerlendirilmiş) ve leaked-password ayarı (kod dışı). Şema tipi
+> değişmediği için `packages/db/types.ts` regen GEREKMEDİ (yalnızca fonksiyon gövdesi
+> `create or replace`, imza aynı). **BEKLEYEN manuel adım:** süper admin hesabının
+> (`beytullah.tosun@tgf`) yeni JWT'nin `app_metadata`'yı taşıması için çıkış yapıp tekrar giriş
+> yapması gerekiyor — henüz doğrulanmadı. Detay: § Parti 20-S, BUGS.md § Kritik)
+> Önceki: 2026-09-05 (**Parti 20 — Attendance, Training Groups, Egzersiz Taksonomisi
 > Genişletmesi** — Öncelik 2 listesindeki 4 maddeyi kapattı. (1) ACWR grafiği zaten Recharts ile
 > uygulanmıştı (`acwr-client.tsx`), kod değişikliği gerekmedi, sadece doğrulandı. (2) Egzersiz
 > taksonomisi (`041_exercise_taxonomy_extend2.sql`) `movement_pattern`'e `total_body`/`cardio`/
@@ -1039,6 +1076,100 @@ kontrolünün unutulması. Aynı Parti'de yazılan (021_propagate_week.sql) dör
 `copy_program_tree`'de "çağıran zaten kontrol ediyor" varsayımıyla atlanmış — tıpkı
 `insert_sessions_tree`'nin Parti 8.G'de bulunan aynı sınıf açığı gibi. CLAUDE.md §4.1'e kalıcı
 kural olarak eklendi (bkz. CLAUDE.md değişikliği).
+
+---
+
+### Parti 20-S — Süper Admin Yetkisinin app_metadata'ya Taşınması (KRİTİK GÜVENLİK) ✅ (2026-09-16)
+
+#### Bağlam
+
+Kullanıcının paylaştığı bir görev dokümanından başlatıldı (Google Docs). Doküman canlı DB'de
+16.09.2026'da doğrulanmış bir bulgu içeriyordu: `is_super_admin()` yetkiyi `auth.users.raw_user_meta_data`
+(`user_metadata`) üzerinden okuyordu — bu alan oturum açmış **herhangi bir kullanıcı** tarafından
+istemciden `supabase.auth.updateUser({ data: { platform_role: 'super_admin' } })` ile
+değiştirilebiliyordu. `auth.users` üzerinde bunu engelleyen bir trigger yoktu.
+
+#### Etki
+
+`is_super_admin()` onlarca RLS politikasında (organizations/teams/memberships/athletes/
+training_programs/training_sessions/exercises/acwr_logs/competitions/competition_results/
+test_results ve sonraki tüm migration'lardaki eklentiler) ve 8 Edge Function'da yetki kontrolü
+olarak kullanılıyor. Herhangi bir sporcu veya koç hesabı kendini süper admin yapıp TÜM
+organizasyonların (TGF, Koç Üniversitesi) verisine erişebilirdi.
+
+#### Keşif (ADIM 0)
+
+Repo genelinde `platform_role`/`user_metadata`/`raw_user_meta_data`/`is_super_admin` kalıpları
+tarandı. 14 okuma noktası bulundu — hepsi `user_metadata?.["platform_role"]`:
+- **Web (5):** `apps/web/middleware.ts` (2 yer — role-destination + `/admin` guard),
+  `apps/web/app/page.tsx`, `apps/web/lib/hooks/useUserContext.ts`,
+  `apps/web/app/(dashboard)/settings/users/page.tsx`, `apps/web/app/api/memberships/[id]/team/route.ts`.
+- **Edge Functions (8 dosya, 9 okuma):** `update-org-user`, `delete-org-user` (2 yer — caller +
+  hedef kullanıcı kontrolü, ikincisi süper admin hesaplarının bu yoldan silinmesini engelliyor),
+  `create-athlete-account`, `grant-athlete-access`, `reset-athlete-password`, `create-org-user`,
+  `reset-user-password`, `invite-member` (RETİRE/ölü kod — fonksiyon gövdesinin başında 410 Gone
+  dönüyor, bu satıra hiç ulaşılmıyor; tutarlılık için yine düzeltildi).
+
+Hepsi `supabase.auth.getUser()` (server-side, doğrulanmış) veya `auth.admin.getUserById()`
+kullanıyordu — hiçbiri `getSession()`'a güvenmiyordu, bu yüzden `app_metadata`'ya geçiş güvenli.
+`packages/db/types.ts` ve mobil kod tabanında (`apps/mobile`) hiçbir eşleşme yoktu.
+`platform_role`'ü **yazan** hiçbir kod yolu bulunamadı — CLAUDE.md §4.3'ün "bu bayrağı hiçbir
+repo scripti set etmez, yalnızca Supabase Dashboard/Admin API'den elle atanır" iddiasıyla tutarlı.
+Beklenmedik bir bulgu (örn. platform_role'ü başka bir tabloda tutan bir mekanizma) çıkmadı.
+
+#### Migration
+
+`supabase/migrations/20260916084250_super_admin_app_metadata.sql` — MCP `apply_migration` ile
+canlıya uygulandı (`nlmwcygmbbxmfpsubvmh`), kendi zaman damgasını atadı (CLAUDE.md §4.1'deki
+presedanla aynı desen — dosya yerel olarak `044_super_admin_app_metadata.sql` yazılmıştı, sonra
+`20260916084250_...` olarak yeniden adlandırılıp hizalandı). İçerik:
+1. Mevcut süper admin(ler)i (`raw_user_meta_data->>'platform_role' = 'super_admin'` olan satırlar)
+   `raw_app_meta_data`'ya kopyaladı.
+2. `is_super_admin()`'i — imza/dil/volatility/security definer/search_path AYNEN korunarak —
+   `raw_app_meta_data` okuyacak + `coalesce(...,false)` ile sarılı şekilde yeniden tanımladı.
+3. Eski `user_metadata.platform_role` anahtarını temizledi.
+
+GRANT/REVOKE'a dokunulmadı (`create or replace` mevcut yetkileri korur) — `authenticated` EXECUTE
+yetkisi RLS bağımlılığı nedeniyle kasıtlı olarak korundu.
+
+#### Kod değişiklikleri
+
+14 okuma noktasının tamamı `user_metadata?.["platform_role"]` → `app_metadata?.["platform_role"]`
+olarak değiştirildi (yukarıdaki keşif listesiyle birebir aynı 13 dosya). Başka hiçbir yetki mantığı
+değiştirilmedi — `my_role()`, `my_team_id()` ve athlete 4 katmanlı guard aynen kaldı. 8 Edge
+Function `deploy_edge_function` ile yeniden deploy edildi: `update-org-user` v4, `delete-org-user`
+v4, `create-athlete-account` v6, `grant-athlete-access` v5, `reset-athlete-password` v4,
+`create-org-user` v4, `reset-user-password` v4, `invite-member` v9 (hepsi ACTIVE).
+
+#### Regresyon koruması
+
+- CLAUDE.md §4.1'e kalıcı kural eklendi: "Yetkilendirme asla user_metadata okumaz. Rol ve platform
+  yetkisi yalnızca app_metadata'da veya DB tablolarında tutulur."
+- `scripts/security/check-metadata-escalation.mjs` eklendi — bir test hesabıyla giriş yapar,
+  `is_super_admin()`'in `false` döndüğünü doğrular, `updateUser({data:{platform_role:'super_admin'}})`
+  dener, tekrar `false` bekler, sonra geri alır. **Kendiliğinden çalıştırılmadı** — test hesabı
+  kimlik bilgisi (demo org'daki bir TEST kullanıcısı, gerçek sporcu/koç DEĞİL) kullanıcıdan
+  gerekiyor.
+
+#### Doğrulama (canlı, Supabase Cloud `nlmwcygmbbxmfpsubvmh`)
+
+- `pg_get_functiondef('public.is_super_admin()'::regprocedure)` → fonksiyonun `raw_app_meta_data`
+  okuduğu ve `coalesce(...,false)` ile sarılı olduğu doğrulandı.
+- `app=1, um=0` (tam beklenen — tek süper admin artık yalnızca `app_metadata`'da, hiçbir hesapta
+  `user_metadata.platform_role` kalmadı).
+- `information_schema.routine_privileges` → `is_super_admin()` için `authenticated`/`service_role`/
+  `postgres` EXECUTE'a sahip, `anon` DEĞİL (regresyon yok — RLS hâlâ normal çalışıyor).
+- `get_advisors` (security) migration sonrası YENİ uyarı üretmedi — yalnızca önceden belgelenmiş
+  `authenticated`/`anon` SECURITY DEFINER uyarıları (my_role/my_team_id/is_super_admin'in RLS
+  bağımlılığı nedeniyle kasıtlı, + Parti 18-S'te değerlendirilmiş diğer RPC'ler) ve leaked-password
+  ayarı (kod dışı, Dashboard).
+- Şema tipi değişmediği için `packages/db/types.ts` regen GEREKMEDİ (yalnızca fonksiyon gövdesi
+  `create or replace`, imza/dönüş tipi aynı).
+
+#### Bekleyen manuel adım
+
+Süper admin hesabının (`beytullah.tosun@tgf`) **çıkış yapıp tekrar giriş yapması** gerekiyor —
+yeni JWT'nin `app_metadata`'yı taşıması için. Bu, oturumun ilerlemesiyle henüz doğrulanmadı.
 
 ---
 

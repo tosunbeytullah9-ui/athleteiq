@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     const isPlatformAdmin =
-      caller.user_metadata?.["platform_role"] === "super_admin";
+      caller.app_metadata?.["platform_role"] === "super_admin";
 
     if (!isPlatformAdmin && callerMembership?.role !== "admin") {
       return new Response(

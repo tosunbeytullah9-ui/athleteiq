@@ -45,7 +45,7 @@ export async function PATCH(request: NextRequest, { params }: Props) {
     { auth: { persistSession: false } }
   );
 
-  const isSuperAdmin = user.user_metadata?.["platform_role"] === "super_admin";
+  const isSuperAdmin = user.app_metadata?.["platform_role"] === "super_admin";
 
   const { data: callerMembership } = await admin
     .from("memberships")

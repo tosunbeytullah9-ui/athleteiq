@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
     // Yetki: SADECE super_admin veya hedef org'un admin'i (koç DEĞİL —
     // reset-athlete-password'dan farkı budur).
-    const isPlatformAdmin = caller.user_metadata?.["platform_role"] === "super_admin";
+    const isPlatformAdmin = caller.app_metadata?.["platform_role"] === "super_admin";
     let authorized = isPlatformAdmin;
     if (!authorized) {
       const { data: callerMembership } = await supabaseAdmin

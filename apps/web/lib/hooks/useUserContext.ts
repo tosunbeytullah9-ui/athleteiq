@@ -48,7 +48,7 @@ export function useUserContext(): UserContext {
   const orgId = server.orgId ?? getCookie("aiq_org_id");
   const teamId = server.teamId ?? getCookie("aiq_team_id");
   const isSuperAdmin =
-    user?.user_metadata?.["platform_role"] === "super_admin";
+    user?.app_metadata?.["platform_role"] === "super_admin";
 
   return { user, role, orgId, teamId, isLoading, isSuperAdmin };
 }

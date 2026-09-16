@@ -18,7 +18,7 @@ export default async function RootPage() {
   }
 
   // Super admin platform_role kontrolü
-  if (user.user_metadata?.["platform_role"] === "super_admin") {
+  if (user.app_metadata?.["platform_role"] === "super_admin") {
     redirect("/admin");
   }
 

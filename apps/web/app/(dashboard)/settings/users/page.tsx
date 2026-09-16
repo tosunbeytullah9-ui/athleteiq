@@ -46,7 +46,7 @@ export default async function SettingsUsersPage() {
     memberships.map(async (m) => {
       const { data } = await admin.auth.admin.getUserById(m.user_id);
       if (data?.user?.email) emailByUserId.set(m.user_id, data.user.email);
-      if (data?.user?.user_metadata?.["platform_role"] === "super_admin") {
+      if (data?.user?.app_metadata?.["platform_role"] === "super_admin") {
         superAdminUserIds.add(m.user_id);
       }
     })

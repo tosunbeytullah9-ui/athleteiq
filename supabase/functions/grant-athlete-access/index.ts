@@ -92,7 +92,7 @@ Deno.serve(async (req: Request) => {
     // kuralla birebir aynı: super_admin, org admin, veya sporcunun kendi takımına
     // sahip coach. org_id/team_id sporcunun KENDİ satırından alınıyor.
     const isPlatformAdmin =
-      caller.user_metadata?.["platform_role"] === "super_admin";
+      caller.app_metadata?.["platform_role"] === "super_admin";
 
     let authorized = isPlatformAdmin;
     if (!authorized) {

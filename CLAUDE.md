@@ -517,6 +517,16 @@ yarışma sonucu/1RM/wellness/yoklama kaydı VE giriş erişimi yoksa) sunar —
 `competition_entries` tablosunu da ekledi (§3'te açıklandı) — RLS'i `competition_results`
 (`comp_results_select`/`comp_results_write`) ile birebir aynı kalıbı taklit eder.
 
+**Yetkilendirme asla `user_metadata` okumaz. Rol ve platform yetkisi yalnızca `app_metadata`'da
+veya DB tablolarında tutulur.** `is_super_admin()` başlangıçta `raw_user_meta_data` (`user_metadata`)
+okuyordu — bu alan oturum açmış **her kullanıcı** tarafından istemciden `supabase.auth.updateUser({
+data: { platform_role: 'super_admin' } })` ile değiştirilebiliyordu, dolayısıyla herhangi bir sporcu/koç
+hesabı kendini süper admin yapıp tüm organizasyonların verisine erişebiliyordu (16.09.2026'da canlı DB'de
+doğrulandı, `044_super_admin_app_metadata.sql` ile kapatıldı — Parti 20-S). `raw_app_meta_data`
+(`app_metadata`) yalnızca service role/admin API ile yazılabildiği için yetki verisi artık orada.
+Sunucu tarafı kontroller `supabase.auth.getUser()`'ın döndürdüğü `user.app_metadata` veya
+`supabase.rpc('is_super_admin')` kullanmalı — `getSession()`'a güvenilmez.
+
 ### 4.2 Tip Güvenliği Konvansiyonu — types.ts regenerasyonu
 
 Yeni bir tablo/kolon/RPC fonksiyonu eklendiğinde, `packages/db/types.ts` AYNI COMMIT İÇİNDE regenerate edilmeli (`supabase gen types`). Bunu sonraki bir partiye ertelemek, o aradaki tüm partilerde yeni eklenen alanların/fonksiyonların type-check tarafından doğrulanmadan geçmesine yol açar (Parti 3.B-3.E arası bu şekilde gecikti, bkz. PROGRESS.md).

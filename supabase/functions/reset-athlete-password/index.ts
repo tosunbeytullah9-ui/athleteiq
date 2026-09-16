@@ -76,7 +76,7 @@ Deno.serve(async (req: Request) => {
     // Çağıranın bu org'da (ve gerekirse bu takımda) yetkisi var mı?
     // grant-athlete-access / create-athlete-account ile birebir aynı kural.
     const isPlatformAdmin =
-      caller.user_metadata?.["platform_role"] === "super_admin";
+      caller.app_metadata?.["platform_role"] === "super_admin";
 
     let authorized = isPlatformAdmin;
     if (!authorized) {

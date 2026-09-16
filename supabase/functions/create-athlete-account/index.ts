@@ -113,7 +113,7 @@ Deno.serve(async (req: Request) => {
     // athletes_insert RLS politikasıyla (002_rls.sql) birebir aynı kural:
     // super_admin, org admin, veya kendi takımına sporcu ekleyen coach.
     const isPlatformAdmin =
-      caller.user_metadata?.["platform_role"] === "super_admin";
+      caller.app_metadata?.["platform_role"] === "super_admin";
 
     let authorized = isPlatformAdmin;
     if (!authorized) {

@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
 
     // Yetki: SADECE super_admin veya hedef org'un admin'i (koç DEĞİL —
     // reset-user-password/create-org-user ile aynı kısıt).
-    const isPlatformAdmin = caller.user_metadata?.["platform_role"] === "super_admin";
+    const isPlatformAdmin = caller.app_metadata?.["platform_role"] === "super_admin";
     let authorized = isPlatformAdmin;
     if (!authorized) {
       const { data: callerMembership } = await supabaseAdmin
@@ -90,7 +90,7 @@ Deno.serve(async (req: Request) => {
     // Hedef süper admin ise bu yoldan silinemez — kurtarma/silme yalnızca
     // Supabase Dashboard'tan (CLAUDE.md §4.3 ile aynı kısıt).
     const { data: targetAuthUser } = await supabaseAdmin.auth.admin.getUserById(user_id);
-    if (targetAuthUser?.user?.user_metadata?.["platform_role"] === "super_admin") {
+    if (targetAuthUser?.user?.app_metadata?.["platform_role"] === "super_admin") {
       return json(
         { error: "Süper admin hesapları yalnızca Supabase Dashboard'tan silinebilir" },
         400

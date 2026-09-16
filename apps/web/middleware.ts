@@ -55,7 +55,7 @@ export async function middleware(request: NextRequest) {
   if (PUBLIC_ROUTES.some((r) => pathname.startsWith(r))) {
     if (user && AUTH_ROUTES.some((r) => pathname.startsWith(r))) {
       const destination = getRoleDestination(
-        user.user_metadata?.["platform_role"],
+        user.app_metadata?.["platform_role"],
         request.cookies.get("aiq_role")?.value
       );
       return NextResponse.redirect(new URL(destination, request.url));
@@ -78,7 +78,7 @@ export async function middleware(request: NextRequest) {
 
   // Super admin guard — /admin routes
   if (pathname.startsWith("/admin")) {
-    const platformRole = user.user_metadata?.["platform_role"];
+    const platformRole = user.app_metadata?.["platform_role"];
     if (platformRole !== "super_admin") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
