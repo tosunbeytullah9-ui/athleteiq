@@ -62,7 +62,7 @@ function getMigrationFiles() {
 
 function getTableNamesFromMigrations(files) {
   const tableNames = new Set();
-  const re = /create\s+table\s+(?:if\s+not\s+exists\s+)?"?([a-zA-Z_][a-zA-Z0-9_]*)"?/gi;
+  const re = /create\s+table\s+(?:if\s+not\s+exists\s+)?"?(?:public\.)?([a-zA-Z_][a-zA-Z0-9_]*)"?/gi;
   for (const file of files) {
     const sql = readFileSync(path.join(MIGRATIONS_DIR, file), "utf8");
     let match;

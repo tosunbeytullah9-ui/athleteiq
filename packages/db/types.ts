@@ -108,6 +108,77 @@ export type Database = {
           },
         ]
       }
+      athlete_ai_insights: {
+        Row: {
+          algorithm_version: string
+          athlete_id: string
+          confidence: string | null
+          created_at: string
+          created_by: string | null
+          error_code: string | null
+          features: Json
+          id: string
+          insight_date: string
+          latency_ms: number | null
+          model: string | null
+          output: Json | null
+          payload_sent: Json | null
+          prompt_version: string
+          provider_base_url: string | null
+          status: string
+          tokens_in: number | null
+          tokens_out: number | null
+        }
+        Insert: {
+          algorithm_version: string
+          athlete_id: string
+          confidence?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_code?: string | null
+          features: Json
+          id?: string
+          insight_date: string
+          latency_ms?: number | null
+          model?: string | null
+          output?: Json | null
+          payload_sent?: Json | null
+          prompt_version: string
+          provider_base_url?: string | null
+          status: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Update: {
+          algorithm_version?: string
+          athlete_id?: string
+          confidence?: string | null
+          created_at?: string
+          created_by?: string | null
+          error_code?: string | null
+          features?: Json
+          id?: string
+          insight_date?: string
+          latency_ms?: number | null
+          model?: string | null
+          output?: Json | null
+          payload_sent?: Json | null
+          prompt_version?: string
+          provider_base_url?: string | null
+          status?: string
+          tokens_in?: number | null
+          tokens_out?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "athlete_ai_insights_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athlete_push_tokens: {
         Row: {
           athlete_id: string

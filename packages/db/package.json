@@ -18,7 +18,8 @@
     "./queries/organizations": "./queries/organizations.ts",
     "./queries/wellness": "./queries/wellness.ts",
     "./queries/attendance": "./queries/attendance.ts",
-    "./queries/profiles": "./queries/profiles.ts"
+    "./queries/profiles": "./queries/profiles.ts",
+    "./queries/ai-insights": "./queries/ai-insights.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

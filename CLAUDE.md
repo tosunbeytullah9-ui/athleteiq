@@ -200,6 +200,8 @@ AthleteIQ/
 ├── patches/
 │   └── react-native-css-interop@0.2.6.patch
 ├── scripts/
+│   ├── security/
+│   │   └── check-metadata-escalation.mjs
 │   ├── docs-sync.mjs
 │   ├── import-exercise-library.mjs
 │   └── table-descriptions.json
@@ -214,6 +216,7 @@ AthleteIQ/
 │   │   ├── rest-version
 │   │   └── storage-version
 │   ├── functions/
+│   │   ├── athlete-ai-insight/
 │   │   ├── create-athlete-account/
 │   │   ├── create-org-user/
 │   │   ├── delete-org-user/
@@ -273,7 +276,9 @@ AthleteIQ/
 │   │   ├── 20260913123732_whoop_workouts.sql
 │   │   ├── 20260913131022_polar_exercises.sql
 │   │   ├── 20260913201909_fitbit_activities.sql
-│   │   └── 20260914075144_exercise_1rm_ratios.sql
+│   │   ├── 20260914075144_exercise_1rm_ratios.sql
+│   │   ├── 20260916084250_super_admin_app_metadata.sql
+│   │   └── 20260916134047_athlete_ai_insights.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -308,6 +313,7 @@ AthleteIQ/
 <!-- AUTO-GENERATED:SCHEMA:START -->
 - **acwr_logs** — sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql).
 - **athlete_1rm_records** — Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki "Son max" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).
+- **athlete_ai_insights** — Süper admin'in tek tuşla ürettiği, bir sporcunun WHOOP verisi üzerine deterministik özellik hesaplama + LLM yorumundan oluşan Türkçe koç değerlendirmesi kaydı; yalnızca athlete-ai-insight Edge Function'ının service role'ü yazar, RLS SELECT'i yalnızca is_super_admin() true ise açar (20260916134047_athlete_ai_insights.sql, Parti 21-AI).
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
 - **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo/pozisyon vb. (001_schema.sql).
 - **attendance_records** — Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).
@@ -1194,6 +1200,67 @@ gibi Fitbit'in public API'sinde karşılığı olmayan alanlar dürüstçe null 
 
 ---
 
+### AGENT 21-AI: Süper Admin'e Özel Wearable AI Analiz Asistanı (2026-09-16, Parti 21-AI)
+
+**Sorumluluk:** Bir sporcunun WHOOP verisi için tek tuşla Türkçe koç değerlendirmesi üreten,
+yalnızca süper admin'in gördüğü/tetiklediği AI katmanı.
+
+**Mimari (3 katman), `supabase/functions/athlete-ai-insight/`:**
+- `features.ts` — saf fonksiyonlar, DB erişimi yok. Son 42 günün `wearable_daily_metrics`
+  (provider whoop), son 8 günün `whoop_workouts`, son 14 günün `wellness_checkins`'ten
+  deterministik göstergeler üretir: bugünün metrikleri (`ln_rmssd`, `recovery_zone`,
+  `sleep_need_min` vb.), 28 günlük kişisel baseline (ortalama/sd), z-skorları (yalnızca
+  baseline n≥7 ve sd>0 ise), 7 günlük trend, güne göre gruplanmış yük (Europe/Istanbul takvim
+  günü), wellness özeti, veri kalitesi (eksik günler göreli gün etiketiyle), 8 deterministik
+  bayrak (`HRV_DUSUK`, `RHR_YUKSEK`, `SOLUNUM_YUKSEK`, `RECOVERY_KIRMIZI`, `UYKU_KISA`,
+  `COKLU_SINYAL`, `BASELINE_YETERSIZ`, `WELLNESS_YOK`) ve `confidence_cap`. `ALGORITHM_VERSION =
+  "feat-v1"`. Tüm tarihler göreli (`bugun`, `gun_-N`) — payload'a mutlak tarih hiç girmez.
+- `payload.ts` — allowlist'li anonimleştirme: yalnızca `yas` (birth_date+insight_date'ten
+  hesaplanır), `cinsiyet` (yalnızca `female`→`kadin`, aksi her durumda `erkek` — belirsizlikte
+  güvenli taraf), `brans` (`position`'da "ARTİSTİK" geçiyorsa artistik cimnastik), `features`
+  LLM'e gider. İsim/kullanıcı adı/UUID/doğum tarihi/email/not/org/takım/`raw_data` ASLA gönderilmez.
+- `prompt.ts` (`PROMPT_VERSION = "insight-v1"`, sistem mesajı sabit — bkz. doc, değiştirilemez) +
+  `llm.ts` — OpenAI uyumlu `POST {AI_BASE_URL}/chat/completions`, `response_format: json_object`,
+  45sn timeout, 429/5xx'te retry-after'a uyan 1 tekrar, geçersiz JSON çıktısında ek talimatla 1
+  tekrar, nihai `guven` = modelin döndürdüğü değer ile `confidence_cap`'ten **düşük olanı**.
+- `index.ts` — yetki: çağıranın Authorization header'ıyla anon-key istemcisi + `rpc('is_super_admin')`
+  (403 değilse), `AI_ENABLED!=='true'` → 503, girdi doğrulama (athlete_id UUID, date opsiyonel
+  YYYY-MM-DD, verilmezse Europe/Istanbul bugünü), rate limit (sporcu başına 24 saatte ≥5 → 429),
+  veri yükleme (service role), `features.insufficient` ise LLM çağrılmadan `status:'insufficient_data'`
+  kaydı, aksi halde LLM çağrısı → `status:'ok'`/`'error'` kaydı. `verify_jwt: true` (asla kapatılmaz).
+
+**Veritabanı:** `athlete_ai_insights` tablosu (`20260916134047_athlete_ai_insights.sql`) —
+yalnızca service-role yazar (`revoke insert/update/delete from authenticated`, `revoke all from
+anon`), RLS SELECT'i `coalesce(is_super_admin(), false)`. `readiness_scores`'a DOKUNULMADI (ayrı
+algoritma, READINESS_PLAN.md).
+
+**Web UI:** `apps/web/app/(dashboard)/wearables/[athleteId]/ai-insight-panel.tsx`
+(`AiInsightPanel`, client component) — `page.tsx`'te sunucu tarafı `user.app_metadata.platform_role
+=== "super_admin"` kontrolü `false` ise panel hiç render edilmez (veri de hiç çekilmez,
+`packages/db/queries/ai-insights.ts` yalnızca `isSuperAdmin` true'yken çağrılır). Tarih seçici
+(varsayılan Europe/Istanbul bugünü) + "Analiz Oluştur/Yeniden Oluştur" butonu
+`supabase.functions.invoke('athlete-ai-insight', ...)` çağırır; hata gövdesi
+`(error as {context?:Response}).context` üzerinden okunup Türkçeye çevrilir
+(`ai_disabled`/`rate_limited`/`insufficient_data`/genel). Son 10 analiz geçmişi + "Modele
+gönderilen veri" açılır-kapanır JSON görünümü + sabit "karar destek amaçlıdır, tıbbi teşhis
+değildir" uyarısı.
+
+**Devreye almak için Beyto'nun manuel adımları (secrets repo'dan set edilemez):**
+```
+supabase secrets set AI_ENABLED=false --project-ref nlmwcygmbbxmfpsubvmh
+supabase secrets set AI_BASE_URL=<saglayici-url> AI_MODEL=<model-adi> AI_API_KEY=<anahtar> --project-ref nlmwcygmbbxmfpsubvmh
+```
+Sağlayıcı örnekleri: Gemini `https://generativelanguage.googleapis.com/v1beta/openai`, Groq
+`https://api.groq.com/openai/v1`. Gerçek sporcu verisiyle kullanım (`AI_ENABLED=true`) kararı
+KVKK açısından Beyto'ya aittir — bu Parti bilinçli olarak `false` bırakılmış deploy yaptı.
+
+**Test kriteri:** `features.test.ts`/`payload.test.ts` (Deno) yazıldı — bu ortamda Deno kurulu
+olmadığı için ÇALIŞTIRILAMADI, yalnızca elle izlendi (bkz. PROGRESS.md § Parti 21-AI). AI_ENABLED
+false iken 503, süper admin olmayan çağrı 403, geçersiz athlete_id 400 — canlı doğrulama Beyto'nun
+gerçek bir süper admin JWT'siyle yapacağı manuel testlere kaldı.
+
+---
+
 ### AGENT 6: Test Agent (Kalite Güvence Uzmanı)
 
 **Sorumluluk:** RLS testleri, API entegrasyon testleri, E2E senaryolar
@@ -1359,7 +1426,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-14
+Son otomatik senkron: 2026-09-16
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1424,6 +1491,8 @@ Son otomatik senkron: 2026-09-14
 - 20260913131022_polar_exercises.sql
 - 20260913201909_fitbit_activities.sql
 - 20260914075144_exercise_1rm_ratios.sql
+- 20260916084250_super_admin_app_metadata.sql
+- 20260916134047_athlete_ai_insights.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1502,6 +1571,22 @@ Son otomatik senkron: 2026-09-14
 - ✅ Sporcu web profili: `/profile` — sporcu kendi bilgilerini (ad, takım, org, fiziksel
   veriler) salt-okunur görür, düzenleme yok (RLS'te athlete self-update izni yok) (2026-09-11)
 - ✅ Mobile: login, program, recovery, competitions, profile, wearable connect ekranları
+- ✅ Süper admin'e özel WHOOP AI analiz asistanı (2026-09-16, Parti 21-AI, kod hazır —
+  `AI_ENABLED=false` olduğu için üretimde KAPALI) — `/wearables/[athleteId]`'da yalnızca süper
+  admin'e görünen `AiInsightPanel`, `athlete-ai-insight` Edge Function'ını (`supabase.functions.invoke`)
+  tetikleyip seçili tarih için Türkçe koç değerlendirmesi üretir. 3 katman: `features.ts` (saf,
+  deterministik — HRV/RHR/solunum z-skorları, recovery/uyku/yük/wellness göstergeleri, 8 bayrak,
+  `confidence_cap`), `payload.ts`+`prompt.ts`+`llm.ts` (allowlist'li anonim payload → OpenAI uyumlu
+  `/chat/completions`, 429/5xx'te 1 tekrar, geçersiz JSON çıktısında 1 tekrar), `athlete_ai_insights`
+  tablosu (yalnızca service-role yazar, RLS SELECT'i `coalesce(is_super_admin(), false)`). Bkz. AI
+  Katmanı Kuralları (hemen aşağıda) ve §6 Agent 5 sonrası "AGENT 21-AI" notu.
+
+**AI Katmanı Kuralları (Parti 21-AI, değiştirilemez):**
+1. LLM hiçbir sayı hesaplamaz — tüm göstergeler `features.ts`'te deterministik kodla üretilir, LLM yalnızca yorum yazar.
+2. LLM'e giden payload allowlist ile anonimleştirilir (`payload.ts`) — isim/kullanıcı adı/UUID/doğum tarihi/email/not/org/takım/raw_data ASLA gönderilmez, tüm tarihler göreli (`bugun`, `gun_-N`).
+3. Sağlık verisi (payload, model çıktısı, API anahtarı) ASLA loglanmaz — yalnızca durum/süre/token sayısı (`llm.ts`).
+4. Yalnızca süper admin erişir — hem Edge Function (`rpc('is_super_admin')` + 403) hem web paneli (sunucu tarafı `user.app_metadata.platform_role` kontrolü, değilse render edilmez) hem RLS (`athlete_ai_insights_select_super_admin`).
+5. `AI_ENABLED` varsayılanı `false`'tur — env'de `true` olmadıkça Edge Function 503 döner, gerçek sporcu verisiyle kullanım kararı KVKK açısından Beyto'ya aittir.
 
 ### Bekleyen Özellikler
 - ⏳ ~~Davet e-postası gerçek dış adreslere ulaşmıyor~~ — Parti 16'da davet akışının kendisi kaldırıldı (`invite-member` 410 döner), bu madde artık geçersiz. Custom SMTP kurulumu (Dashboard → Auth → SMTP Settings) yalnızca gelecekte bir email-doğrulama/şifre-sıfırlama-linki özelliği eklenirse gerekir.
@@ -1512,6 +1597,9 @@ Son otomatik senkron: 2026-09-14
 - ⏳ Polar gerçek developer app kaydı + otomatik/periyodik senkron (pg_cron) — kod hazır,
   bkz. Çalışan Özellikler
 - ⏳ Fitbit gerçek developer app kaydı + canlı uçtan uca test — kod hazır, bkz. Çalışan Özellikler
+- ⏳ AI analiz asistanı secrets'ı (`AI_ENABLED`/`AI_BASE_URL`/`AI_API_KEY`/`AI_MODEL`) + canlı uçtan
+  uca test — kod hazır ve deploy edildi, `AI_ENABLED=false` bilinçli varsayılan, Beyto'nun onayı ve
+  secrets'ı bekliyor (bkz. Çalışan Özellikler, "AGENT 21-AI" notu)
 - ⏳ RLS izolasyon testleri
 - ⏳ E2E Playwright testleri
 

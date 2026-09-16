@@ -1,6 +1,56 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-09-16 (**Parti 20-W — WHOOP Strain Snapshot Hatasının Düzeltilmesi** —
+> Son güncelleme: 2026-09-16 (**Parti 21-AI — Süper Admin'e Özel Wearable AI Analiz Asistanı** —
+> kullanıcının paylaştığı bir görev dokümanından (Google Docs) başlatıldı. Önkoşullar (Parti 20-S:
+> `is_super_admin()` `app_metadata` okuyor; Parti 20-W: `whoop-webhook`'ta `refreshRecentCycles`
+> deploy v9) canlı doğrulandı. **Öncesinde bulunan durum:** `parti-20-whoop-strain` branch'i
+> main'le aynı commit'teydi ama üzerinde önceki bir oturumdan kalan, hiç commit edilmemiş Fitbit
+> entegrasyonu değişiklikleri vardı (wearables UI/middleware/queries + yeni `packages/integrations/fitbit`)
+> — kullanıcı onayıyla ayrı bir commit'te (`feat(wearables): Fitbit entegrasyonu...`) kapatılıp
+> yeni Parti bundan sonra `parti-21-ai-insights` branch'inde açıldı (mobile debug artefaktları —
+> bugreport zip, `bundle_test.json`, kırık bir `index.js` — bilinçli olarak commit'lenmedi).
+> **Keşif (ADIM 0):** süper admin kontrolü deseni `user.app_metadata["platform_role"]==="super_admin"`
+> (server component'te `supabase.auth.getUser()` üzerinden — `middleware.ts`/`app/page.tsx` ile
+> aynı); edge function yetki deseni `create-org-user`'da `app_metadata` doğrudan okuma, ancak bu
+> Parti'nin dokümanı açıkça `rpc('is_super_admin')` + anon-key istemcisi istediği için o izlendi;
+> edge function'larda zod YOK, elle doğrulama konvansiyonu; UUID default `gen_random_uuid()`.
+> **Migration** `20260916134047_athlete_ai_insights.sql` (MCP `apply_migration`, kendi zaman
+> damgasını atadı, dosya buna göre adlandırıldı — CLAUDE.md §4.1 presedanı) — `athlete_ai_insights`
+> tablosu, yalnızca service-role yazar, RLS SELECT'i `coalesce(is_super_admin(), false)`.
+> `packages/db/types.ts` aynı oturumda regen edildi. **Edge Function** `athlete-ai-insight`
+> (`deploy_edge_function`, v1, `verify_jwt: true`) — `features.ts` (saf, `ALGORITHM_VERSION =
+> "feat-v1"`, HRV/RHR/solunum z-skorları + 8 deterministik bayrak + `confidence_cap`), `payload.ts`
+> (allowlist anonimleştirme — yas/cinsiyet/brans/features, tüm tarihler göreli), `prompt.ts`
+> (sistem mesajı doc'tan aynen kopyalandı, `PROMPT_VERSION = "insight-v1"`), `llm.ts` (OpenAI
+> uyumlu `/chat/completions`, 429/5xx retry, geçersiz JSON'da 1 tekrar, `guven = min(model,
+> confidence_cap)`), `index.ts` (yetki→AI_ENABLED→girdi doğrulama→rate limit→veri yükleme→
+> insufficient/ok/error dallanması). **Web UI:** `wearables/[athleteId]/ai-insight-panel.tsx`
+> (`AiInsightPanel`) — `page.tsx`'te sunucu tarafı süper admin kontrolü `false` ise panel hiç
+> render edilmez/veri çekilmez; `packages/db/queries/ai-insights.ts` eklendi. **Detay: bkz.
+> CLAUDE.md "AGENT 21-AI" bölümü ve "AI Katmanı Kuralları" (5 madde).**
+> **Doğrulama:** `pnpm --filter @athleteiq/db exec tsc --noEmit` ve `pnpm --filter @athleteiq/web
+> run type-check` temiz; `pnpm --filter @athleteiq/web run lint` yalnızca ÖNCEDEN VAR OLAN
+> uyarıları gösterdi (0 hata, yeni uyarı yok); `pnpm --filter @athleteiq/web run build` 49 sayfa
+> (yeni `/wearables/[athleteId]` dahil) temiz. Güvenlik: `pg_policies` yalnızca beklenen tek SELECT
+> politikasını gösterdi, `role_table_grants` `anon`'a HİÇ yetki, `authenticated`'e yalnızca SELECT
+> (+ şema-varsayılanı TRUNCATE/REFERENCES/TRIGGER) doğruladı, `get_advisors` (security) bu tabloya
+> dair YENİ bir uyarı üretmedi (bulunanlar önceden belgelenmiş program-RPC/`is_super_admin`
+> SECURITY DEFINER uyarıları + leaked-password ayarı). Deploy edilmiş fonksiyona kimliksiz `curl`
+> ile smoke test yapıldı — beklenen `401 UNAUTHORIZED_NO_AUTH_HEADER` döndü (gateway seviyesinde
+> JWT zorunluluğu aktif). **BEKLEYEN/BİLİNEN SINIRLAMA:** bu ortamda Deno kurulu değil —
+> `features.test.ts`/`payload.test.ts` (Test 1-4, doc'un istediği tüm senaryoları kapsıyor) YAZILDI
+> ama `deno test` ÇALIŞTIRILAMADI, yalnızca elle (formül formül) izlendi; gerçek süper admin
+> JWT'siyle uçtan uca fonksiyonel test (403/400/429/200 senaryoları) ve `AI_ENABLED`/`AI_BASE_URL`/
+> `AI_API_KEY`/`AI_MODEL` secrets'ının girilmesi Beyto'ya kaldı — doc'un kendi ADIM 10 talimatı
+> gereği **commit henüz yapılmadı**, kullanıcı onayı bekleniyor. Ayrıca `scripts/docs-sync.mjs`'teki
+> tablo-adı regex'i şema-nitelikli (`create table public.X`) migration'ları YAKALAMIYORDU (bu
+> Parti'nin migration'ı `public.` prefix'i kullandığı için — doc'un literal SQL'i böyleydi) — bu,
+> `pnpm docs:sync` çalıştırılırken keşfedilen gerçek bir tooling bug'ıydı, regex düzeltildi (`(?:public\.)?`
+> opsiyonel hale getirildi) ve `table-descriptions.json`'a `athlete_ai_insights` girdisi eklendi;
+> aynı oturumda ✅ FIXED, ayrıca `20260916084250_super_admin_app_metadata.sql`'in de CLAUDE.md §3/§11
+> listesine hiç işlenmediği fark edildi (Parti 20-S'te docs:sync çalıştırılmamış), bu `pnpm docs:sync`
+> çalıştırılınca otomatik düzeldi. Detay: § Parti 21-AI [eklenecek], BUGS.md'ye eklenmesi önerilir.)
+> Önceki: 2026-09-16 (**Parti 20-W — WHOOP Strain Snapshot Hatasının Düzeltilmesi** —
 > kullanıcının paylaştığı bir görev dokümanından başlatıldı. Canlı DB'de strain_score'un gün sonu
 > değil uyanış anı değerini tuttuğu (14.09: 0.38, oysa aynı gün 9.59+8.46 strain'lik 2 seans var)
 > ve `whoop_cycles.cycle_end`'in hiç yazılmadığı doğrulandı. Kök neden: cycle yalnızca sleep/

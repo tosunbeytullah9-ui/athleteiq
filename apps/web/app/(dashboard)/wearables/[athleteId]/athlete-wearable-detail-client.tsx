@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { toast } from "@/components/ui/use-toast";
 import type { Tables } from "@athleteiq/db/types";
+import { AiInsightPanel } from "./ai-insight-panel";
 
 type Athlete = { id: string; full_name: string };
 type WearableConnection = Tables<"wearable_connections">;
@@ -31,12 +32,15 @@ type WearableMetric = Tables<"wearable_daily_metrics">;
 type WhoopWorkout = Tables<"whoop_workouts">;
 type PolarExercise = Tables<"polar_exercises">;
 type FitbitActivity = Tables<"fitbit_activities">;
+type AthleteAiInsightRow = Tables<"athlete_ai_insights">;
 
 interface Props {
   athlete: Athlete;
   whoop: { connection: WearableConnection | null; metrics: WearableMetric[]; workouts: WhoopWorkout[] };
   polar: { connection: WearableConnection | null; metrics: WearableMetric[]; exercises: PolarExercise[] };
   fitbit: { connection: WearableConnection | null; metrics: WearableMetric[]; activities: FitbitActivity[] };
+  isSuperAdmin: boolean;
+  aiInsightHistory: AthleteAiInsightRow[];
 }
 
 function formatSyncTime(iso: string | null): string {
@@ -278,7 +282,14 @@ function ProviderSection({ label, connection, metrics, rows, syncHref, athleteId
   );
 }
 
-export function AthleteWearableDetailClient({ athlete, whoop, polar, fitbit }: Props) {
+export function AthleteWearableDetailClient({
+  athlete,
+  whoop,
+  polar,
+  fitbit,
+  isSuperAdmin,
+  aiInsightHistory,
+}: Props) {
   const whoopRows = whoop.workouts.map(whoopWorkoutToRow);
   const polarRows = polar.exercises.map(polarExerciseToRow);
   const fitbitRows = fitbit.activities.map(fitbitActivityToRow);
@@ -297,6 +308,10 @@ export function AthleteWearableDetailClient({ athlete, whoop, polar, fitbit }: P
       <div>
         <h1 className="text-2xl font-bold">{athlete.full_name}</h1>
       </div>
+
+      {isSuperAdmin && (
+        <AiInsightPanel athleteId={athlete.id} initialHistory={aiInsightHistory} />
+      )}
 
       <ProviderSection
         label="WHOOP"

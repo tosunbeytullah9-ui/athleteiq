@@ -7,6 +7,7 @@ import {
   getWearableMetrics,
   getWorkouts,
 } from "@athleteiq/db/queries/wearables";
+import { getAthleteAiInsightHistory } from "@athleteiq/db/queries/ai-insights";
 import { toLocalDateString } from "@/lib/date";
 import { AthleteWearableDetailClient } from "./athlete-wearable-detail-client";
 
@@ -25,6 +26,16 @@ export default async function AthleteWearableDetailPage({ params }: PageProps) {
     .maybeSingle();
 
   if (!athlete) notFound();
+
+  // Parti 21-AI — AiInsightPanel yalnızca süper admin için render edilir;
+  // değilse geçmiş hiç çekilmez (RLS de zaten engeller, bkz. CLAUDE.md §4).
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isSuperAdmin = user?.app_metadata?.["platform_role"] === "super_admin";
+  const aiInsightHistory = isSuperAdmin
+    ? await getAthleteAiInsightHistory(supabase, athlete.id, 10)
+    : [];
 
   const today = toLocalDateString(new Date());
   const rangeStart = toLocalDateString(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000));
@@ -63,6 +74,8 @@ export default async function AthleteWearableDetailPage({ params }: PageProps) {
         metrics: fitbitMetrics,
         activities: fitbitActivities ?? [],
       }}
+      isSuperAdmin={isSuperAdmin}
+      aiInsightHistory={aiInsightHistory}
     />
   );
 }

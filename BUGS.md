@@ -1,6 +1,27 @@
 # AthleteIQ — Bug Envanteri
 
-> Oluşturulma: 2026-06-30 (salt-tespit) · Son güncelleme: 2026-09-16 (PARTİ 20-S — GÜVENLİK,
+> Oluşturulma: 2026-06-30 (salt-tespit) · Son güncelleme: 2026-09-16 (PARTİ 21-AI — AI analiz
+> asistanı eklenirken 1 küçük tooling bug'ı bulunup aynı oturumda ✅ FIXED edildi:
+> `scripts/docs-sync.mjs`'teki tablo-adı çıkarma regex'i (`create\s+table\s+...`) şema-nitelikli
+> `create table public.X (` yazımını YAKALAMIYORDU — bu Parti'nin migration'ı (`athlete_ai_insights`)
+> doc'un verdiği literal SQL'i (`public.` prefix'li) birebir kullandığı için `pnpm docs:sync`
+> çalıştırılınca tabloyu §3 listesinden sessizce dışladı (`[docs-sync] Uyarı: ... DAHİL EDİLMEDİ`
+> ile fark edildi, hata fırlatmıyordu). Regex `(?:public\.)?` ile opsiyonel hale getirildi,
+> `table-descriptions.json`'a eksik girdi eklendi; yan etki olarak Parti 20-S'in
+> `20260916084250_super_admin_app_metadata.sql` migration'ının da o oturumda hiç `docs:sync`
+> çalıştırılmadığı için CLAUDE.md §3/§11'e hiç işlenmediği ortaya çıktı, bu da aynı çalıştırmada
+> kendiliğinden düzeldi. **⚪ BİLİNEN SINIRLAMA (bug değil, ortam kısıtı):** bu oturumda Deno CLI
+> kurulu değildi — `athlete-ai-insight/features.test.ts` ve `payload.test.ts` (doc'un istediği 4
+> senaryonun tamamını kapsıyor) yazıldı ama `deno test` hiç ÇALIŞTIRILAMADI, doğrulama yalnızca
+> elle (formül formül) izlenerek yapıldı; bir sonraki oturumda Deno kuruluysa ilk iş olarak
+> çalıştırılıp burada güncellenmeli. **⚪ BİLİNEN SINIRLAMA (bilinçli tasarım kararı):**
+> `payload.ts`'teki `mapGender` yalnızca `gender==='female'` için `'kadin'` döner, `'male'`/`'other'`/
+> `null` için `'erkek'` varsayar (doc yalnızca iki değer tanımlıyor, üçüncü bir kategori yok) —
+> `'other'` cinsiyetli bir sporcu için LLM'e yanlış bir ikili varsayım gidebilir, ama bunun tersi
+> (menstrüel döngü hatırlatmasının yanlışlıkla tetiklenmesi) daha kötü bir hata sınıfı olduğu için
+> bilinçli olarak güvenli taraf seçildi; gerçek kullanımda `'other'` işaretli sporcu görülürse
+> gözden geçirilmeli. Detay: PROGRESS.md § Parti 21-AI, CLAUDE.md "AGENT 21-AI" bölümü.)
+> Önceki: 2026-09-16 (PARTİ 20-S — GÜVENLİK,
 > kullanıcının paylaştığı bir görev dokümanından başlatıldı: `is_super_admin()` yetkiyi
 > istemciden değiştirilebilir `user_metadata`'dan okuyordu, herhangi bir sporcu/koç kendini
 > süper admin yapıp tüm organizasyonların verisine erişebilirdi. Migration

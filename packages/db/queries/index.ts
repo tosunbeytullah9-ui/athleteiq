@@ -10,3 +10,4 @@ export * from "./exercises";
 export * from "./organizations";
 export * from "./wellness";
 export * from "./profiles";
+export * from "./ai-insights";
