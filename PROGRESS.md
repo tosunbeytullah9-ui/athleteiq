@@ -1,6 +1,19 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-09-16 (**Parti 20-S — Süper Admin Yetkisinin app_metadata'ya Taşınması
+> Son güncelleme: 2026-09-16 (**Parti 20-W — WHOOP Strain Snapshot Hatasının Düzeltilmesi** —
+> kullanıcının paylaştığı bir görev dokümanından başlatıldı. Canlı DB'de strain_score'un gün sonu
+> değil uyanış anı değerini tuttuğu (14.09: 0.38, oysa aynı gün 9.59+8.46 strain'lik 2 seans var)
+> ve `whoop_cycles.cycle_end`'in hiç yazılmadığı doğrulandı. Kök neden: cycle yalnızca sleep/
+> recovery event'lerinde (uyanışta) çekiliyordu, gün içi workout event'leri cycle'ı tazelemiyordu.
+> `whoop-webhook`'a yeni `refreshRecentCycles()` eklendi — her event'te son 7 cycle'ı yeniden çekip
+> SCORED olanları upsert ediyor, ilgili `wearable_daily_metrics` satırını cycle id üzerinden bulup
+> yalnızca strain/cycle alanlarını güncelliyor (sleep/recovery'ye dokunmadan). Nap kaydının ana
+> uykuyu ezmesi riski de kapatıldı (`WHOOPSleep.nap` filtresi). `deploy_edge_function` ile v8→v9
+> deploy edildi (kullanıcı onayıyla, canlı production webhook). Deno lokalde kurulu olmadığı için
+> `deno check`/testler çalıştırılamadı (yazıldı, çalıştırılamadı). **BEKLEYEN:** bir sonraki gerçek
+> WHOOP event'i ile canlı doğrulama + commit (görev dokümanı commit'i buna şart koşuyor). Detay:
+> § Parti 20-W, BUGS.md § Yüksek. Kod `parti-20-whoop-strain` branch'inde, henüz commit edilmedi.)
+> Önceki: 2026-09-16 (**Parti 20-S — Süper Admin Yetkisinin app_metadata'ya Taşınması
 > (KRİTİK GÜVENLİK)** — kullanıcının paylaştığı bir görev dokümanından başlatıldı. `is_super_admin()`
 > (`002_rls.sql`/`009_security_fixes.sql`) yetkiyi `auth.users.raw_user_meta_data` (`user_metadata`)
 > üzerinden okuyordu; bu alan oturum açmış HERHANGİ BİR kullanıcı tarafından istemciden
@@ -1076,6 +1089,116 @@ kontrolünün unutulması. Aynı Parti'de yazılan (021_propagate_week.sql) dör
 `copy_program_tree`'de "çağıran zaten kontrol ediyor" varsayımıyla atlanmış — tıpkı
 `insert_sessions_tree`'nin Parti 8.G'de bulunan aynı sınıf açığı gibi. CLAUDE.md §4.1'e kalıcı
 kural olarak eklendi (bkz. CLAUDE.md değişikliği).
+
+---
+
+### Parti 20-W — WHOOP Strain Snapshot Hatasının Düzeltilmesi ✅ (2026-09-16, canlı doğrulama bekliyor)
+
+#### Bağlam
+
+Kullanıcının paylaştığı bir görev dokümanından (Google Docs) başlatıldı. Kapsam bilinçli olarak
+dar tutuldu: **yalnızca `whoop-webhook` Edge Function'ı**, şema değişikliği yok (`whoop_cycles.
+cycle_end`/`synced_at` kolonları zaten `004_wearables.sql`'de vardı, hiç kullanılmıyorlardı).
+
+#### Sorun (canlı DB'de 16.09.2026'da doğrulandı)
+
+`wearable_daily_metrics.strain_score` ve `whoop_cycles.strain_score` gün sonu değerini değil,
+sporcunun **uyandığı andaki** anlık değeri tutuyordu (14.09 satırı: strain 0.38, oysa aynı gün
+`whoop_workouts`'ta 9.59 ve 8.46 strain'lik iki seans kayıtlıydı). `whoop_cycles.cycle_end`
+bütün satırlarda NULL'du, `synced_at` yalnızca ilk insert'te set ediliyordu.
+
+#### Kök neden (canlı v8 kodu okunarak doğrulandı — ADIM 0 keşfi)
+
+1. WHOOP'ta cycle için webhook event'i yok — cycle yalnızca `sleep.updated`/`recovery.updated`
+   event'lerinde (uyanıştan hemen sonra) `/cycle?limit=1` ile çekiliyordu, o anda strain henüz
+   çok düşük.
+2. Gün içindeki `workout.updated` event'leri yalnızca `whoop_workouts`'u güncelliyordu, cycle'ı
+   hiç tazelemiyordu — ertesi sabah `limit=1` yeni cycle'ı getirdiği için önceki günün NİHAİ
+   strain'i asla yazılmıyordu.
+3. `WHOOPCycle` interface'inde `end` alanı yoktu, upsert'te `cycle_end` map edilmiyordu.
+4. **Nap riski:** `/activity/sleep?limit=1` bir nap kaydı döndürebiliyordu; nap için
+   `sleep.updated` gelirse o günün ana uyku alanları nap verisiyle eziliyordu.
+
+**Keşif — beklenmedik bulgu yok:** repo dosyası canlı v8 ile birebir eşleşiyordu (imza doğrulama
+prepend adımı, `fetchById`/`syncAthleteWorkout`, `workout.updated` dallanması — `get_edge_function`
+ile canlı içerik çekilip diff'siz doğrulandı). `verify_jwt=false` `supabase/config.toml`'da zaten
+doğruydu. `whoop_cycles`/`strain_score`'a başka yazan kod yoktu (Fitbit/Polar sync route'ları
+kendi `provider` satırlarına yazıyor, `onConflict: athlete_id,provider,metric_date` sayesinde
+çakışma yok). Supabase CLI (2.107.0) kurulu ama **Deno lokalde kurulu değildi** — `deno check`/
+`deno test` çalıştırılamadı, yalnızca gözle inceleme yapıldı.
+
+#### Branch sapması (kullanıcı onaylanmadan, gerekçeyle karar verildi)
+
+Görev talimatı `git switch main; git pull; git switch -c parti-20-whoop-strain` diyordu. Ancak
+`parti-20-super-admin-app-metadata` branch'inde commit edilmemiş, bu partiyle ilgisiz değişiklikler
+vardı (wearables/Fitbit UI, `middleware.ts` — bkz. üstteki Parti 20-S'in de değiştirdiği dosya).
+`main`'e geçmek bu değişiklikleri (varsa) conflict riskine sokacaktı — `git log main..HEAD` yalnızca
+Parti 20-S commit'ini gösterdi, yani main ondan da geri. Bunun yerine **mevcut HEAD üzerinden**
+`parti-20-whoop-strain` branch'i açıldı — hem Parti 20-S commit'i hem bekleyen uncommitted iş
+korunmuş oldu, whoop-webhook değişikliği izole bir branch'te.
+
+#### Kod değişiklikleri (`supabase/functions/whoop-webhook/index.ts`)
+
+- `WHOOPCycle`'a `end: string | null` + `timezone_offset?: string`, `WHOOPSleep`'e `id: string` +
+  `nap: boolean` eklendi.
+- Yeni `fetchRecent<T>(path, token, limit)` helper'ı (mevcut `fetchLatest`'e dokunulmadı).
+- `syncAthleteWhoopData`'daki mevcut `whoop_cycles` upsert'üne `cycle_end`/`synced_at` eklendi.
+- Yeni `refreshRecentCycles()`: her webhook event'inde son 7 cycle'ı (`CYCLE_REFRESH_LIMIT`) yeniden
+  çekip `score_state==="SCORED"` olanları `whoop_cycles`'a upsert ediyor; ilgili
+  `wearable_daily_metrics` satırını `raw_data->cycle->>id` ile bulup (bu JSON filtresi başarısız
+  olursa son 10 satırı çekip TS'te filtreleyen bir fallback var) yalnızca `strain_score`/
+  `active_calories`/`raw_data.cycle`'ı günceller — `sleep`/`recovery` anahtarlarına dokunmaz (saf
+  `mergeCycleIntoRawData` fonksiyonu). Satır yoksa yeni satır oluşturmuyor, değişiklik yoksa
+  (strain + cycle.end aynıysa) update atmıyor. Kendi try/catch'inde çağrılıyor — hata ana senkronu
+  etkilemiyor, log formatı `console.error("WHOOP cycle refresh error:", err.message)` (health verisi
+  loglanmıyor).
+- Nap koruması: sleep artık `fetchRecent(..., 5)` ile çekilip `sleeps.find(s => s.nap === false)`
+  ile ilk nap-olmayan kayıt seçiliyor (`Promise.all` buna göre düzenlendi, başka mantık
+  değişmedi).
+- **Dokunulmayanlar:** imza doğrulama, token yenileme, `metricDate` hesabı, silme event'lerinin
+  atlanması, CORS.
+- **Bilinen gizli risk (kaydedildi, düzeltilmedi):** `metricDate` UTC'den türetiliyor — TR'de
+  00:00–03:00 arası oluşan bir recovery bir önceki güne yazılabilir. BUGS.md'ye izleniyor/WONTFIX
+  olarak eklendi.
+
+#### Test
+
+`supabase/functions/whoop-webhook/index.test.ts` eklendi — `mergeCycleIntoRawData` için 3 Deno
+testi (raw null → `{cycle}`, sleep/recovery değişmeden kalır, cycle anahtarı değişir).
+`mergeCycleIntoRawData` bu amaçla `export` edildi. `index.ts` modül yüklemesinde `Deno.serve`
+çalıştığı için sanitizer'lar (`sanitizeResources`/`sanitizeOps: false`) kapatıldı. **Deno lokalde
+kurulu olmadığı için testler ÇALIŞTIRILAMADI** — yalnızca yazıldı, gözden geçirildi.
+
+#### Deploy
+
+`deploy_edge_function` (MCP) ile `nlmwcygmbbxmfpsubvmh`'e `verify_jwt: false` ile deploy edildi —
+kullanıcıdan canlı production webhook'unu değiştirme onayı alındıktan sonra. **v8 → v9.**
+
+#### Doğrulama — kısmi (deploy anında, webhook öncesi baseline)
+
+Deploy hemen sonrası (henüz yeni bir WHOOP event'i gelmeden) çalıştırılan doğrulama sorguları
+sorunu teyit eden "önce" durumunu gösterdi: 5 satırın hepsinde `cycle_end` NULL, 14.09 satırında
+strain hâlâ 0.38 (eski veri, henüz yenilenmedi), `nap` alanı 5/5 `false` (nap koruması öncesi de
+zaten sorun yoktu bu sporcuda — risk teorikti). **Tam doğrulama bir sonraki gerçek WHOOP webhook
+event'i (sporcunun bir sonraki antrenmanı veya sabah uyanışı) geldikten sonra yapılmalı** —
+görev talimatının açık talimatıyla sahte webhook/imza üretilmedi. Bekleyen sorgular ADIM 5'te
+(görev dokümanında) tanımlı, aynı sorgular tekrar çalıştırılıp `cycle_end` dolu/14.09 strain ≥ 9.6
+olduğu doğrulanmalı.
+
+#### Dokümantasyon
+
+BUGS.md'ye "Yüksek" bölümüne yeni bulgu eklendi (strain snapshot + `cycle_end` NULL + nap riski,
+FIXED — canlı webhook doğrulaması bekliyor), Düşük bölümüne `metricDate` UTC kayması notu eklendi
+(izleniyor/WONTFIX). Şema değişmediği için `packages/db/types.ts` regen gerekmedi.
+
+#### Bekleyen adımlar
+
+1. **Canlı doğrulama:** bir sonraki gerçek WHOOP webhook event'i geldikten sonra ADIM 5
+   sorgularının tekrar çalıştırılıp beklenen sonuçların (cycle_end dolu, strain ≥ 9.6, nap=false)
+   doğrulanması.
+2. **Commit:** görev dokümanı ADIM 6'da açıkça "commit etmeden önce DUR — commit, canlı doğrulama
+   ve kullanıcı onayından sonra yapılır" diyor. Kod branch'te (`parti-20-whoop-strain`) hazır,
+   commit henüz ATILMADI.
 
 ---
 

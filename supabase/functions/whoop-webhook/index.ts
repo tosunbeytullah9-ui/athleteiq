@@ -125,16 +125,32 @@ async function fetchById<T>(path: string, id: string | number, accessToken: stri
   return (await res.json()) as T;
 }
 
+async function fetchRecent<T>(path: string, accessToken: string, limit: number): Promise<T[]> {
+  const res = await fetch(`${WHOOP_API}${path}?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    console.error(`WHOOP GET ${path} failed: ${res.status}`);
+    return [];
+  }
+  const data = (await res.json()) as { records: T[] };
+  return data.records ?? [];
+}
+
 // score_state SCORED değilse (PENDING_SCORE/UNSCORABLE) score alanı null gelir —
 // bkz. developer.whoop.com/docs/tutorials/get-current-recovery-score.
 interface WHOOPCycle {
   id: number;
   start: string;
+  end: string | null;
+  timezone_offset?: string;
   score_state: string;
   score: { strain: number; kilojoule: number; average_heart_rate: number; max_heart_rate: number } | null;
 }
 interface WHOOPSleep {
+  id: string;
   start: string;
+  nap: boolean;
   score_state: string;
   score: {
     stage_summary: {
@@ -179,11 +195,15 @@ async function syncAthleteWhoopData(
   connection: WearableConnectionRow,
   accessToken: string
 ) {
-  const [cycle, sleep, recovery] = await Promise.all([
+  const [cycle, sleeps, recovery] = await Promise.all([
     fetchLatest<WHOOPCycle>("/cycle", accessToken),
-    fetchLatest<WHOOPSleep>("/activity/sleep", accessToken),
+    fetchRecent<WHOOPSleep>("/activity/sleep", accessToken, 5),
     fetchLatest<WHOOPRecovery>("/recovery", accessToken),
   ]);
+  // /activity/sleep?limit=1 nap kaydı döndürebilir (WHOOPSleep.nap) — nap için
+  // sleep.updated gelirse ana uyku alanlarının ezilmesini önlemek için ilk
+  // nap-olmayan kaydı alıyoruz (bkz. Parti 20-W).
+  const sleep = sleeps.find((s) => s.nap === false) ?? null;
 
   const metricDate = (
     recovery?.created_at ??
@@ -231,11 +251,13 @@ async function syncAthleteWhoopData(
         athlete_id: connection.athlete_id,
         whoop_cycle_id: String(cycle.id),
         cycle_start: cycle.start,
+        cycle_end: cycle.end ?? null,
         strain_score: cycle.score?.strain ?? null,
         avg_hr: cycle.score?.average_heart_rate ?? null,
         max_hr: cycle.score?.max_heart_rate ?? null,
         kilojoules: cycle.score?.kilojoule ?? null,
         raw_data: cycle,
+        synced_at: new Date().toISOString(),
       },
       { onConflict: "whoop_cycle_id" }
     );
@@ -283,6 +305,103 @@ async function syncAthleteWorkout(
     .from("wearable_connections")
     .update({ last_synced_at: new Date().toISOString() })
     .eq("id", connection.id);
+}
+
+interface DailyMetricRow {
+  id: string;
+  strain_score: number | null;
+  raw_data: { cycle?: { id?: number | string; end?: string | null } } | null;
+}
+
+// raw_data'nın sleep/recovery anahtarlarına dokunmadan yalnızca cycle anahtarını
+// değiştiren saf fonksiyon — raw null gelirse { cycle } döner.
+export function mergeCycleIntoRawData(
+  raw: Record<string, unknown> | null,
+  cycle: WHOOPCycle
+): Record<string, unknown> {
+  return { ...(raw ?? {}), cycle };
+}
+
+// WHOOP'ta cycle için webhook event'i yok — cycle yalnızca uyanışta (sleep/recovery
+// event'i) limit=1 ile çekiliyor, o anda strain henüz düşük. Gün içindeki
+// workout.updated event'leri whoop_cycles/wearable_daily_metrics.strain_score'u hiç
+// tazelemiyordu, bu yüzden önceki günün NİHAİ strain'i asla yazılmıyordu (bkz. Parti
+// 20-W). Bu fonksiyon her webhook event'inde son birkaç cycle'ı yeniden çekip
+// SCORED olanları upsert eder; ilgili wearable_daily_metrics satırını (varsa)
+// cycle id üzerinden bulup yalnızca cycle alanlarını günceller.
+const CYCLE_REFRESH_LIMIT = 7; // WHOOP koleksiyon limiti en fazla 25
+
+async function refreshRecentCycles(
+  supabase: ReturnType<typeof createClient>,
+  connection: WearableConnectionRow,
+  accessToken: string
+) {
+  const cycles = await fetchRecent<WHOOPCycle>("/cycle", accessToken, CYCLE_REFRESH_LIMIT);
+
+  for (const cycle of cycles) {
+    if (cycle.score_state !== "SCORED" || cycle.score === null) {
+      continue;
+    }
+
+    await supabase.from("whoop_cycles").upsert(
+      {
+        athlete_id: connection.athlete_id,
+        whoop_cycle_id: String(cycle.id),
+        cycle_start: cycle.start,
+        cycle_end: cycle.end ?? null,
+        strain_score: cycle.score.strain,
+        avg_hr: cycle.score.average_heart_rate,
+        max_hr: cycle.score.max_heart_rate,
+        kilojoules: cycle.score.kilojoule,
+        raw_data: cycle,
+        synced_at: new Date().toISOString(),
+      },
+      { onConflict: "whoop_cycle_id" }
+    );
+
+    let row: DailyMetricRow | null = null;
+    const { data: exactRow, error: filterError } = await supabase
+      .from("wearable_daily_metrics")
+      .select("id, strain_score, raw_data")
+      .eq("athlete_id", connection.athlete_id)
+      .eq("provider", "whoop")
+      .eq("raw_data->cycle->>id", String(cycle.id))
+      .maybeSingle<DailyMetricRow>();
+
+    if (filterError) {
+      const { data: recentRows } = await supabase
+        .from("wearable_daily_metrics")
+        .select("id, strain_score, raw_data")
+        .eq("athlete_id", connection.athlete_id)
+        .eq("provider", "whoop")
+        .order("metric_date", { ascending: false })
+        .limit(10);
+
+      row =
+        (recentRows as DailyMetricRow[] | null)?.find(
+          (r) => String(r.raw_data?.cycle?.id ?? "") === String(cycle.id)
+        ) ?? null;
+    } else {
+      row = exactRow;
+    }
+
+    if (!row) continue;
+
+    const existingCycleEnd = row.raw_data?.cycle?.end ?? null;
+    const newCycleEnd = cycle.end ?? null;
+    if (row.strain_score === cycle.score.strain && existingCycleEnd === newCycleEnd) {
+      continue;
+    }
+
+    await supabase
+      .from("wearable_daily_metrics")
+      .update({
+        strain_score: cycle.score.strain,
+        active_calories: Math.round(cycle.score.kilojoule / 4.184),
+        raw_data: mergeCycleIntoRawData(row.raw_data as Record<string, unknown> | null, cycle),
+      })
+      .eq("id", row.id);
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -343,6 +462,12 @@ Deno.serve(async (req: Request) => {
       await syncAthleteWorkout(supabase, connection, accessToken, event.id);
     } else {
       await syncAthleteWhoopData(supabase, connection, accessToken);
+    }
+
+    try {
+      await refreshRecentCycles(supabase, connection, accessToken);
+    } catch (err) {
+      console.error("WHOOP cycle refresh error:", err instanceof Error ? err.message : "unknown");
     }
   } catch (err) {
     console.error("WHOOP webhook sync error:", err);
