@@ -105,6 +105,14 @@ Vitest (unit testler)
 Playwright (E2E testler)
 ```
 
+> **Doğrulama komutlarını HER ZAMAN `pnpm --filter <paket> run <script>` ile çalıştırın.**
+> `npx next build` / `npx eslint` pnpm'in workspace symlink'lerinin dışında farklı bir
+> binary/modül çözümlemesi kullanır ve **sahte hatalar** üretir: 2026-09-16'da `npx next build`
+> `/404` prerender'ında `TypeError: Cannot read properties of null (reading 'useRef')`,
+> `npx eslint` ise `Failed to patch ESLint` verdi — aynı kod `pnpm --filter @athleteiq/web run
+> build` ile 49/49 sayfa temiz, `run lint` ile 0 hata veriyor. Bu sahte hata gerçek bir build
+> arızası sanılıp boşuna teşhis yapıldı; komutu doğru çalıştırmak tek çözümdür.
+
 ---
 
 ## 2. MONOREPO KLASÖR YAPISI
@@ -955,6 +963,21 @@ Middleware/layout'ta EK değişiklik gerekmedi: ATHLETE GUARD `pathname === "/we
 [x] `wearables-client.tsx` (koç/admin liste) özet kartlarına "Fitbit Bağlı" + tabloya üçüncü durum kolonu eklendi
 ```
 
+**Sonradan eklenen görevler (2026-09-16 — Programlar listesi hedef/blok bazlı gruplandı):**
+```
+[x] apps/web/lib/program-grouping.ts → YENİ, saf gruplama modülü (React/DOM yok): hafta satırlarını hedef (takım/sporcu) → blok/tek-program ağacına çevirir, "bu hafta"yı tarih aralığından tespit eder, tr-TR sıralar, arama filtresi sağlar
+[x] apps/web/app/(dashboard)/programs/grouped-programs.tsx → YENİ: katlanabilir hedef bölümleri + blok kartları; bloğun haftaları kart içinde küçük tıklanabilir rozetlere (1,2,3,4) indirgendi, her rozet /programs/[haftaId]'ye gider
+[x] programs-client.tsx → "Gruplu"/"Liste" görünüm seçici (varsayılan Gruplu, tercih localStorage'da) + arama kutusu; ESKİ düz grid "Liste" seçeneğinde AYNEN korundu, silinmedi
+[x] packages/db/queries/programs.ts → getProgramBlocks() eklendi (blok başlığı/fazı/total_weeks — hafta ağacı YOK)
+[x] programs/page.tsx → blokları çeker (sporcu rolünde çekmez, o dal AthleteProgramView'a düşüyor)
+```
+**Neden:** `training_programs`'ta HER SATIR BİR HAFTADIR ve çok haftalı bir bloğun tüm haftaları
+AYNI başlığı taşır — düz grid'de birebir aynı "Hazırlık" kartı 4 kez görünüyordu. Canlı veride 21
+satır yalnızca 6 hedef + 3 bloğa karşılık geliyordu. Gruplu görünümde varsayılan (arşiv gizli)
+durum 15 hafta → 5 bölüm / 8 kart. Detay sayfası (`/programs/[id]`) zaten blok kapsamında
+çalışıyordu (blok yayınla/sil) — liste artık onunla tutarlı. Sporcu görünümü (`AthleteProgramView`)
+ve mobil DEĞİŞMEDİ. [Son doğrulama: 2026-09-16]
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -1555,7 +1578,10 @@ Son otomatik senkron: 2026-09-16
   (Parti 4.B/4.C, hâlâ paralel), middleware (role-based routing)
 - ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama + düzenleme + silme (Parti 16, düzenleme/silme 2026-09-09)
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay, düzenleme, pasife alma/kalıcı silme (2026-09-09 — bkz. §4.1, §6 Agent 3)
-- ✅ Program yönetimi: oluşturma, listeleme, detay, publish
+- ✅ Program yönetimi: oluşturma, listeleme, detay, publish. Liste 2026-09-16'da hedef
+  (takım/sporcu) → blok kırılımlı gruplu görünüme geçti — çok haftalı bloklar tek kartta
+  toplanıp haftalar tıklanabilir rozetlere indi, "bu hafta" vurgulanıyor, arama eklendi;
+  eski düz grid "Liste" seçeneğinde korundu (bkz. §6 Agent 3)
 - ✅ CrossFit tarzı (WOD) seans yapısı (2026-09-12) — bir seans AMRAP/EMOM/For Time/Tabata/RFT/Chipper formatına çevrilebilir (format + zaman alanları + düz hareket listesi); set/yük/tonaj/skorlama kapsam dışı, kullanıcı onaylı
 - ✅ ACWR: log girişi + dashboard (aynı gün ikinci girişte/koç düzeltmesinde sessizce
   başarısız olan eksik UPDATE RLS politikası `040_acwr_logs_update_policy.sql` ile

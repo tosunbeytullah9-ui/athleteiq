@@ -25,6 +25,21 @@ export async function getProgramById(client: DbClient, id: string) {
   return data;
 }
 
+/**
+ * Org'daki tüm program bloklarını (başlık/faz/toplam hafta) çeker — programlar
+ * listesinin hafta satırlarını bloklara gruplayabilmesi için. Hafta ağacı YOK,
+ * yalnızca blok üst verisi (getPrograms zaten haftaları ağacıyla getiriyor).
+ */
+export async function getProgramBlocks(client: DbClient, orgId: string) {
+  const { data, error } = await client
+    .from("program_blocks")
+    .select("id, title, phase, total_weeks, team_id, athlete_id, notes")
+    .eq("org_id", orgId);
+
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Bir bloktaki tüm haftaları (tam ağaçlarıyla), hafta sırasına göre çeker — çok haftalı düzenleme sekmeleri için. */
 export async function getProgramsByBlockId(client: DbClient, blockId: string) {
   const { data, error } = await client

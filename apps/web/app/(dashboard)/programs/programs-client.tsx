@@ -3,7 +3,18 @@
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, CheckCircle2, Clock, Users, User, Archive, ArchiveRestore } from "lucide-react";
+import {
+  Plus,
+  CheckCircle2,
+  Clock,
+  Users,
+  User,
+  Archive,
+  ArchiveRestore,
+  LayoutGrid,
+  Rows3,
+  Search,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
@@ -12,8 +23,13 @@ import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/querie
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent } from "@athleteiq/ui/components/card";
+import { Input } from "@/components/ui/input";
 import type { Tables } from "@athleteiq/db/types";
 import { AthleteProgramView } from "./athlete-program-view";
+import { GroupedPrograms } from "./grouped-programs";
+import { groupPrograms, filterGroups, type BlockRow } from "@/lib/program-grouping";
+
+const VIEW_STORAGE_KEY = "aiq_programs_view";
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
@@ -27,6 +43,7 @@ interface Props {
   programs: Program[];
   teams: { id: string; name: string }[];
   athletes: { id: string; full_name: string; team_id: string | null }[];
+  blocks?: BlockRow[];
   athleteMaxHistory?: Awaited<ReturnType<typeof getAthleteMaxHistory>>;
   ratios?: Awaited<ReturnType<typeof getExercise1RMRatios>>;
 }
@@ -49,6 +66,7 @@ export function ProgramsClient({
   programs,
   teams,
   athletes,
+  blocks = [],
   athleteMaxHistory = [],
   ratios = [],
 }: Props) {
@@ -60,6 +78,28 @@ export function ProgramsClient({
   );
   const [showArchived, setShowArchived] = useState(false);
   const [unarchivingId, setUnarchivingId] = useState<string | null>(null);
+  // Varsayılan gruplu görünüm; tercih tarayıcıda hatırlanır (yalnızca bir UI
+  // kolaylığı — okunamazsa sessizce varsayılana düşer).
+  const [view, setView] = useState<"grouped" | "list">("grouped");
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
+      if (saved === "list" || saved === "grouped") setView(saved);
+    } catch {
+      // private mode / site verisi kapalı — varsayılanla devam
+    }
+  }, []);
+
+  function changeView(next: "grouped" | "list") {
+    setView(next);
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, next);
+    } catch {
+      // yazılamadıysa tercih yalnızca bu oturumda geçerli olur
+    }
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -104,6 +144,22 @@ export function ProgramsClient({
     if (filter === "draft") return base.filter((p) => !p.is_published);
     return base;
   }, [programs, filter, isAthlete, showArchived]);
+
+  // Gruplama, filtrelenmiş haftalar üzerinden çalışır — böylece Tümü/Yayında/
+  // Taslak/Arşiv seçimleri gruplu görünümde de aynen geçerli olur.
+  const groups = useMemo(() => {
+    const todayISO = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(
+      new Date()
+    );
+    const all = groupPrograms({
+      programs: filtered,
+      blocks,
+      teamNames: teamMap,
+      athleteNames: athleteMap,
+      todayISO,
+    });
+    return filterGroups(all, query);
+  }, [filtered, blocks, teamMap, athleteMap, query]);
 
   if (isAthlete) {
     return <AthleteProgramView programs={filtered} maxHistory={athleteMaxHistory} ratios={ratios} />;
@@ -170,18 +226,60 @@ export function ProgramsClient({
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setShowArchived((s) => !s)}
-          className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-            showArchived
-              ? "bg-primary text-primary-foreground"
-              : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
-          }`}
-        >
-          <Archive className="h-3.5 w-3.5" />
-          Arşivi göster {archivedCount > 0 && `(${archivedCount})`}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowArchived((s) => !s)}
+            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              showArchived
+                ? "bg-primary text-primary-foreground"
+                : "bg-secondary text-secondary-foreground hover:bg-secondary/80"
+            }`}
+          >
+            <Archive className="h-3.5 w-3.5" />
+            Arşivi göster {archivedCount > 0 && `(${archivedCount})`}
+          </button>
+
+          {/* Gruplu (takım/sporcu) ↔ düz liste — eski davranış "Liste"de korunuyor. */}
+          <div className="flex items-center rounded-full bg-secondary p-0.5">
+            <button
+              onClick={() => changeView("grouped")}
+              title="Takım / sporcu bazında grupla"
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                view === "grouped"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-secondary-foreground hover:bg-secondary/80"
+              }`}
+            >
+              <Rows3 className="h-3.5 w-3.5" />
+              Gruplu
+            </button>
+            <button
+              onClick={() => changeView("list")}
+              title="Tüm haftaları düz liste olarak göster"
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                view === "list"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-secondary-foreground hover:bg-secondary/80"
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Liste
+            </button>
+          </div>
+        </div>
       </div>
+
+      {view === "grouped" && (
+        <div className="relative max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Sporcu, takım veya program ara..."
+            className="pl-8"
+          />
+        </div>
+      )}
 
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
@@ -199,6 +297,17 @@ export function ProgramsClient({
             </Button>
           )}
         </div>
+      ) : view === "grouped" ? (
+        groups.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
+            <Clock className="mb-3 h-12 w-12 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">
+              &quot;{query}&quot; aramasına uyan program yok.
+            </p>
+          </div>
+        ) : (
+          <GroupedPrograms groups={groups} />
+        )
       ) : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((program) => {

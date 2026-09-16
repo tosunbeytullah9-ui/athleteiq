@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
-import { getPrograms } from "@athleteiq/db/queries/programs";
+import { getPrograms, getProgramBlocks } from "@athleteiq/db/queries/programs";
 import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
 import { ProgramsClient } from "./programs-client";
 
@@ -19,7 +18,9 @@ export default async function ProgramsPage() {
     );
   }
 
-  const [programs, teamsResult, athletesResult] = await Promise.all([
+  // Sporcu rolü gruplu görünümü hiç kullanmıyor (AthleteProgramView'a düşüyor) —
+  // blok üst verisini yalnızca koç/admin için çekiyoruz.
+  const [programs, teamsResult, athletesResult, blocks] = await Promise.all([
     getPrograms(supabase, orgId),
     supabase.from("teams").select("id, name").eq("org_id", orgId).order("name"),
     supabase
@@ -28,6 +29,7 @@ export default async function ProgramsPage() {
       .eq("org_id", orgId)
       .eq("is_active", true)
       .order("full_name"),
+    role === "athlete" ? Promise.resolve([]) : getProgramBlocks(supabase, orgId),
   ]);
 
   // Sporcu için %1RM çözümlemesi (formatSetLoad) amacıyla kendi 1RM geçmişi de
@@ -58,6 +60,7 @@ export default async function ProgramsPage() {
       programs={programs}
       teams={teamsResult.data ?? []}
       athletes={athletesResult.data ?? []}
+      blocks={blocks}
       athleteMaxHistory={athleteMaxHistory}
       ratios={ratios}
     />

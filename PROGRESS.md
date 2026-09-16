@@ -1,6 +1,37 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-09-16 (**AI Asistanı Düzeltmesi — "AI çalışmıyor"** — kullanıcı Parti 21-AI'da
+> Son güncelleme: 2026-09-16 (**Programlar listesi — hedef/blok bazlı gruplama** — kullanıcı
+> "bütün programlar hafta hafta görünüyor ve çok kalabalık, sporcu veya takım bazında ayıralım"
+> dedi (kendi fikrime de açık bıraktı). **Teşhis:** `training_programs`'ta HER SATIR BİR HAFTADIR
+> ve çok haftalı bir bloğun (`program_blocks`, Parti 3.B) tüm haftaları AYNI başlığı taşır —
+> düz grid'de birebir aynı "Hazırlık" kartı 4 kez görünüyordu. Canlı veri: 21 satır, ama yalnızca
+> **6 hedef** (4 sporcu + 2 takım) ve 3 blok. Ayrıca kartlardaki "Hafta 38" yılın ISO hafta
+> numarasıydı (`week_number`), blok içi sıra (`week_index_in_block`) hiç gösterilmiyordu.
+> **Ek bulgu:** detay sayfası (`/programs/[id]`) zaten BLOK kapsamında çalışıyordu (blok yayınla/
+> blok sil) — liste hafta bazlı kaldığı için ikisi tutarsızdı; bu değişiklik listeyi detayla
+> hizaladı. **Uygulama:** `apps/web/lib/program-grouping.ts` (YENİ, saf modül — hedef→blok ağacı,
+> "bu hafta" tespiti, tr-TR sıralama, arama), `grouped-programs.tsx` (YENİ — katlanabilir hedef
+> bölümleri, blok kartı içinde haftalar tıklanabilir 1/2/3/4 rozetlerine indi, aktif hafta
+> vurgulu, taslak rozeti noktalı), `programs-client.tsx`'e "Gruplu"/"Liste" seçici (varsayılan
+> Gruplu, tercih localStorage) + arama kutusu — **eski düz grid silinmedi, "Liste"de aynen
+> duruyor**; `getProgramBlocks()` sorgusu + `page.tsx` (sporcu rolünde blok çekilmez).
+> Sporcu görünümü (`AthleteProgramView`), mobil ve program oluşturma akışı DEĞİŞMEDİ; şema/RLS/
+> migration'a DOKUNULMADI. **Doğrulama:** gruplama modülü canlı veri şekliyle **33/33 senaryo**
+> geçti (`node --experimental-strip-types`; blok katlama, tr-TR sıralama, bu-hafta tespiti,
+> taslak/arşiv sayımı, arama, yetim blok/adsız hedef/tarihsiz program sınır durumları);
+> `tsc --noEmit` temiz; dev server'da gerçek süper admin oturumuyla `/programs` **HTTP 200**
+> render edildi ve DOM'da doğrulandı: 15 hafta → **5 bölüm / 8 kart**, "4 hafta"/"3 hafta"
+> blok rozetleri, "Bu hafta"/"Aktif" vurguları, taslak sayaçları, runtime hatası yok.
+> `pnpm --filter @athleteiq/web run build` **49/49 sayfa temiz**, `run lint` **0 hata** (30 uyarı,
+> hepsi önceden var olan; bu Parti'nin yeni dosyalarında uyarı yok — `programs/page.tsx`'teki
+> kullanılmayan `Link` importu zaten dokunulan dosyada olduğu için kaldırıldı).
+> **ARAÇ KULLANIM NOTU (bu oturumda bir kez yanlış teşhise yol açtı):** doğrulama komutları
+> `pnpm --filter ... run <script>` ile çalıştırılmalı. `npx next build` / `npx eslint` pnpm'in
+> workspace symlink'lerinin DIŞINDA farklı binary/çözümleme kullanıyor ve sahte hatalar üretiyor —
+> bu oturumda `npx next build` `/404` prerender'ında `TypeError: ... reading 'useRef'`,
+> `npx eslint` ise `Failed to patch ESLint` verdi; ikisi de proje script'leriyle çalıştırıldığında
+> TEMİZ çıktı, yani gerçek bir sorun yoktu. Detay: CLAUDE.md § Agent 3.)
+> Önceki: 2026-09-16 (**AI Asistanı Düzeltmesi — "AI çalışmıyor"** — kullanıcı Parti 21-AI'da
 > eklenen asistanın canlıda hiç çalışmadığını bildirdi. **Öncesinde bulunan durum:** `llm.ts`'te
 > önceki bir teşhis oturumundan kalan, commit edilmemiş geçici `console.error` satırları vardı —
 > bunlar modelin tam çıktısını ve sağlayıcının ham hata gövdesini logluyordu (CLAUDE.md § AI Katmanı
