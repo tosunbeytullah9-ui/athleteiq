@@ -202,6 +202,8 @@ AthleteIQ/
 │       ├── organization.ts
 │       ├── package.json
 │       ├── program.ts
+│       ├── session-feedback.test.ts
+│       ├── session-feedback.ts
 │       ├── team.ts
 │       ├── tsconfig.json
 │       └── wellness.ts
@@ -286,7 +288,9 @@ AthleteIQ/
 │   │   ├── 20260913201909_fitbit_activities.sql
 │   │   ├── 20260914075144_exercise_1rm_ratios.sql
 │   │   ├── 20260916084250_super_admin_app_metadata.sql
-│   │   └── 20260916134047_athlete_ai_insights.sql
+│   │   ├── 20260916134047_athlete_ai_insights.sql
+│   │   ├── 20260917072700_session_feedback.sql
+│   │   └── 20260917074747_session_feedback_function_hardening.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -319,7 +323,7 @@ AthleteIQ/
 > Tam DDL için `supabase/migrations/`, kolon tipleri için `packages/db/types.ts` bakın. Aşağıdaki liste her tablonun amacını özetler; açıklamalar `scripts/table-descriptions.json`'dan gelir ve `pnpm docs:sync` ile güncellenir.
 
 <!-- AUTO-GENERATED:SCHEMA:START -->
-- **acwr_logs** — sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql).
+- **acwr_logs** — sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql). source kolonu satırın kaynağını damgalar: 'manual' = koçun /acwr formundan elle girdiği, 'athlete_feedback' = session_feedback'ten otomatik türetilmiş (Parti 22-FB).
 - **athlete_1rm_records** — Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki "Son max" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).
 - **athlete_ai_insights** — Süper admin'in tek tuşla ürettiği, bir sporcunun WHOOP verisi üzerine deterministik özellik hesaplama + LLM yorumundan oluşan Türkçe koç değerlendirmesi kaydı; yalnızca athlete-ai-insight Edge Function'ının service role'ü yazar, RLS SELECT'i yalnızca is_super_admin() true ise açar (20260916134047_athlete_ai_insights.sql, Parti 21-AI).
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
@@ -342,6 +346,7 @@ AthleteIQ/
 - **profiles** — auth.users ile 1:1, org kapsamlı kullanıcı adı + görünen ad; sentetik email desenindeki ({username}@{org_slug}.athleteiq.app) org_id/username kaynağı, yalnızca service-role Edge Function'lar yazar (032_profiles.sql, Parti 16).
 - **program_blocks** — Birden fazla haftalık training_programs satırını ortak bir döneme (örn. "8 Haftalık Hazırlık Dönemi") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).
 - **readiness_scores** — wellness_checkins'ten türetilen, bireysel taban çizgisine dayalı readiness skoru cache'i; sadece service_role/Edge Function yazar, hesaplama motoru henüz aktif değil (şema hazır) (013_readiness_scores.sql).
+- **session_feedback** — Sporcunun bir antrenman seansı için koça verdiği geri bildirim (sporcu × seans): RPE (1-10), gerçek süre, tamamlanma durumu (completed/partial/skipped), ağrı bayrağı + bölge, serbest not ve koçun okundu/yanıt alanları. training_sessions.session_rpe/athlete_session_notes kolonlarının yerini alır — onlar takım programlarında tüm takımca paylaşılan bir satırda durduğu için sporcu bazlı veri tutamıyordu. Kaydedilince acwr_logs'un o günkü satırını ağırlıklı sRPE ile otomatik üretir (20260917072700_session_feedback.sql, Parti 22-FB).
 - **teams** — Bir organizasyona bağlı takım (discipline: artistic/rhythmic/trampoline/diving vb.) (001_schema.sql).
 - **test_results** — Sporcu fiziksel test sonuçları (CMJ, sprint, kuvvet testleri vb. — bkz. ayrıca athlete_1rm_records) (001_schema.sql).
 - **training_programs** — Takıma VEYA bireysel sporcuya atanan haftalık antrenman programı (team_id XOR athlete_id); is_published=false iken sporcu göremez (001_schema.sql).
@@ -1307,6 +1312,122 @@ gerçek süper admin JWT'siyle yapıldı (HTTP 200, `status:ok`).
 
 ---
 
+### AGENT 22-FB: Sporcu → Koç Seans Geri Bildirimi (2026-09-17, Parti 22-FB)
+
+**Sorumluluk:** Sporcunun her antrenman seansı için koça RPE + gerçek süre + tamamlanma durumu
++ ağrı bayrağı + serbest not göndermesi; koçun bunu tek bir akışta görüp yanıtlaması; ve bu
+sRPE'nin ACWR'ı otomatik beslemesi.
+
+**Neden yeni tablo — mevcut kolonlar kullanılamıyordu.** `014_exercise_sets.sql`
+`training_sessions.athlete_session_notes`, `016_session_rpe.sql` `training_sessions.session_rpe`
+kolonlarını eklemişti ve ikisi de HİÇ doldurulmamıştı. Bunlar yapısal olarak kullanılamaz:
+`training_sessions` satırı bir PROGRAMA aittir ve takım programlarında **tüm takım aynı satırı
+paylaşır** (canlı veride doğrulandı: tek bir seans satırı 4 sporcuya birden düşüyor) — iki
+sporcunun RPE'si birbirini ezerdi. Ayrıca `sessions_write` yalnızca admin+coach'a yazma verir,
+sporcu zaten yazamazdı. Kolonlar SİLİNMEDİ, `DEPRECATED` olarak yorumlandı.
+
+**Şema** (`20260917072700_session_feedback.sql` — MCP kendi zaman damgasını atadı, §4.1'deki
+yeniden adlandırma rutini uygulandı): `session_feedback`, granülerlik **(sporcu × seans)**,
+`unique (athlete_id, session_id)`. Tasarım kalıbı `012_wellness.sql`'den devralınır —
+`source` ('athlete' | 'coach_proxy') + `entered_by` damgası RLS'in İÇİNDE zorlanır, UPDATE
+politikasının `with check`inde sahiplik+damga AYNEN tekrarlanır, DELETE politikası YOK.
+
+- `status` ('completed' | 'partial' | 'skipped') — boş RPE'nin "yapmadım" mı "girmeyi unuttum"
+  mu olduğu koç için belirsiz kalmasın diye. DB check constraint'i (`session_feedback_load_shape`)
+  'skipped' ise rpe/duration'ın null OLMASINI, aksi halde ikisinin de DOLU olmasını zorlar;
+  `packages/validators/session-feedback.ts` bu kısıtı istemcide birebir taklit eder (14 birim test).
+- `rpe` 1-10 (Foster CR-10). **0 bilinçli olarak yok** — "yaptım ama hiç zorlanmadım" anlamlı
+  değil, onun yerine `status='skipped'`.
+- `duration_min` GERÇEK süre (planlanan `training_sessions.duration_min` değil; formda planlanan
+  önceden dolu gelir, sporcu farklıysa düzeltir). `session_load` generated = `rpe * duration_min`.
+- `has_pain` + `pain_area` — serbest notun içine gömülen "dizim ağrıdı" kaybolur; ayrı bayrak
+  koç akışında filtrelenebilir kırmızı sinyal olur.
+- `session_date` **istemciden gelmez**: `set_session_feedback_date()` BEFORE trigger'ı programın
+  `start_date` + (`day_of_week` - 1) hesabıyla EZER. ACWR gün ataması istemciye bırakılamaz.
+  (SECURITY INVOKER bilinçli — RLS uygulanır, yayınlanmamış seansa geri bildirim yazılamaz.)
+
+**Koç alanlarının korunması (iki yönlü "damga yalan söyleyemez").** `coach_read_at`/`coach_reply`
+vb. kolonlar normal UPDATE'e KAPALIDIR: `session_feedback_guard_coach_columns()` BEFORE UPDATE
+trigger'ı, transaction-local `app.session_feedback_coach_action` bayrağı 'on' değilse bu kolonları
+OLD değerlerine geri alır (rol adına bağımlılık yok). Tek yazma yolu `mark_session_feedback_read()`
+ve `reply_to_session_feedback()` SECURITY DEFINER RPC'leridir — ikisi de `can_manage_athlete_feedback()`
+üzerinden `coalesce(..., false)` yetki kontrolü yapar (§4.1). Simetrik olarak RLS UPDATE politikası
+ikiye ayrılır: sporcu YALNIZCA `source='athlete'` satırlarını (ve yalnızca son 7 gün), koç/admin
+YALNIZCA `source='coach_proxy'` satırlarını düzenleyebilir — **koç sporcunun self-report'unu
+değiştiremez, sporcu sahte koç yanıtı yazamaz.**
+
+**ACWR otomatik beslemesi.** `acwr_logs` bugüne kadar YALNIZCA koçun `/acwr` formundan elle
+dolduruluyordu — yani koç, başında olmadığı antrenmanın RPE'sini tahmin ediyordu. Artık
+`session_feedback_acwr_sync` AFTER trigger'ı o günü yeniden hesaplar:
+- Günün birden fazla seansı varsa **ağırlıklı RPE = Σ(rpe·süre)/Σsüre**, `duration_min = Σsüre`
+  yazılır; çarpımları tam olarak Σ(rpe·süre)'ye eşit olduğu için `session_load` günün TOPLAM
+  yükünü taşır (canlı testte doğrulandı: 8×60 + 6×40 → rpe 7.20 / 100 dk / 720 AU).
+- `acwr_logs.source` damgası eklendi: `'manual'` (varsayılan, koçun formu — `acwr-client.tsx`
+  artık bunu AÇIKÇA gönderir, aksi halde upsert'in UPDATE dalı source'a dokunmaz ve koçun
+  düzeltmesi bir sonraki geri bildirimde ezilirdi) vs `'athlete_feedback'`. **Koçun elle girdiği
+  gün ASLA ezilmez** (kullanıcı kararı); ACWR tablosunda "Sporcu" rozetiyle ayırt edilir.
+- Günün tüm yükü kalkarsa ('skipped'e çevrildi / silindi) otomatik satır da silinir.
+- `refresh_acwr_rolling_loads()` etkilenen günü İZLEYEN 28 günün akut/kronik pencerelerini de
+  tazeler. Web formu bunu hiç yapmıyordu (koç günleri sırayla giriyordu); sporcu geri bildirimi
+  antrenmandan günler sonra gelebildiği için geriye dönük giriş artık NORMAL durum.
+  `acute_load`/`chronic_load` zaten türetilmiş alanlar, elle girilmiş veri değil.
+
+**Arayüzler:**
+- Mobil (birincil): `apps/mobile/components/SessionFeedbackSheet.tsx` + `app/(tabs)/program/[day].tsx`
+  — her seans kartının altında "Antrenmanı Değerlendir" / girilmişse özet rozetleri + koçun yanıtı.
+- Web sporcu: `apps/web/components/features/session-feedback/athlete-feedback-card.tsx`,
+  `AthleteProgramView` içinde her seansın altında (wellness'ta olduğu gibi mobil akışın web ikizi).
+- Web koç akışı: `apps/web/app/(dashboard)/feedback/` — okunmamış/ağrı/yapılmayan filtreleri,
+  sporcu araması, güne göre gruplama, satır içi yanıt + okundu, `session_feedback` üzerinde
+  realtime abonelik → `router.refresh()`. Sidebar'da "Geri Bildirimler" (admin+coach).
+  Athlete guard allow-list'i genişletilmedi → `/feedback` sporcuya kapalı (mevcut davranış).
+- Web koç program detayı: `session-feedback-strip.tsx` — seans kartının altında salt-okunur özet
+  ("N okunmamış", "N ağrı") + "Akışta aç" linki.
+
+**Ağrı bildirimi uyarıları (2026-09-17, aynı Parti'nin ikinci adımı).** Kullanıcı "ağrı
+bildiriminde koça push bildirimi de ekleyelim" dedi. **Önce tespit edilen gerçek durum:** bu
+projede push zinciri HİÇ KURULU DEĞİL — `apps/mobile/lib/notifications.ts`'teki
+`registerForPushNotifications()` `undefined` döndüren bir stub, `expo-notifications` kurulu değil,
+`eas.json`/EAS `projectId` yok (Expo push token'ı almak için development build ŞART, Expo Go'da
+çalışmaz), `athlete_push_tokens` boş ve sporcuya özel (koçu kapsamıyor), gönderim tarafında ne
+Edge Function ne `pg_net`/`pg_cron` var (ikisi de kurulu değil). Bu yüzden kanal kullanıcıya
+soruldu ve **web içi anlık uyarı + kalıcı rozet** seçildi (Expo push ve e-posta bilinçli olarak
+ertelendi); alıcı = sporcunun takım koçu (RLS zaten böyle daraltıyor, ek filtre yok);
+tetikleyici = yalnızca ağrı bayrağı.
+
+**Ayrı bir bildirim kuyruğu/outbox tablosu AÇILMADI** — "okunmamış ağrı" durumu zaten
+`session_feedback`'te duruyor (`has_pain = true and coach_read_at is null`). İkinci bir kopya iki
+kaynağı senkron tutma yükü ve tutarsızlık riski getirirdi. Üç katman:
+1. `PainAlertBanner` (`components/shared/pain-alert-banner.tsx`) — `DashboardShell`'de `main`'in
+   DIŞINDA, her sayfanın üstünde, okunana kadar kalıcı. Toast 4 saniyede kayboluyor
+   (`use-toast.ts` `TOAST_REMOVE_DELAY`), bir sakatlık sinyali için bu çok kısa — kalıcı yüzey bu.
+2. Sidebar'da "Geri Bildirimler" satırında kırmızı sayaç rozeti.
+3. `PainAlertsProvider` (`lib/hooks/pain-alerts-provider.tsx`) — `session_feedback` üzerinde
+   realtime abonelik, yeni gelen okunmamış ağrı satırları için toast; sekme ARKA PLANDAYSA ve koç
+   banner'daki butondan opt-in verdiyse ayrıca `Notification` API ile masaüstü bildirimi (izin
+   istemi kendiliğinden AÇILMAZ). Abonelik yalnızca admin/coach rolünde kurulur. İlk yükleme
+   "yeni geldi" sayılmaz (`seenIds` ref'i), yoksa her sayfa açılışında bekleyen tüm bildirimler
+   toast olarak patlardı.
+Okundu/yanıt sonrası rozet `usePainAlerts().refresh()` ile beklemeden tazelenir.
+
+**Kapsam dışı (bilinçli):** `source='coach_proxy'` şemada ve RLS'te DESTEKLENİR ama hiçbir UI'dan
+girilmez — canlı veride 13/13 sporcunun giriş hesabı var, vekil girişe şu an ihtiyaç yok.
+**Expo mobil push** (EAS projesi + development build + `expo-notifications` + kullanıcı bazlı
+token tablosu + Expo Push API gönderimi gerekir) ve **e-posta bildirimi** (Resend anahtarı env'de
+dolu ama kod tabanında hiç kullanılmıyor; ayrıca koç hesaplarının sentetik e-postası
+`@{org_slug}.athleteiq.app` gerçek bir kutu DEĞİL — `profiles`'a gerçek adres alanı eklenmeli)
+ertelendi. Egzersiz bazlı geri bildirim, geri bildirim uyum (compliance) raporu ve
+`exercises.completed_at` ("yaptım" işaretleme) de bu Parti'de YAPILMADI.
+
+**Test kriteri:**
+- Sporcu mobilde bir seansı değerlendirir → koç `/feedback`'te 2 sn içinde görür (realtime)
+- Aynı günde iki seans değerlendirilirse `acwr_logs`'ta TEK satır, ağırlıklı RPE + toplam süre
+- Koç, sporcunun `source='athlete'` satırındaki rpe/note'u DEĞİŞTİREMEZ (RLS)
+- Sporcu, doğrudan UPDATE ile `coach_reply`/`coach_read_at` YAZAMAZ (guard trigger)
+- Koçun `/acwr`'den elle girdiği gün, sonradan gelen sporcu geri bildirimiyle EZİLMEZ
+
+---
+
 ### AGENT 6: Test Agent (Kalite Güvence Uzmanı)
 
 **Sorumluluk:** RLS testleri, API entegrasyon testleri, E2E senaryolar
@@ -1472,7 +1593,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-16
+Son otomatik senkron: 2026-09-17
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1539,6 +1660,8 @@ Son otomatik senkron: 2026-09-16
 - 20260914075144_exercise_1rm_ratios.sql
 - 20260916084250_super_admin_app_metadata.sql
 - 20260916134047_athlete_ai_insights.sql
+- 20260917072700_session_feedback.sql
+- 20260917074747_session_feedback_function_hardening.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1586,6 +1709,13 @@ Son otomatik senkron: 2026-09-16
 - ✅ ACWR: log girişi + dashboard (aynı gün ikinci girişte/koç düzeltmesinde sessizce
   başarısız olan eksik UPDATE RLS politikası `040_acwr_logs_update_policy.sql` ile
   kapatıldı, bkz. Bekleyen Özellikler'in altındaki "03.09.2026 Eksiklikler" notu)
+- ✅ Sporcu → koç seans geri bildirimi (2026-09-17, Parti 22-FB) — sporcu her antrenman seansı
+  için RPE (1-10) + gerçek süre + durum (yaptım/eksik/yapmadım) + ağrı bayrağı + serbest not
+  gönderir; koç `/feedback` akışında (okunmamış/ağrı/yapılmayan filtreleri, realtime) görür ve
+  yanıtlar, sporcu yanıtı mobilde aynı seansın altında okur. Girilen sRPE `acwr_logs`'u OTOMATİK
+  besler (günde çok seans → ağırlıklı RPE), koçun elle girdiği günler ezilmez. **Ağrı bildirimi**
+  koça web içinde anlık uyarı (toast + sekme arka plandaysa opt-in masaüstü bildirimi) ve okunana
+  kadar kalıcı bir uyarı şeridi + sidebar rozeti olarak düşer. Bkz. AGENT 22-FB.
 - ✅ Wellness: `/wellness` — sporcu web arayüzünden günlük check-in girer (Parti 03.09.2026
   Eksiklikler §3'e kadar bu akış yalnızca mobile'da vardı; web athlete guard'ı hem
   `middleware.ts` hem `(dashboard)/layout.tsx`'te `/wellness`'e izin verecek şekilde
@@ -1651,6 +1781,16 @@ Son otomatik senkron: 2026-09-16
 - ✅ ~~AI analiz asistanı secrets'ı + canlı uçtan uca test~~ — 2026-09-16'da tamamlandı
   (`AI_ENABLED=true`, Groq `openai/gpt-oss-120b`), bkz. Çalışan Özellikler. KVKK kararı Beyto
   tarafından verilmiş sayılır — gerçek sporcu verisi artık sağlayıcıya gidiyor.
+- ⏳ **Expo mobil push altyapısı (hiç kurulu değil)** — `registerForPushNotifications()` stub,
+  `expo-notifications` kurulu değil, EAS `projectId`/`eas.json` yok (token için development build
+  şart), `athlete_push_tokens` boş ve sporcuya özel, gönderim tarafı (Edge Function veya
+  `pg_net`/`pg_cron`) yok. Ağrı bildirimi şu an web içi uyarı + rozet olarak çalışıyor; mobil
+  push isteniyorsa önce `eas init` + dev build gerekir
+- ⏳ Ağrı bildiriminde e-posta (Resend) — anahtar env'de dolu ama kodda hiç kullanılmıyor; ayrıca
+  koç hesaplarının sentetik e-postası gerçek bir kutu değil, `profiles`'a gerçek adres alanı gerekir
+- ⏳ Seans geri bildiriminde koç vekil girişi (`source='coach_proxy'`) — şema+RLS hazır, UI yok
+  (13/13 sporcunun hesabı olduğu için şimdilik gerekmiyor); geri bildirim uyum (compliance)
+  raporu — Parti 22-FB kapsamı dışında bırakıldı
 - ⏳ RLS izolasyon testleri
 - ⏳ E2E Playwright testleri
 

@@ -1,5 +1,5 @@
 {
-  "acwr_logs": "sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql).",
+  "acwr_logs": "sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql). source kolonu satırın kaynağını damgalar: 'manual' = koçun /acwr formundan elle girdiği, 'athlete_feedback' = session_feedback'ten otomatik türetilmiş (Parti 22-FB).",
   "athlete_1rm_records": "Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki \"Son max\" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).",
   "athlete_ai_insights": "Süper admin'in tek tuşla ürettiği, bir sporcunun WHOOP verisi üzerine deterministik özellik hesaplama + LLM yorumundan oluşan Türkçe koç değerlendirmesi kaydı; yalnızca athlete-ai-insight Edge Function'ının service role'ü yazar, RLS SELECT'i yalnızca is_super_admin() true ise açar (20260916134047_athlete_ai_insights.sql, Parti 21-AI).",
   "athlete_push_tokens": "Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).",
@@ -22,6 +22,7 @@
   "profiles": "auth.users ile 1:1, org kapsamlı kullanıcı adı + görünen ad; sentetik email desenindeki ({username}@{org_slug}.athleteiq.app) org_id/username kaynağı, yalnızca service-role Edge Function'lar yazar (032_profiles.sql, Parti 16).",
   "program_blocks": "Birden fazla haftalık training_programs satırını ortak bir döneme (örn. \"8 Haftalık Hazırlık Dönemi\") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).",
   "readiness_scores": "wellness_checkins'ten türetilen, bireysel taban çizgisine dayalı readiness skoru cache'i; sadece service_role/Edge Function yazar, hesaplama motoru henüz aktif değil (şema hazır) (013_readiness_scores.sql).",
+  "session_feedback": "Sporcunun bir antrenman seansı için koça verdiği geri bildirim (sporcu × seans): RPE (1-10), gerçek süre, tamamlanma durumu (completed/partial/skipped), ağrı bayrağı + bölge, serbest not ve koçun okundu/yanıt alanları. training_sessions.session_rpe/athlete_session_notes kolonlarının yerini alır — onlar takım programlarında tüm takımca paylaşılan bir satırda durduğu için sporcu bazlı veri tutamıyordu. Kaydedilince acwr_logs'un o günkü satırını ağırlıklı sRPE ile otomatik üretir (20260917072700_session_feedback.sql, Parti 22-FB).",
   "teams": "Bir organizasyona bağlı takım (discipline: artistic/rhythmic/trampoline/diving vb.) (001_schema.sql).",
   "test_results": "Sporcu fiziksel test sonuçları (CMJ, sprint, kuvvet testleri vb. — bkz. ayrıca athlete_1rm_records) (001_schema.sql).",
   "training_programs": "Takıma VEYA bireysel sporcuya atanan haftalık antrenman programı (team_id XOR athlete_id); is_published=false iken sporcu göremez (001_schema.sql).",

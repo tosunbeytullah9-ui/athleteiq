@@ -2,6 +2,9 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getPrograms, getProgramBlocks } from "@athleteiq/db/queries/programs";
 import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
+import { getAthleteFeedbackHistory } from "@athleteiq/db/queries/session-feedback";
+import { getLocalDateString } from "@athleteiq/validators/wellness";
+import type { Tables } from "@athleteiq/db/types";
 import { ProgramsClient } from "./programs-client";
 
 export default async function ProgramsPage() {
@@ -36,6 +39,8 @@ export default async function ProgramsPage() {
   // çekilir — RLS zaten yalnızca kendi kaydına izin veriyor.
   let athleteMaxHistory: Awaited<ReturnType<typeof getAthleteMaxHistory>> = [];
   let ratios: Awaited<ReturnType<typeof getExercise1RMRatios>> = [];
+  let athleteId: string | null = null;
+  let feedback: Tables<"session_feedback">[] = [];
   if (role === "athlete") {
     const {
       data: { user },
@@ -48,9 +53,21 @@ export default async function ProgramsPage() {
           .maybeSingle()
       : { data: null };
     if (athlete) {
-      [athleteMaxHistory, ratios] = await Promise.all([
+      athleteId = athlete.id;
+      // 60 gün: düzenleme penceresi 7 gün ama geçmiş seansların koç yanıtları
+      // da görünsün (salt-okunur).
+      const to = getLocalDateString();
+      const fromDate = new Date();
+      fromDate.setDate(fromDate.getDate() - 60);
+      [athleteMaxHistory, ratios, feedback] = await Promise.all([
         getAthleteMaxHistory(supabase, athlete.id),
         getExercise1RMRatios(supabase),
+        getAthleteFeedbackHistory(
+          supabase,
+          athlete.id,
+          getLocalDateString(fromDate),
+          to
+        ) as Promise<Tables<"session_feedback">[]>,
       ]);
     }
   }
@@ -63,6 +80,8 @@ export default async function ProgramsPage() {
       blocks={blocks}
       athleteMaxHistory={athleteMaxHistory}
       ratios={ratios}
+      athleteId={athleteId}
+      feedback={feedback}
     />
   );
 }

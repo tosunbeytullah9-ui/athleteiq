@@ -8,3 +8,4 @@ export * from "./wellness";
 export * from "./attendance";
 export * from "./exercise";
 export * from "./org-user";
+export * from "./session-feedback";

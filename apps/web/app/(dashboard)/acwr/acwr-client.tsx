@@ -142,6 +142,12 @@ export function AcwrClient({ athletes, latestAcwr: orgAcwr }: Props) {
         acute_load: acuteLoad,
         chronic_load: chronicLoad,
         notes: data.notes ?? null,
+        // AÇIKÇA 'manual': aksi halde upsert'in ON CONFLICT DO UPDATE dalı
+        // source'a hiç dokunmaz ve sporcu geri bildiriminden türetilmiş bir
+        // satır ('athlete_feedback') koç düzelttikten sonra da otomatik
+        // yeniden hesaplamaya açık kalırdı — koçun düzeltmesi bir sonraki
+        // geri bildirimde sessizce ezilirdi.
+        source: "manual",
       });
 
       reset({ log_date: today, athlete_id: selectedAthleteId });
@@ -573,7 +579,20 @@ export function AcwrClient({ athletes, latestAcwr: orgAcwr }: Props) {
                     return (
                       <tr key={log.id} className="border-b last:border-0">
                         <td className="py-2 pr-4">
-                          {new Date(log.log_date ?? "").toLocaleDateString("tr-TR")}
+                          <span className="flex items-center gap-1.5">
+                            {new Date(log.log_date ?? "").toLocaleDateString("tr-TR")}
+                            {/* session_feedback'ten otomatik türetilmiş satır — koç
+                                elle mi girdi, sporcu mu bildirdi ayırt edilebilsin
+                                (bkz. acwr_logs.source). */}
+                            {log.source === "athlete_feedback" && (
+                              <span
+                                className="rounded-full bg-blue-100 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700"
+                                title="Sporcunun seans geri bildiriminden otomatik hesaplandı"
+                              >
+                                Sporcu
+                              </span>
+                            )}
+                          </span>
                         </td>
                         <td className="py-2 px-2 text-center">{log.session_rpe}</td>
                         <td className="py-2 px-2 text-center">{log.duration_min} dk</td>

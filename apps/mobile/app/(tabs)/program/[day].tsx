@@ -20,10 +20,20 @@ import {
   buildMaxLookup,
   getExercise1RMRatios,
 } from "@athleteiq/db/queries/exercises";
+import { getSessionFeedbackForSessions } from "@athleteiq/db/queries/session-feedback";
+import {
+  resolveSessionDate,
+  isFeedbackEditable,
+  SESSION_FEEDBACK_STATUS_LABELS,
+  type SessionFeedbackStatus,
+} from "@athleteiq/validators/session-feedback";
+import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { SessionFeedbackSheet } from "@/components/SessionFeedbackSheet";
 import type { Tables } from "@athleteiq/db/types";
 
 type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: Tables<"exercise_sets">[] };
 type SessionWithExercises = Tables<"training_sessions"> & { exercises: ExerciseWithSets[] };
+type FeedbackRow = Tables<"session_feedback">;
 
 const DAY_LABELS: Record<number, string> = {
   1: "Pazartesi",
@@ -50,6 +60,10 @@ export default function ProgramDayScreen() {
   const [sessions, setSessions] = useState<SessionWithExercises[]>([]);
   const [maxLookup, setMaxLookup] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  // Seans başına geri bildirim (session_id -> satır) + formu açık olan seans.
+  const [feedback, setFeedback] = useState<Record<string, FeedbackRow>>({});
+  const [programStart, setProgramStart] = useState<string | null>(null);
+  const [sheetSessionId, setSheetSessionId] = useState<string | null>(null);
   const dayNum = parseInt(day ?? "1", 10);
 
   useEffect(() => {
@@ -62,10 +76,17 @@ export default function ProgramDayScreen() {
 
     async function fetchDaySessions() {
       try {
-        const [data, athleteMaxes, ratios] = await Promise.all([
+        const [data, athleteMaxes, ratios, programRes] = await Promise.all([
           getDaySessions(supabase, programId!, dayNum),
           getAthleteMaxes(supabase, athlete!.id),
           getExercise1RMRatios(supabase),
+          // Seansın takvim tarihi = program başlangıcı + (gün - 1). Geri bildirim
+          // düzenleme penceresini (7 gün) istemcide bilmek için gerekli.
+          supabase
+            .from("training_programs")
+            .select("start_date")
+            .eq("id", programId!)
+            .maybeSingle(),
         ]);
 
         const withSortedExercises = (data as SessionWithExercises[]).map((s) => ({
@@ -76,6 +97,14 @@ export default function ProgramDayScreen() {
         }));
         setSessions(withSortedExercises);
         setMaxLookup(buildMaxLookup(athleteMaxes, ratios));
+        setProgramStart(programRes.data?.start_date ?? null);
+
+        const rows = (await getSessionFeedbackForSessions(
+          supabase,
+          athlete!.id,
+          withSortedExercises.map((s) => s.id)
+        )) as FeedbackRow[];
+        setFeedback(Object.fromEntries(rows.map((r) => [r.session_id, r])));
       } finally {
         setLoading(false);
       }
@@ -83,6 +112,10 @@ export default function ProgramDayScreen() {
 
     fetchDaySessions();
   }, [athlete, dayNum, programId]);
+
+  const sessionDate = resolveSessionDate(programStart, dayNum);
+  const feedbackEditable = isFeedbackEditable(sessionDate, getLocalDateString());
+  const sheetSession = sessions.find((s) => s.id === sheetSessionId) ?? null;
 
   const totalDuration = sessions.reduce(
     (sum, s) => sum + (s.duration_min ?? 0),
@@ -213,11 +246,109 @@ export default function ProgramDayScreen() {
                   )
                 )
               )}
+
+              {/* Geri bildirim — her seansın altında, sporcu × seans bazlı */}
+              <FeedbackCard
+                row={feedback[session.id] ?? null}
+                editable={feedbackEditable}
+                onPress={() => setSheetSessionId(session.id)}
+              />
             </View>
           ))}
           <View className="h-8" />
         </ScrollView>
       )}
+
+      {athlete && sheetSession && (
+        <SessionFeedbackSheet
+          visible
+          onClose={() => setSheetSessionId(null)}
+          athleteId={athlete.id}
+          sessionId={sheetSession.id}
+          sessionTitle={
+            sheetSession.title ??
+            SESSION_TYPE_LABELS[sheetSession.session_type ?? ""] ??
+            "Antrenman"
+          }
+          plannedDurationMin={sheetSession.duration_min}
+          existing={feedback[sheetSession.id] ?? null}
+          editable={feedbackEditable}
+          onSaved={(row) => setFeedback((prev) => ({ ...prev, [row.session_id]: row }))}
+        />
+      )}
     </View>
+  );
+}
+
+/** Seans kartının altındaki geri bildirim özeti / "değerlendir" çağrısı. */
+function FeedbackCard({
+  row,
+  editable,
+  onPress,
+}: {
+  row: FeedbackRow | null;
+  editable: boolean;
+  onPress: () => void;
+}) {
+  if (!row) {
+    // Pencere kapandıysa boş bir form açmanın anlamı yok — RLS zaten reddederdi.
+    if (!editable) return null;
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        className="mt-3 flex-row items-center justify-center bg-blue-700 rounded-xl py-3.5"
+      >
+        <Ionicons name="chatbubble-ellipses-outline" size={18} color="#ffffff" />
+        <Text className="text-white font-semibold text-base ml-2">Antrenmanı Değerlendir</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  const statusLabel = SESSION_FEEDBACK_STATUS_LABELS[row.status as SessionFeedbackStatus];
+
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      className="mt-3 bg-white border border-gray-200 rounded-xl px-4 py-3"
+    >
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center flex-wrap gap-2">
+          <View className="bg-gray-100 px-2.5 py-1 rounded-full">
+            <Text className="text-gray-700 text-xs font-semibold">{statusLabel}</Text>
+          </View>
+          {row.rpe != null && (
+            <View className="bg-blue-50 px-2.5 py-1 rounded-full">
+              <Text className="text-blue-700 text-xs font-semibold">RPE {row.rpe}</Text>
+            </View>
+          )}
+          {row.duration_min != null && (
+            <Text className="text-gray-500 text-xs">{row.duration_min} dk</Text>
+          )}
+          {row.has_pain && (
+            <View className="bg-red-50 px-2.5 py-1 rounded-full">
+              <Text className="text-red-700 text-xs font-semibold">
+                Ağrı{row.pain_area ? `: ${row.pain_area}` : ""}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text className="text-blue-700 text-sm font-medium ml-2">
+          {editable ? "Düzenle" : "Gör"}
+        </Text>
+      </View>
+
+      {row.note ? (
+        <Text className="text-gray-600 text-sm mt-2" numberOfLines={2}>
+          {row.note}
+        </Text>
+      ) : null}
+
+      {row.coach_reply ? (
+        <View className="bg-blue-50 rounded-lg px-3 py-2 mt-2">
+          <Text className="text-blue-900 text-xs font-semibold mb-0.5">Koçunuzun yanıtı</Text>
+          <Text className="text-blue-800 text-sm">{row.coach_reply}</Text>
+        </View>
+      ) : null}
+    </TouchableOpacity>
   );
 }

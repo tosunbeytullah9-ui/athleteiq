@@ -22,6 +22,8 @@ import {
 } from "@/lib/exercise-format";
 import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
 import { getTodayDayOfWeek, toLocalDateString } from "@/lib/date";
+import { AthleteFeedbackCard } from "@/components/features/session-feedback/athlete-feedback-card";
+import { resolveSessionDate } from "@athleteiq/validators/session-feedback";
 
 type ExerciseWithSets = Tables<"exercises"> & {
   exercise_sets: Tables<"exercise_sets">[];
@@ -42,10 +44,16 @@ const SESSION_TYPE_COLORS: Record<string, string> = {
   competition: "bg-purple-500",
 };
 
+type FeedbackRow = Tables<"session_feedback">;
+
 interface Props {
   programs: Program[];
   maxHistory: Athlete1RMRecord[];
   ratios?: Exercise1RMRatio[];
+  /** Sporcunun kendi id'si — geri bildirim yazabilmesi için (yoksa kart gizlenir). */
+  athleteId?: string | null;
+  /** Son 60 günde girdiği geri bildirimler (koç yanıtları dahil). */
+  feedback?: FeedbackRow[];
 }
 
 function ExerciseDetailCard({
@@ -149,7 +157,17 @@ function dayDate(startDate: string | null, dayOfWeek: number): Date | null {
   return d;
 }
 
-export function AthleteProgramView({ programs, maxHistory, ratios = [] }: Props) {
+export function AthleteProgramView({
+  programs,
+  maxHistory,
+  ratios = [],
+  athleteId = null,
+  feedback = [],
+}: Props) {
+  // session_id -> geri bildirim. Kayıt sonrası sunucuya gitmeden yerelde güncellenir.
+  const [feedbackMap, setFeedbackMap] = useState<Record<string, FeedbackRow>>(() =>
+    Object.fromEntries(feedback.map((f) => [f.session_id, f]))
+  );
   const maxHistoryLookup = useMemo(
     () => buildMaxHistoryLookup(maxHistory, ratios),
     [maxHistory, ratios]
@@ -357,6 +375,23 @@ export function AthleteProgramView({ programs, maxHistory, ratios = [] }: Props)
                             );
                           })}
                         </div>
+                      )}
+
+                      {/* Geri bildirim — sporcu × seans (bkz. session_feedback) */}
+                      {athleteId && (
+                        <AthleteFeedbackCard
+                          athleteId={athleteId}
+                          sessionId={session.id}
+                          plannedDurationMin={session.duration_min}
+                          sessionDate={resolveSessionDate(
+                            currentProgram.start_date,
+                            session.day_of_week
+                          )}
+                          initial={feedbackMap[session.id] ?? null}
+                          onSaved={(row) =>
+                            setFeedbackMap((prev) => ({ ...prev, [row.session_id]: row }))
+                          }
+                        />
                       )}
                     </div>
                   ))}

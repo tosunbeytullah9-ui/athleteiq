@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { getProgramById } from "@athleteiq/db/queries/programs";
 import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
+import { getProgramSessionFeedback } from "@athleteiq/db/queries/session-feedback";
 import { ProgramDetailClient } from "./program-detail-client";
 
 interface Props {
@@ -18,7 +19,11 @@ export default async function ProgramDetailPage({ params }: Props) {
   // Program bireyselse (athlete_id dolu) tonaj hesabı o sporcunun 1RM'lerini kullanır.
   // Takım programında tek bir "sahip" sporcu yok (2.2.E'deki "Son max" rozeti kararıyla
   // aynı gerekçe) — %1RM setleri bu durumda hep "dahil edilmedi" sayılır.
-  const [athleteResult, teamResult, athleteMaxHistory, ratios] = await Promise.all([
+  // Geri bildirimler: RLS (session_feedback_select) athlete'i kendi satırına,
+  // coach'u kendi takımına daraltır — sporcu bu sayfada yalnızca kendi
+  // bildirimini görür, o da AthleteFeedbackCard'da zaten var, bu yüzden strip
+  // sporcu için boş kalır (zararsız).
+  const [athleteResult, teamResult, athleteMaxHistory, ratios, feedback] = await Promise.all([
     program.athlete_id
       ? supabase.from("athletes").select("id, full_name, weight_kg").eq("id", program.athlete_id).single()
       : Promise.resolve({ data: null }),
@@ -27,6 +32,7 @@ export default async function ProgramDetailPage({ params }: Props) {
       : Promise.resolve({ data: null }),
     program.athlete_id ? getAthleteMaxHistory(supabase, program.athlete_id) : Promise.resolve([]),
     getExercise1RMRatios(supabase),
+    getProgramSessionFeedback(supabase, id).catch(() => []),
   ]);
 
   return (
@@ -36,6 +42,7 @@ export default async function ProgramDetailPage({ params }: Props) {
       team={teamResult.data ?? null}
       athleteMaxHistory={athleteMaxHistory}
       ratios={ratios}
+      feedback={feedback}
     />
   );
 }

@@ -1,6 +1,69 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-09-16 (**Programlar listesi — hedef/blok bazlı gruplama** — kullanıcı
+> Son güncelleme: 2026-09-17 (**Ağrı bildiriminde koça uyarı (Parti 22-FB-N)** — kullanıcı
+> "ağrı bildiriminde koça push bildirimi de ekleyelim" dedi. **Önce tespit edilen gerçek durum:**
+> bu projede push zinciri HİÇ KURULU DEĞİL — `apps/mobile/lib/notifications.ts`'teki
+> `registerForPushNotifications()` `undefined` döndüren bir stub, `expo-notifications` kurulu değil,
+> `eas.json`/EAS `projectId` yok (Expo push token'ı için development build şart, Expo Go'da
+> çalışmaz), `athlete_push_tokens` boş ve sporcuya özel, `pg_net`/`pg_cron` kurulu değil, gönderim
+> için Edge Function yok, Resend de kod tabanında hiç kullanılmıyor. Bu yüzden kanal kullanıcıya
+> soruldu: **web içi anlık uyarı + kalıcı rozet** seçildi (Expo push ve e-posta bilinçli olarak
+> ertelendi), alıcı = sporcunun takım koçu, tetikleyici = yalnızca ağrı bayrağı.
+> **Uygulama:** ayrı bir outbox/kuyruk tablosu AÇILMADI — "okunmamış ağrı" durumu zaten
+> `session_feedback`'te (`has_pain and coach_read_at is null`); ikinci kopya senkron yükü olurdu.
+> `getUnreadPainFeedback()` sorgusu + `PainAlertsProvider` (realtime abonelik yalnızca admin/coach
+> rolünde; ilk yükleme `seenIds` ref'iyle "yeni" sayılmaz, yoksa her açılışta toast patlardı) +
+> `PainAlertBanner` (DashboardShell'de `main`'in DIŞINDA, okunana kadar kalıcı — toast 4 sn'de
+> kayboluyor, sakatlık sinyali için çok kısa) + sidebar'da kırmızı sayaç + sekme arka plandayken
+> opt-in masaüstü bildirimi (izin istemi kendiliğinden açılmaz). Okundu/yanıt sonrası rozet
+> `usePainAlerts().refresh()` ile anında tazelenir.
+> **Doğrulama:** canlı Supabase'de GERÇEK bir oturumla (süper admin JWT, PostgREST üzerinden) uçtan
+> uca test edildi — ağrılı bir test satırı eklendi, `getUnreadPainFeedback` ile BİREBİR aynı sorgu
+> 1 satır + sporcu adını join'leyerek döndü; `reply_to_session_feedback` RPC'si başarıyla çalıştı
+> (guard trigger RPC'den gelen yazımı geçirdi), `coach_read_at` otomatik doldu ve okunmamış ağrı
+> sayısı **1 → 0** düştü (rozetin temizlenme yolu doğrulandı); test satırı silindi.
+> `pnpm --filter @athleteiq/web run build` temiz, `run lint` **0 hata**.
+> Önceki: 2026-09-17 (**Sporcu → koç seans geri bildirimi (Parti 22-FB)** — kullanıcı
+> "koç her zaman sporcunun başında olamıyor, her antrenman birimine RPE + küçük bir not alanı
+> ekleyelim" dedi ve daha iyi bir fikir varsa tartışmaya açtı. **Öncesinde bulunan durum:**
+> `training_sessions.session_rpe` (016) ve `.athlete_session_notes` (014) kolonları ZATEN vardı,
+> hiç doldurulmamıştı ve **yapısal olarak kullanılamazdı** — o satır bir programa aittir ve takım
+> programlarında tüm takımca paylaşılır (canlı veride bir seans satırı 4 sporcuya birden düşüyor),
+> ayrıca `sessions_write` sporcuya yazma izni vermiyor. **Kullanıcıyla netleştirilen 4 karar**
+> (dördü de önerilen seçenek): granülerlik = seans bazlı; alanlar = RPE + gerçek süre + durum
+> (yaptım/eksik/yapmadım) + ağrı bayrağı + not; sRPE ACWR'a otomatik aksın; koç tarafı = akış +
+> okundu + yanıt. **Uygulama:** `20260917072700_session_feedback.sql` (sporcu × seans tablosu,
+> 012_wellness.sql'in source/entered_by damga kalıbı, `session_feedback_load_shape` check,
+> `set_session_feedback_date` trigger'ı session_date'i programdan hesaplayıp istemciyi EZER,
+> coach_* kolonları guard trigger + iki SECURITY DEFINER RPC dışında yazılamaz, RLS UPDATE
+> sporcu/koç arasında source'a göre ikiye ayrılır → koç sporcunun self-report'unu değiştiremez,
+> sporcu sahte koç yanıtı yazamaz); `acwr_logs.source` ('manual' | 'athlete_feedback') + günü
+> ağırlıklı sRPE ile üreten `recalc_acwr_day` + 28 günlük pencereyi tazeleyen
+> `refresh_acwr_rolling_loads`; `packages/validators/session-feedback.ts` (+14 test),
+> `packages/db/queries/session-feedback.ts`; mobilde `SessionFeedbackSheet` + `program/[day].tsx`,
+> web sporcuda `athlete-feedback-card.tsx` (AthleteProgramView), web koçta YENİ `/feedback` akışı
+> (okunmamış/ağrı/yapılmayan filtreleri, realtime, satır içi yanıt) + program detayında
+> `session-feedback-strip.tsx` + sidebar girdisi + `/acwr` tablosunda "Sporcu" rozeti.
+> **Doğrulama:** canlı DB'de uçtan uca test edildi — iki seanslı bir gün (8×60 + 6×40) tek
+> `acwr_logs` satırına **rpe 7.20 / 100 dk / 720 AU** olarak indi (Σ(rpe·süre) birebir korundu),
+> biri 'skipped'e çevrilince 480'e düştü, ikisi silinince otomatik satır da silindi; doğrudan
+> UPDATE ile yazılmaya çalışılan sahte `coach_reply`/`coach_read_at` guard trigger tarafından
+> geri alındı; `can_manage_athlete_feedback` yetkisiz/olmayan sporcu için `false` döndü
+> (fail-closed, §4.1). Migration sonrası **Supabase security advisor** çalıştırıldı ve bu Parti'nin
+> açtığı iki uyarı `20260917074747_session_feedback_function_hardening.sql` ile kapatıldı (üç
+> trigger fonksiyonunda eksik `set search_path`; `session_feedback_sync_acwr`'ın PostgREST'ten
+> çağrılabilir olması). Geriye kalan advisor uyarıları bu Parti'den önce de vardı; `authenticated`
+> rolüne açık kalan `mark_session_feedback_read`/`reply_to_session_feedback` BİLİNÇLİ (koç istemcisi
+> çağırıyor, ikisi de kendi içinde coalesce'lu yetki kontrolü yapıyor — `is_super_admin`/`my_role`
+> ile aynı kategori). `pnpm --filter @athleteiq/web run build` temiz (`/feedback` route'u dahil),
+> `run lint` **0 hata**, `@athleteiq/validators run test` **32/32**, db+validators `tsc --noEmit`
+> temiz, `expo lint` temiz. **Kapsam dışı (bilinçli):** `source='coach_proxy'` şemada+RLS'te var
+> ama UI yok (13/13 sporcunun hesabı var), egzersiz bazlı geri bildirim, ağrı push bildirimi,
+> uyum raporu, `exercises.completed_at`. **Bilinen, bu Parti'nin DIŞINDA olan hata:**
+> `apps/mobile/app/(tabs)/my-athletes/[athleteId]/program/[day].tsx:61` — `athlete.team_id`
+> (`string | null`) `teamId: string` parametresine geçiriliyor, `tsc --noEmit` bunu hata veriyor;
+> bu Parti'den ÖNCE de vardı (types.ts stash'lenip doğrulandı), dokunulmadı.)
+> Önceki: 2026-09-16 (**Programlar listesi — hedef/blok bazlı gruplama** — kullanıcı
 > "bütün programlar hafta hafta görünüyor ve çok kalabalık, sporcu veya takım bazında ayıralım"
 > dedi (kendi fikrime de açık bıraktı). **Teşhis:** `training_programs`'ta HER SATIR BİR HAFTADIR
 > ve çok haftalı bir bloğun (`program_blocks`, Parti 3.B) tüm haftaları AYNI başlığı taşır —

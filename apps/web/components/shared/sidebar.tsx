@@ -18,12 +18,14 @@ import {
   Sunrise,
   UserCog,
   ClipboardCheck,
+  MessageSquare,
   LayoutDashboard,
   User,
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUserContext } from "@/lib/hooks/useUserContext";
+import { usePainAlerts } from "@/lib/hooks/pain-alerts-provider";
 
 type Role = "admin" | "coach" | "athlete";
 
@@ -68,6 +70,12 @@ const navItems: {
     href: "/attendance",
     label: "Yoklama",
     icon: ClipboardCheck,
+    roles: ["admin", "coach"],
+  },
+  {
+    href: "/feedback",
+    label: "Geri Bildirimler",
+    icon: MessageSquare,
     roles: ["admin", "coach"],
   },
   {
@@ -129,6 +137,8 @@ interface SidebarProps {
 export function Sidebar({ open, onOpenChange }: SidebarProps) {
   const pathname = usePathname();
   const { role, isSuperAdmin } = useUserContext();
+  const { alerts } = usePainAlerts();
+  const painCount = alerts.length;
 
   // Sayfa değişince mobil menüyü otomatik kapat.
   useEffect(() => {
@@ -186,6 +196,13 @@ export function Sidebar({ open, onOpenChange }: SidebarProps) {
                 >
                   <Icon className="h-4 w-4" />
                   {label}
+                  {/* Okunmamış ağrı bildirimi sayacı — yalnızca Geri Bildirimler
+                      satırında, yalnızca 0'dan büyükse. */}
+                  {href === "/feedback" && painCount > 0 && (
+                    <span className="ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white">
+                      {painCount > 99 ? "99+" : painCount}
+                    </span>
+                  )}
                 </Link>
               </li>
             ))}

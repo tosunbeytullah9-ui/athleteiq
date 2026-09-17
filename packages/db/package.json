@@ -19,7 +19,8 @@
     "./queries/wellness": "./queries/wellness.ts",
     "./queries/attendance": "./queries/attendance.ts",
     "./queries/profiles": "./queries/profiles.ts",
-    "./queries/ai-insights": "./queries/ai-insights.ts"
+    "./queries/ai-insights": "./queries/ai-insights.ts",
+    "./queries/session-feedback": "./queries/session-feedback.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

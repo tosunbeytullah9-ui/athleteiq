@@ -13,7 +13,8 @@
     "./wellness": "./wellness.ts",
     "./attendance": "./attendance.ts",
     "./exercise": "./exercise.ts",
-    "./org-user": "./org-user.ts"
+    "./org-user": "./org-user.ts",
+    "./session-feedback": "./session-feedback.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

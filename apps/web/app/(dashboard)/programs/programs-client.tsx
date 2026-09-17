@@ -46,6 +46,9 @@ interface Props {
   blocks?: BlockRow[];
   athleteMaxHistory?: Awaited<ReturnType<typeof getAthleteMaxHistory>>;
   ratios?: Awaited<ReturnType<typeof getExercise1RMRatios>>;
+  /** Yalnızca athlete rolünde dolu — AthleteProgramView'daki geri bildirim kartı için. */
+  athleteId?: string | null;
+  feedback?: Tables<"session_feedback">[];
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -69,6 +72,8 @@ export function ProgramsClient({
   blocks = [],
   athleteMaxHistory = [],
   ratios = [],
+  athleteId = null,
+  feedback = [],
 }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
@@ -162,7 +167,15 @@ export function ProgramsClient({
   }, [filtered, blocks, teamMap, athleteMap, query]);
 
   if (isAthlete) {
-    return <AthleteProgramView programs={filtered} maxHistory={athleteMaxHistory} ratios={ratios} />;
+    return (
+      <AthleteProgramView
+        programs={filtered}
+        maxHistory={athleteMaxHistory}
+        ratios={ratios}
+        athleteId={athleteId}
+        feedback={feedback}
+      />
+    );
   }
 
   const activePrograms = programs.filter((p) => !p.is_archived);

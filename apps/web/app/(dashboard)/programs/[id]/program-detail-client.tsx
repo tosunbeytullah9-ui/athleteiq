@@ -44,6 +44,8 @@ import {
   type TonnageSummary,
 } from "@/lib/tonnage";
 import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
+import { SessionFeedbackStrip } from "@/components/features/session-feedback/session-feedback-strip";
+import type { FeedbackInboxRow } from "@athleteiq/db/queries/session-feedback";
 import {
   formatSetReps,
   formatSetLoad,
@@ -85,6 +87,8 @@ interface Props {
   team: { id: string; name: string } | null;
   athleteMaxHistory: Athlete1RMRecord[];
   ratios: Exercise1RMRatio[];
+  /** Bu programın seanslarına gelen sporcu geri bildirimleri (koç/admin görünümü). */
+  feedback?: FeedbackInboxRow[];
 }
 
 type ExerciseWithSets = Tables<"exercises"> & {
@@ -214,10 +218,20 @@ export function ProgramDetailClient({
   team,
   athleteMaxHistory,
   ratios,
+  feedback = [],
 }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
   const isAthlete = role === "athlete";
+
+  // session_id -> o seansa gelen geri bildirimler
+  const feedbackBySession = useMemo(() => {
+    const map: Record<string, FeedbackInboxRow[]> = {};
+    for (const f of feedback) {
+      (map[f.session_id] ??= []).push(f);
+    }
+    return map;
+  }, [feedback]);
   const [isPublishing, setIsPublishing] = useState(false);
   const [isPublished, setIsPublished] = useState(program.is_published ?? false);
   const [blockPublishInfo, setBlockPublishInfo] = useState<{
@@ -703,6 +717,9 @@ export function ProgramDetailClient({
                           </CardContent>
                         )
                       )}
+
+                      {/* Bu seansa gelen sporcu geri bildirimleri (salt-okunur) */}
+                      <SessionFeedbackStrip rows={feedbackBySession[session.id] ?? []} />
                     </Card>
                   );
                 })}

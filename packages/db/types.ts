@@ -27,6 +27,7 @@ export type Database = {
           notes: string | null
           session_load: number | null
           session_rpe: number | null
+          source: string
         }
         Insert: {
           acute_load?: number | null
@@ -40,6 +41,7 @@ export type Database = {
           notes?: string | null
           session_load?: number | null
           session_rpe?: number | null
+          source?: string
         }
         Update: {
           acute_load?: number | null
@@ -53,6 +55,7 @@ export type Database = {
           notes?: string | null
           session_load?: number | null
           session_rpe?: number | null
+          source?: string
         }
         Relationships: [
           {
@@ -1208,6 +1211,93 @@ export type Database = {
           },
         ]
       }
+      session_feedback: {
+        Row: {
+          athlete_id: string
+          coach_read_at: string | null
+          coach_read_by: string | null
+          coach_replied_at: string | null
+          coach_replied_by: string | null
+          coach_reply: string | null
+          created_at: string | null
+          duration_min: number | null
+          entered_by: string | null
+          has_pain: boolean
+          id: string
+          note: string | null
+          pain_area: string | null
+          rpe: number | null
+          session_date: string
+          session_id: string
+          session_load: number | null
+          source: string
+          status: string
+          submitted_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          athlete_id: string
+          coach_read_at?: string | null
+          coach_read_by?: string | null
+          coach_replied_at?: string | null
+          coach_replied_by?: string | null
+          coach_reply?: string | null
+          created_at?: string | null
+          duration_min?: number | null
+          entered_by?: string | null
+          has_pain?: boolean
+          id?: string
+          note?: string | null
+          pain_area?: string | null
+          rpe?: number | null
+          session_date: string
+          session_id: string
+          session_load?: number | null
+          source?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          athlete_id?: string
+          coach_read_at?: string | null
+          coach_read_by?: string | null
+          coach_replied_at?: string | null
+          coach_replied_by?: string | null
+          coach_reply?: string | null
+          created_at?: string | null
+          duration_min?: number | null
+          entered_by?: string | null
+          has_pain?: boolean
+          id?: string
+          note?: string | null
+          pain_area?: string | null
+          rpe?: number | null
+          session_date?: string
+          session_id?: string
+          session_load?: number | null
+          source?: string
+          status?: string
+          submitted_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "session_feedback_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_feedback_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "training_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           created_at: string | null
@@ -1744,6 +1834,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_manage_athlete_feedback: {
+        Args: { p_athlete_id: string }
+        Returns: boolean
+      }
       copy_program_tree: {
         Args: { p_source_program_id: string; p_target_program_id: string }
         Returns: undefined
@@ -1799,11 +1893,27 @@ export type Database = {
         Returns: undefined
       }
       is_super_admin: { Args: never; Returns: boolean }
+      mark_session_feedback_read: {
+        Args: { p_feedback_id: string }
+        Returns: undefined
+      }
       my_role: { Args: { org: string }; Returns: string }
       my_team_id: { Args: { org: string }; Returns: string }
       propagate_week_to_future: {
         Args: { p_source_program_id: string }
         Returns: Json
+      }
+      recalc_acwr_day: {
+        Args: { p_athlete_id: string; p_date: string }
+        Returns: undefined
+      }
+      refresh_acwr_rolling_loads: {
+        Args: { p_athlete_id: string; p_from: string; p_to: string }
+        Returns: undefined
+      }
+      reply_to_session_feedback: {
+        Args: { p_feedback_id: string; p_reply: string }
+        Returns: undefined
       }
       update_program_week: {
         Args: {
