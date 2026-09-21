@@ -12,3 +12,4 @@ export * from "./wellness";
 export * from "./profiles";
 export * from "./ai-insights";
 export * from "./session-feedback";
+export * from "./annual-plans";

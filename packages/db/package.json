@@ -20,7 +20,8 @@
     "./queries/attendance": "./queries/attendance.ts",
     "./queries/profiles": "./queries/profiles.ts",
     "./queries/ai-insights": "./queries/ai-insights.ts",
-    "./queries/session-feedback": "./queries/session-feedback.ts"
+    "./queries/session-feedback": "./queries/session-feedback.ts",
+    "./queries/annual-plans": "./queries/annual-plans.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

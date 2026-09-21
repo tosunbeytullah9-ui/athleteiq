@@ -190,6 +190,8 @@ AthleteIQ/
 │   │   └── tsconfig.json
 │   └── validators/
 │       ├── acwr.ts
+│       ├── annual-plan.test.ts
+│       ├── annual-plan.ts
 │       ├── athlete.test.ts
 │       ├── athlete.ts
 │       ├── attendance.ts
@@ -290,7 +292,8 @@ AthleteIQ/
 │   │   ├── 20260916084250_super_admin_app_metadata.sql
 │   │   ├── 20260916134047_athlete_ai_insights.sql
 │   │   ├── 20260917072700_session_feedback.sql
-│   │   └── 20260917074747_session_feedback_function_hardening.sql
+│   │   ├── 20260917074747_session_feedback_function_hardening.sql
+│   │   └── 20260921081206_annual_plans.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -324,6 +327,10 @@ AthleteIQ/
 
 <!-- AUTO-GENERATED:SCHEMA:START -->
 - **acwr_logs** — sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql). source kolonu satırın kaynağını damgalar: 'manual' = koçun /acwr formundan elle girdiği, 'athlete_feedback' = session_feedback'ten otomatik türetilmiş (Parti 22-FB).
+- **annual_plan_cells** — Yıllık plan ızgarasının gövdesi: (plan × hafta × antrenman sistemi) → o hafta kaç seans. SEYREK — yalnızca sessions >= 1 olan hücreler satır tutar, sıfıra düşen hücre silinir (52 hafta × 11 sistem = 572 satırlık yoğun ızgara materyalize edilmez) (20260921081206_annual_plans.sql, Parti 23-YP).
+- **annual_plan_methods** — Organizasyona özel, düzenlenebilir antrenman sistemi listesi (Contrast Training, Hipertrofi, Max, Deload, Aerobik/Anaerobik Dayanıklılık, Hız/Çeviklik vb.) — yıllık plan ızgarasının SATIR başlıkları. org_exercises deseni: platform varsayılanı ilk plan oluşturulurken tohumlanır, sonrasında org kendi branşına göre düzenler. Silmek yerine is_active=false kullanılır, çünkü silme annual_plan_cells'i cascade ile götürür (20260921081206_annual_plans.sql, Parti 23-YP).
+- **annual_plan_weeks** — Yıllık plandaki bir haftanın bağlamı: yoğunluk yüzdesi (Excel'in CYCLES/LOADS satırı, 0.55 yerine 55 olarak saklanır), makro faz etiketi, yer/durum (HOME/AWAY) ve serbest not. SEYREK tablo — yalnızca değer girilen haftalar için satır vardır, tüm alanlar boşaltılırsa satır silinir (20260921081206_annual_plans.sql, Parti 23-YP).
+- **annual_plans** — Bir takıma VEYA bireysel sporcuya ait sezonluk periyodizasyon planı (team_id XOR athlete_id) — başlık, 1. haftanın başlangıç tarihi ve toplam hafta sayısı. Excel'deki yıllık plan sayfasının karşılığı; haftaların tarihleri season_start + (hafta-1)*7 ile TÜRETİLİR, ayrıca saklanmaz. Program üretmez, program_blocks/training_programs ile bağı yoktur — üst seviye bir makro-döngü haritasıdır (20260921081206_annual_plans.sql, Parti 23-YP).
 - **athlete_1rm_records** — Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki "Son max" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).
 - **athlete_ai_insights** — Süper admin'in tek tuşla ürettiği, bir sporcunun WHOOP verisi üzerine deterministik özellik hesaplama + LLM yorumundan oluşan Türkçe koç değerlendirmesi kaydı; yalnızca athlete-ai-insight Edge Function'ının service role'ü yazar, RLS SELECT'i yalnızca is_super_admin() true ise açar (20260916134047_athlete_ai_insights.sql, Parti 21-AI).
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
@@ -1428,6 +1435,82 @@ ertelendi. Egzersiz bazlı geri bildirim, geri bildirim uyum (compliance) raporu
 
 ---
 
+### AGENT 23-YP: Yıllık (Sezonluk) Periyodizasyon Planı (2026-09-21, Parti 23-YP)
+
+**Sorumluluk:** Bir takım veya sporcu için sezonun tamamını hafta hafta planlayan makro-döngü
+ızgarası — hangi hafta hangi antrenman sisteminden kaç seans, hangi yoğunlukta.
+
+**Kaynak:** Koç Rams'ın `RAMS 2026-2027 SEZONU KUVVET&KONDİSYON YILLIK PLAN.xlsx` dosyası.
+Excel'de her SAYFA bir hedef (Ünilig/Prolig takımı), her SÜTUN bir sezon haftası (1–59, TARİH
+satırı `B3+7` zinciriyle ilerler), her SATIR ya bir bağlam satırı (MAÇLAR, HOME/AWAY,
+CYCLES/LOADS — haftalık yoğunluk 0.55→1.0) ya da bir antrenman sistemi (11 sabit satır:
+Contrast Training, Fonksiyonel Kuvvet, Aerobik/Anaerobik Dayanıklılık, Genel Kuvvet, Deload,
+Kuvvette Devamlılık, Pliometrik, Hız/Hızlanma/Çeviklik, Hipertrofi, Max). Sistem satırındaki
+hücre değeri = o hafta o sistemden kaç seans.
+
+**Şema** (`20260921081206_annual_plans.sql` — MCP kendi zaman damgasını atadı, §4.1'deki
+yeniden adlandırma rutini uygulandı): `annual_plan_methods` (org kütüphanesi),
+`annual_plans` (team_id XOR athlete_id), `annual_plan_weeks`, `annual_plan_cells`. §3'te
+ayrıntılı açıklandı.
+
+**ÜÇ BİLİNÇLİ KAPSAM KARARI (kullanıcı onaylı):**
+
+1. **Yarışma satırı ŞEMADA YOK — türetilir.** Excel'in MAÇLAR satırı `competitions` +
+   `competition_entries`'ten okunur (`[id]/page.tsx`): takım planında `competitions.team_id`
+   eşleşenler ARTI o takımdan en az bir sporcunun kayıtlı olduğu yarışmalar; **sporcu planında
+   YALNIZCA o sporcunun `competition_entries` kayıtları.** Bireysel branşlarda her sporcunun
+   yarışma takvimi farklı olduğu için bu ikinci dal özelliğin çekirdeğidir. Yarışma verisi
+   ikinci bir yerde TUTULMAZ — tek kaynak `competitions`. Tarih→hafta eşlemesi
+   `weekIndexForDate()` (`packages/validators/annual-plan.ts`, 24 birim testle doğrulandı; bir
+   gün kayması yarışmayı yanlış haftada gösterip koça yanlış haftayı taperletirdi). Plan
+   aralığının DIŞINDA kalan yarışmalar sessizce kaybolmaz — ızgaranın altında ayrı bir kartta
+   listelenir.
+2. **Program ÜRETMEZ.** `program_blocks`/`training_programs`'a hiçbir FK, trigger veya RPC
+   bağı yok; bu katman üst seviye bir haritadır. Haftadan program bloğu üretme ve iki yönlü
+   senkron bilinçli olarak ertelendi (mevcut `create_program_with_weeks` RPC'sine dokunmayı
+   gerektirirdi).
+3. **Sporcu erişimi YOK.** `attendance_records` (042) ile aynı tercih — bu bir koç planlama
+   aracı. RLS'te sporcu dalı yazılmadı, dolayısıyla middleware/layout athlete guard
+   allow-list'i GENİŞLETİLMEDİ (guard zaten allow-list olduğu için `/annual-plans` otomatik
+   kapalı — canlıda doğrulandı).
+
+**Antrenman sistemi listesi org'a özeldir, sabit değil.** Excel'in 11 satırı yalnızca
+`DEFAULT_ANNUAL_PLAN_METHODS` (validators) olarak kodda durur ve bir org ilk planını
+oluştururken `seedAnnualPlanMethods()` ile idempotent olarak tohumlanır — sonrasında org kendi
+branşına göre düzenler (cimnastik ile basketbolun sistemleri aynı değil). Kod bu isimlere göre
+hiçbir yerde dallanmaz. **Silme UI'da SUNULMAZ**, `is_active=false` sunulur: `annual_plan_cells.
+method_id` `on delete cascade` olduğu için bir sistemi silmek o sistemin TÜM planlardaki geçmiş
+hücrelerini de sessizce götürür.
+
+**RLS:** `025_team_scoped_training_rls.sql`'deki coach dalı birebir. weeks/cells için koşul
+altı kez kopyalanmak yerine `can_access_annual_plan()` SECURITY DEFINER helper'ında tekil
+tutuldu — §4.1 muafiyeti (my_role/my_team_id gibi RLS içinden çağrıldığı için `authenticated`
+EXECUTE kaldırılamaz; gövdenin tamamı zaten `coalesce(..., false)` ile fail-closed bir yetki
+kontrolüdür). `anon`/`PUBLIC` EXECUTE kaldırıldı.
+
+**Arayüz:** `/annual-plans` (liste, hedefe göre gruplu) → `/annual-plans/[id]` (ızgara).
+Izgarada hücreye tıklama +1, Shift+tıklama/sağ tık −1 (0–6 döngüsü; 7–14 hafta detayından),
+yazma **iyimser** — 52×11 ızgarada her tıklamada `router.refresh()` kullanılamaz olurdu, hata
+durumunda hücre eski değerine GERİ ALINIR. Hafta başlığına tıklamak hafta detayını açar
+(yoğunluk/faz/yer/not + tam seans değerleri + "bu haftayı 5-8'e kopyala" aralık ifadesi).
+`MethodsDialog` sistem kütüphanesini yönetir.
+
+**Test kriteri (canlı DB'de 2026-09-21'de doğrulandı, tümü geçti):**
+- ACE koçu yalnızca ACE takım planını görür; ACK koçu kendi takım planını VE kendi takımındaki
+  sporcunun bireysel planını görür (7 senaryo, geri alınan transaction içinde)
+- ACK koçu ACE planını UPDATE edemez (0 satır)
+- Sporcu hiçbir plan/hücre/sistem görmez (0/0/0)
+- `can_access_annual_plan`: `anon` EXECUTE yok, `authenticated` EXECUTE var
+- `packages/validators/annual-plan.test.ts` — 24 test (hafta↔tarih eşlemesi, artık yıl,
+  yıl sınırı, XOR kısıtı, yoğunluk sınırları)
+
+**Kapsam dışı (bilinçli, kullanıcı onaylı):** Excel/CSV dışa aktarma, "Max Takibi" sayfası
+(Excel'de var, projede `athlete_1rm_records` tablosu hazır ama bu görünüm yazılmadı), Epley
+max hesaplayıcı (`kg × tekrar × 0.0333 + kg` — Excel'in "Maks Hesaplama Formülü" sayfası),
+mobil görünüm.
+
+---
+
 ### AGENT 6: Test Agent (Kalite Güvence Uzmanı)
 
 **Sorumluluk:** RLS testleri, API entegrasyon testleri, E2E senaryolar
@@ -1593,7 +1676,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-17
+Son otomatik senkron: 2026-09-21
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1662,6 +1745,7 @@ Son otomatik senkron: 2026-09-17
 - 20260916134047_athlete_ai_insights.sql
 - 20260917072700_session_feedback.sql
 - 20260917074747_session_feedback_function_hardening.sql
+- 20260921081206_annual_plans.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1709,6 +1793,13 @@ Son otomatik senkron: 2026-09-17
 - ✅ ACWR: log girişi + dashboard (aynı gün ikinci girişte/koç düzeltmesinde sessizce
   başarısız olan eksik UPDATE RLS politikası `040_acwr_logs_update_policy.sql` ile
   kapatıldı, bkz. Bekleyen Özellikler'in altındaki "03.09.2026 Eksiklikler" notu)
+- ✅ Yıllık (sezonluk) periyodizasyon planı (2026-09-21, Parti 23-YP) — `/annual-plans`:
+  takım VEYA sporcu bazlı sezon ızgarası (hafta sütunları × antrenman sistemi satırları,
+  hücre = o hafta kaç seans), haftalık yoğunluk %'si, faz/yer/not, hafta kopyalama.
+  **Yarışma satırı `competitions`/`competition_entries`'ten otomatik dolar** — sporcu
+  planında yalnızca o sporcunun yarışmaları (bireysel branş gereksinimi). Antrenman
+  sistemi listesi org'a özel ve düzenlenebilir. Koç/admin'e özel (sporcuya kapalı),
+  program üretmez. Bkz. AGENT 23-YP.
 - ✅ Sporcu → koç seans geri bildirimi (2026-09-17, Parti 22-FB) — sporcu her antrenman seansı
   için RPE (1-10) + gerçek süre + durum (yaptım/eksik/yapmadım) + ağrı bayrağı + serbest not
   gönderir; koç `/feedback` akışında (okunmamış/ağrı/yapılmayan filtreleri, realtime) görür ve
@@ -1788,6 +1879,9 @@ Son otomatik senkron: 2026-09-17
   push isteniyorsa önce `eas init` + dev build gerekir
 - ⏳ Ağrı bildiriminde e-posta (Resend) — anahtar env'de dolu ama kodda hiç kullanılmıyor; ayrıca
   koç hesaplarının sentetik e-postası gerçek bir kutu değil, `profiles`'a gerçek adres alanı gerekir
+- ⏳ Yıllık plan: Excel/CSV dışa aktarma, "Max Takibi" görünümü (`athlete_1rm_records` hazır),
+  Epley max hesaplayıcı, mobil görünüm, haftadan program bloğu üretme — hepsi Parti 23-YP
+  kapsamı dışında bırakıldı (kullanıcı onaylı), bkz. AGENT 23-YP
 - ⏳ Seans geri bildiriminde koç vekil girişi (`source='coach_proxy'`) — şema+RLS hazır, UI yok
   (13/13 sporcunun hesabı olduğu için şimdilik gerekmiyor); geri bildirim uyum (compliance)
   raporu — Parti 22-FB kapsamı dışında bırakıldı

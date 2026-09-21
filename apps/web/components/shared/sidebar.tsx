@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   Users,
   Calendar,
+  CalendarRange,
   ClipboardList,
   BarChart2,
   Trophy,
@@ -58,6 +59,12 @@ const navItems: {
     label: "Programlar",
     icon: ClipboardList,
     roles: ["admin", "coach", "athlete"],
+  },
+  {
+    href: "/annual-plans",
+    label: "Yıllık Plan",
+    icon: CalendarRange,
+    roles: ["admin", "coach"],
   },
   {
     href: "/exercises",

@@ -67,6 +67,203 @@ export type Database = {
           },
         ]
       }
+      annual_plan_cells: {
+        Row: {
+          created_at: string | null
+          id: string
+          method_id: string
+          plan_id: string
+          sessions: number
+          updated_at: string | null
+          week_index: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          method_id: string
+          plan_id: string
+          sessions: number
+          updated_at?: string | null
+          week_index: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          method_id?: string
+          plan_id?: string
+          sessions?: number
+          updated_at?: string | null
+          week_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annual_plan_cells_method_id_fkey"
+            columns: ["method_id"]
+            isOneToOne: false
+            referencedRelation: "annual_plan_methods"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annual_plan_cells_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "annual_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      annual_plan_methods: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          is_active: boolean
+          name: string
+          org_id: string
+          sort_order: number
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          org_id: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          org_id?: string
+          sort_order?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annual_plan_methods_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      annual_plan_weeks: {
+        Row: {
+          created_at: string | null
+          id: string
+          intensity_pct: number | null
+          location: string | null
+          notes: string | null
+          phase: string | null
+          plan_id: string
+          updated_at: string | null
+          week_index: number
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          intensity_pct?: number | null
+          location?: string | null
+          notes?: string | null
+          phase?: string | null
+          plan_id: string
+          updated_at?: string | null
+          week_index: number
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          intensity_pct?: number | null
+          location?: string | null
+          notes?: string | null
+          phase?: string | null
+          plan_id?: string
+          updated_at?: string | null
+          week_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annual_plan_weeks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "annual_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      annual_plans: {
+        Row: {
+          athlete_id: string | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          season_start: string
+          team_id: string | null
+          title: string
+          total_weeks: number
+          updated_at: string | null
+        }
+        Insert: {
+          athlete_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          season_start: string
+          team_id?: string | null
+          title: string
+          total_weeks: number
+          updated_at?: string | null
+        }
+        Update: {
+          athlete_id?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          season_start?: string
+          team_id?: string | null
+          title?: string
+          total_weeks?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "annual_plans_athlete_id_fkey"
+            columns: ["athlete_id"]
+            isOneToOne: false
+            referencedRelation: "athletes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annual_plans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "annual_plans_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       athlete_1rm_records: {
         Row: {
           athlete_id: string
@@ -1834,6 +2031,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_access_annual_plan: { Args: { p_plan_id: string }; Returns: boolean }
       can_manage_athlete_feedback: {
         Args: { p_athlete_id: string }
         Returns: boolean

@@ -14,7 +14,8 @@
     "./attendance": "./attendance.ts",
     "./exercise": "./exercise.ts",
     "./org-user": "./org-user.ts",
-    "./session-feedback": "./session-feedback.ts"
+    "./session-feedback": "./session-feedback.ts",
+    "./annual-plan": "./annual-plan.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

@@ -9,3 +9,4 @@ export * from "./attendance";
 export * from "./exercise";
 export * from "./org-user";
 export * from "./session-feedback";
+export * from "./annual-plan";
