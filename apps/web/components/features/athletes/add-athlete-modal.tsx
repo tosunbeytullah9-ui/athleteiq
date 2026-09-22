@@ -13,9 +13,13 @@ import { createAthleteSchema, type CreateAthleteInput } from "@athleteiq/validat
 import { createAthlete } from "@athleteiq/db/queries/athletes";
 
 interface Props {
-  teams: { id: string; name: string }[];
+  teams: { id: string; name: string; discipline?: string | null }[];
   orgId: string;
-  existingAthletes?: { team_id: string | null; training_group: string | null }[];
+  existingAthletes?: {
+    team_id: string | null;
+    training_group: string | null;
+    position: string | null;
+  }[];
   onSuccess: () => void;
 }
 
@@ -39,14 +43,31 @@ export function AddAthleteModal({ teams, orgId, existingAthletes = [], onSuccess
   const createLogin = watch("create_login");
   const selectedTeamId = watch("team_id");
 
+  // Branş sporcuda TUTULMAZ — takımdan türetilir (teams.discipline tek kaynak, 044).
+  const selectedDiscipline = useMemo(
+    () => teams.find((t) => t.id === selectedTeamId)?.discipline ?? null,
+    [teams, selectedTeamId]
+  );
+
   // Seçili takımdaki mevcut sporculardan öneri — coach'un aynı grup adını
   // tekrar tekrar aynı şekilde yazmasını kolaylaştırır, ayrı bir lookup
   // tablosu gerektirmez (position alanıyla aynı serbest-metin yaklaşımı).
+  const positionSuggestions = useMemo(() => {
+    const set = new Set(
+      existingAthletes
+        .filter((a) => a.team_id === selectedTeamId && a.position)
+        .map((a) => a.position as string)
+    );
+    return Array.from(set).sort();
+  }, [existingAthletes, selectedTeamId]);
+
+  // Grup önerisine mevkiler de dahil: bir mevki, grubu boş sporcular için
+  // fiilen grup görevi görür (matches_training_group fallback'i, 044).
   const trainingGroupSuggestions = useMemo(() => {
     const set = new Set(
       existingAthletes
-        .filter((a) => a.team_id === selectedTeamId && a.training_group)
-        .map((a) => a.training_group as string)
+        .filter((a) => a.team_id === selectedTeamId)
+        .flatMap((a) => [a.training_group, a.position].filter(Boolean) as string[])
     );
     return Array.from(set).sort();
   }, [existingAthletes, selectedTeamId]);
@@ -229,8 +250,22 @@ export function AddAthleteModal({ teams, orgId, existingAthletes = [], onSuccess
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="position">Pozisyon / Branş</Label>
-              <Input id="position" {...register("position")} placeholder="Artistik Jimnastik" />
+              <Label htmlFor="position">Mevki</Label>
+              <Input
+                id="position"
+                list="position-suggestions"
+                {...register("position")}
+                placeholder="Örn: Tight End, Running Back"
+              />
+              <datalist id="position-suggestions">
+                {positionSuggestions.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
+              <p className="text-xs text-muted-foreground">
+                Branş takımdan gelir
+                {selectedDiscipline ? `: ${selectedDiscipline}` : " (takım seçin)"}.
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -239,13 +274,17 @@ export function AddAthleteModal({ teams, orgId, existingAthletes = [], onSuccess
                 id="training_group"
                 list="training-group-suggestions"
                 {...register("training_group")}
-                placeholder="Örn: Linemen, Skill"
+                placeholder="Örn: Hücum Hattı, Skill"
               />
               <datalist id="training-group-suggestions">
                 {trainingGroupSuggestions.map((g) => (
                   <option key={g} value={g} />
                 ))}
               </datalist>
+              <p className="text-xs text-muted-foreground">
+                Bir takım programına grup atanırsa yalnızca bu gruptaki sporcular görür.
+                Boş bırakılırsa mevki grup yerine geçer.
+              </p>
             </div>
 
             <div className="space-y-1.5">

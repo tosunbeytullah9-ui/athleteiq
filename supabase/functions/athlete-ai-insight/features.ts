@@ -43,7 +43,7 @@ export interface WellnessRow {
 export interface AthleteInfo {
   birth_date: string | null;
   gender: string | null;
-  position: string | null;
+  discipline: string | null; // teams.discipline — bkz. payload.ts mapBrans (044)
 }
 
 export interface FeaturesInput {

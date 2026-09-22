@@ -42,6 +42,38 @@ export function suggestUsername(fullName: string): string {
   return base.length >= 3 ? base : "";
 }
 
+// --- Mevki / Branş / Antrenman Grubu (044_position_vs_training_group.sql) ---
+//
+// Branş  = teams.discipline (sporcuda TUTULMAZ, takımdan türetilir)
+// Mevki  = athletes.position (serbest metin, bilgi amaçlı)
+// Grup   = athletes.training_group (program görünürlüğünü daraltır)
+//
+// Aşağıdaki iki fonksiyon, RLS'teki public.tr_fold / public.matches_training_group
+// SQL fonksiyonlarının BİREBİR ikizidir — UI'ın "bu grupla kim eşleşiyor?"
+// önizlemesi ile sporcunun gerçekte gördüğü program AYNI kuralı kullansın diye.
+// Biri değişirse diğeri de değişmeli.
+
+// Postgres'te lower('İ') = 'i' + U+0307 (combining dot) olduğu için lower() tek
+// başına 'Artistik' ile 'ARTİSTİK'i eşleştiremez; TR_CHAR_MAP önce uygulanır.
+export function trFold(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const mapped = value.replace(/[İIıÇçĞğÖöŞşÜü]/g, (ch) => TR_CHAR_MAP[ch] ?? ch);
+  return mapped.trim().toLowerCase();
+}
+
+// Bir sporcunun (grup, mevki) çifti, bir takım programının grup daraltmasıyla
+// eşleşiyor mu. Program grubu boşsa takımın tamamı eşleşir. Grup boş bırakılan
+// sporcu için mevki grup yerine geçer (koç aynı değeri iki kez yazmasın diye).
+export function matchesTrainingGroup(
+  athleteGroup: string | null | undefined,
+  athletePosition: string | null | undefined,
+  programGroup: string | null | undefined
+): boolean {
+  const target = trFold(programGroup);
+  if (!target) return true;
+  return target === trFold(athleteGroup) || target === trFold(athletePosition);
+}
+
 const TEMP_PASSWORD_CHARS =
   "ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"; // 0 O o 1 l I hariç (karıştırılabilir)
 const TEMP_PASSWORD_LENGTH = 10;

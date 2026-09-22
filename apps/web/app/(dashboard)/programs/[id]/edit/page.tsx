@@ -34,7 +34,7 @@ export default async function EditProgramPage({ params }: Props) {
       supabase.from("teams").select("id, name").eq("org_id", orgId).order("name"),
       supabase
         .from("athletes")
-        .select("id, full_name, team_id, training_group")
+        .select("id, full_name, team_id, training_group, position")
         .eq("org_id", orgId)
         .eq("is_active", true)
         .order("full_name"),
@@ -56,6 +56,7 @@ export default async function EditProgramPage({ params }: Props) {
     full_name: string;
     team_id: string | null;
     training_group: string | null;
+    position: string | null;
   }[] = athletesResult.data ?? [];
   // getAthleteMaxes tek bir athleteId alıyor (org-wide eşdeğeri yok) —
   // her sporcu için ayrı çağrılıp birleştiriliyor (bkz. PROGRESS.md Parti 2.2.E).

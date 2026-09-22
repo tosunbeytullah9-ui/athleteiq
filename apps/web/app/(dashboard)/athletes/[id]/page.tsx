@@ -55,7 +55,11 @@ export default async function AthleteDetailPage({ params }: Props) {
     getOrgExercises(supabase, athlete.org_id),
     getOrgCategories(supabase, athlete.org_id),
     getAthleteCompetitionEntries(supabase, id),
-    supabase.from("teams").select("id, name").eq("org_id", athlete.org_id).order("name"),
+    supabase
+      .from("teams")
+      .select("id, name, discipline")
+      .eq("org_id", athlete.org_id)
+      .order("name"),
   ]);
 
   return (

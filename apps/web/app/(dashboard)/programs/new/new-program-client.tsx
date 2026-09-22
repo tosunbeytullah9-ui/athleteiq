@@ -27,6 +27,7 @@ import {
   type WorkoutFormat,
 } from "@/components/features/program-builder/wod-session-fields";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
+import { matchesTrainingGroup } from "@athleteiq/validators/athlete";
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
 
@@ -103,6 +104,7 @@ interface Props {
     full_name: string;
     team_id: string | null;
     training_group: string | null;
+    position: string | null;
   }[];
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];
@@ -153,6 +155,7 @@ export function NewProgramClient({
   const selectedAthleteId = watch("athlete_id");
   const watchedSessions = watch("sessions");
   const weeksCount = watch("weeks_count");
+  const watchedTrainingGroup = watch("training_group");
 
   // "Son max" rozeti yalnızca bireysel (athlete) programlarda anlamlı —
   // takım programının tek bir sporcusu yok, bu yüzden team scope'ta boş kalır.
@@ -171,14 +174,26 @@ export function NewProgramClient({
 
   // Seçili takımdaki sporculardan gelen mevcut grup etiketleri — Training
   // Groups için ayrı bir lookup tablosu yok, athletes.training_group'tan öneri.
+  // Mevkiler de dahil: grubu boş bir sporcu için mevki grup yerine geçer (044).
   const trainingGroupSuggestions = useMemo(() => {
     const set = new Set(
       athletes
-        .filter((a) => a.team_id === selectedTeamId && a.training_group)
-        .map((a) => a.training_group as string)
+        .filter((a) => a.team_id === selectedTeamId)
+        .flatMap((a) => [a.training_group, a.position].filter(Boolean) as string[])
     );
     return Array.from(set).sort();
   }, [athletes, selectedTeamId]);
+
+  // Koç yazdığı grubun kimi kapsadığını YAYINLAMADAN ÖNCE görsün — eşleşme
+  // kuralı RLS'teki public.matches_training_group ile birebir aynı (044).
+  const groupMatches = useMemo(() => {
+    if (!selectedTeamId) return null;
+    const group = watchedTrainingGroup?.trim();
+    if (!group) return null;
+    return athletes.filter(
+      (a) => a.team_id === selectedTeamId && matchesTrainingGroup(a.training_group, a.position, group)
+    );
+  }, [athletes, selectedTeamId, watchedTrainingGroup]);
 
   function addSession(dayOfWeek: number) {
     appendSession({
@@ -362,8 +377,21 @@ export function NewProgramClient({
                       </datalist>
                       <p className="text-xs text-muted-foreground">
                         Boş bırakılırsa tüm takım görür; doldurulursa yalnızca bu gruptaki
-                        sporcular görür
+                        sporcular görür (grubu boş olan sporcuda mevki grup yerine geçer)
                       </p>
+                      {groupMatches && (
+                        <p
+                          className={`text-xs ${
+                            groupMatches.length === 0 ? "text-warning" : "text-muted-foreground"
+                          }`}
+                        >
+                          {groupMatches.length === 0
+                            ? "Bu grupla eşleşen sporcu yok — programı kimse göremez."
+                            : `${groupMatches.length} sporcu görecek: ${groupMatches
+                                .map((a) => a.full_name)
+                                .join(", ")}`}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

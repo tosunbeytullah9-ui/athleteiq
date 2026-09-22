@@ -18,7 +18,8 @@ export default async function AthletesPage() {
   }
 
   const [{ data: teams }, athletes, latestAcwr] = await Promise.all([
-    supabase.from("teams").select("id, name").eq("org_id", orgId),
+    // discipline = branş; sporcuda tutulmaz, takımdan türetilir (044).
+    supabase.from("teams").select("id, name, discipline").eq("org_id", orgId),
     getAthletes(supabase, orgId, { includeInactive: true }),
     getLatestAcwrByOrg(supabase, orgId),
   ]);

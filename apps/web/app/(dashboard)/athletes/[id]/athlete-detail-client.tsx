@@ -68,7 +68,7 @@ interface Props {
   orgExercises: OrgExercise[];
   categories: OrgExerciseCategory[];
   competitionEntries: CompetitionEntry[];
-  teams: { id: string; name: string }[];
+  teams: { id: string; name: string; discipline: string | null }[];
 }
 
 const GENDER_LABELS: Record<string, string> = {
@@ -106,6 +106,8 @@ export function AthleteDetailClient({
 }: Props) {
   const router = useRouter();
   const [statusOpen, setStatusOpen] = useState(false);
+  // Branş sporcuda tutulmaz, takımdan türetilir (teams.discipline tek kaynak, 044).
+  const team = teams.find((t) => t.id === athlete.team_id) ?? null;
   const latestAcwr = acwrLogs[0];
   const chartData = [...acwrLogs].reverse().map((log) => ({
     date: new Date(log.log_date).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" }),
@@ -160,9 +162,15 @@ export function AthleteDetailClient({
                   {athlete.is_active ? "Aktif" : "Pasif"}
                 </Badge>
               </div>
-              {athlete.position && (
-                <p className="text-muted-foreground mt-1">{athlete.position}</p>
-              )}
+              {/* Branş takımdan türetilir (teams.discipline), mevki sporcuda (044). */}
+              <p className="text-muted-foreground mt-1">
+                {[team?.discipline, athlete.position].filter(Boolean).join(" · ") || "—"}
+                {athlete.training_group && (
+                  <Badge variant="secondary" className="ml-2 align-middle">
+                    {athlete.training_group}
+                  </Badge>
+                )}
+              </p>
               <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-sm md:grid-cols-4">
                 {athlete.birth_date && (
                   <div>

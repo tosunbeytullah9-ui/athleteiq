@@ -9,7 +9,7 @@ import type { Tables } from "@athleteiq/db/types";
 import { signOut } from "@/lib/auth-client";
 
 type AthleteProfile = Tables<"athletes"> & {
-  teams: { name: string } | null;
+  teams: { name: string; discipline: string | null } | null;
   organizations: { name: string } | null;
 };
 
@@ -76,7 +76,9 @@ export function ProfileClient({ athlete, maxes, latestTests }: Props) {
                 </Badge>
               </div>
               <p className="text-muted-foreground">
-                {[athlete.teams?.name, athlete.position].filter(Boolean).join(" · ")}
+                {[athlete.teams?.name, athlete.teams?.discipline, athlete.position]
+                  .filter(Boolean)
+                  .join(" · ")}
                 {athlete.organizations?.name && ` · ${athlete.organizations.name}`}
               </p>
             </div>
@@ -105,7 +107,9 @@ export function ProfileClient({ athlete, maxes, latestTests }: Props) {
               />
               <Field label="Boy" value={athlete.height_cm ? `${athlete.height_cm} cm` : "—"} />
               <Field label="Kilo" value={athlete.weight_kg ? `${athlete.weight_kg} kg` : "—"} />
-              <Field label="Pozisyon / Branş" value={athlete.position ?? "—"} />
+              <Field label="Branş" value={athlete.teams?.discipline ?? "—"} />
+              <Field label="Mevki" value={athlete.position ?? "—"} />
+              <Field label="Antrenman Grubu" value={athlete.training_group ?? "—"} />
               <Field
                 label="Cinsiyet"
                 value={athlete.gender ? GENDER_LABELS[athlete.gender] ?? athlete.gender : "—"}

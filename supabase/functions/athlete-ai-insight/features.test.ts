@@ -1,7 +1,7 @@
 import { assert, assertEquals, assertAlmostEquals } from "https://deno.land/std@0.224.0/assert/mod.ts";
 import { computeFeatures, istanbulDateString, type DailyMetricRow, type WorkoutRow, type WellnessRow } from "./features.ts";
 
-const athlete = { birth_date: "2008-05-01", gender: "female", position: "ARTİSTİK Cimnastik" };
+const athlete = { birth_date: "2008-05-01", gender: "female", discipline: "ARTİSTİK CİMNASTİK" };
 
 function metricRow(overrides: Partial<DailyMetricRow> & { metric_date: string }): DailyMetricRow {
   return {

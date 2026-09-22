@@ -2,10 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabase";
 import type { Database } from "@athleteiq/db/types";
 
-type Athlete = Database["public"]["Tables"]["athletes"]["Row"];
+// Branş sporcuda TUTULMAZ, takımdan türetilir (teams.discipline tek kaynak —
+// 044_position_vs_training_group.sql). athletes.position artık MEVKİ'dir.
+export type AthleteProfile = Database["public"]["Tables"]["athletes"]["Row"] & {
+  teams: { name: string; discipline: string | null } | null;
+};
 
 export function useAthleteProfile() {
-  const [athlete, setAthlete] = useState<Athlete | null>(null);
+  const [athlete, setAthlete] = useState<AthleteProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +28,7 @@ export function useAthleteProfile() {
 
       const { data, error: err } = await supabase
         .from("athletes")
-        .select("*")
+        .select("*, teams(name, discipline)")
         .eq("user_id", user.id)
         .single();
 

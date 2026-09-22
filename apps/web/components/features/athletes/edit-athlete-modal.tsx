@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as Dialog from "@radix-ui/react-dialog";
@@ -17,7 +17,7 @@ type Athlete = Tables<"athletes">;
 
 interface Props {
   athlete: Athlete;
-  teams: { id: string; name: string }[];
+  teams: { id: string; name: string; discipline?: string | null }[];
   onSuccess: () => void;
 }
 
@@ -46,11 +46,20 @@ export function EditAthleteModal({ athlete, teams, onSuccess }: Props) {
     register,
     handleSubmit,
     reset,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<UpdateAthleteInput>({
     resolver: zodResolver(updateAthleteSchema),
     defaultValues: toFormValues(athlete),
   });
+
+  const selectedTeamId = watch("team_id");
+
+  // Branş sporcuda TUTULMAZ — takımdan türetilir (teams.discipline tek kaynak, 044).
+  const selectedDiscipline = useMemo(
+    () => teams.find((t) => t.id === selectedTeamId)?.discipline ?? null,
+    [teams, selectedTeamId]
+  );
 
   function handleOpenChange(next: boolean) {
     setOpen(next);
@@ -178,13 +187,29 @@ export function EditAthleteModal({ athlete, teams, onSuccess }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="edit-athlete-position">Pozisyon / Branş</Label>
-              <Input id="edit-athlete-position" {...register("position")} />
+              <Label htmlFor="edit-athlete-position">Mevki</Label>
+              <Input
+                id="edit-athlete-position"
+                {...register("position")}
+                placeholder="Örn: Tight End, Running Back"
+              />
+              <p className="text-xs text-muted-foreground">
+                Branş takımdan gelir
+                {selectedDiscipline ? `: ${selectedDiscipline}` : " (takım seçin)"}.
+              </p>
             </div>
 
             <div className="space-y-1.5">
               <Label htmlFor="edit-athlete-training-group">Antrenman Grubu (opsiyonel)</Label>
-              <Input id="edit-athlete-training-group" {...register("training_group")} />
+              <Input
+                id="edit-athlete-training-group"
+                {...register("training_group")}
+                placeholder="Örn: Hücum Hattı, Skill"
+              />
+              <p className="text-xs text-muted-foreground">
+                Bir takım programına grup atanırsa yalnızca bu gruptaki sporcular görür.
+                Boş bırakılırsa mevki grup yerine geçer.
+              </p>
             </div>
 
             <div className="space-y-1.5">

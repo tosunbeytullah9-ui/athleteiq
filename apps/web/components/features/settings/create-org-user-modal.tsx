@@ -264,13 +264,16 @@ export function CreateOrgUserModal({ orgId, orgSlug, teams, onSuccess }: Props) 
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <Label htmlFor="new-user-position">Pozisyon / Branş</Label>
+                    <Label htmlFor="new-user-position">Mevki</Label>
                     <Input
                       id="new-user-position"
                       value={form.position}
                       onChange={(e) => setForm((prev) => ({ ...prev, position: e.target.value }))}
-                      placeholder="Artistik Jimnastik"
+                      placeholder="Örn: Tight End, Running Back"
                     />
+                    <p className="text-xs text-muted-foreground">
+                      Branş takımdan gelir, burada girilmez.
+                    </p>
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="new-user-notes">Notlar</Label>

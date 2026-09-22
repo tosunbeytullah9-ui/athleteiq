@@ -7,7 +7,10 @@ import type { Features } from "./features.ts";
 export interface AthletePayloadInfo {
   birth_date: string | null;
   gender: string | null;
-  position: string | null;
+  // Branş = teams.discipline. 044_position_vs_training_group.sql'e kadar bu
+  // athletes.position'dan okunuyordu; o alan artık MEVKİ tutuyor (Tight End,
+  // RB) ve branşı hiç içermiyor, bu yüzden kaynak takıma taşındı.
+  discipline: string | null;
 }
 
 export interface Payload {
@@ -33,8 +36,8 @@ function mapGender(gender: string | null): "kadin" | "erkek" {
   return gender === "female" ? "kadin" : "erkek";
 }
 
-function mapBrans(position: string | null): "artistik cimnastik" | "cimnastik" {
-  const upper = (position ?? "").toLocaleUpperCase("tr-TR");
+function mapBrans(discipline: string | null): "artistik cimnastik" | "cimnastik" {
+  const upper = (discipline ?? "").toLocaleUpperCase("tr-TR");
   return upper.includes("ARTİSTİK") ? "artistik cimnastik" : "cimnastik";
 }
 
@@ -46,7 +49,7 @@ export function buildPayload(
   return {
     yas: athlete.birth_date ? calculateAge(athlete.birth_date, insightDate) : null,
     cinsiyet: mapGender(athlete.gender),
-    brans: mapBrans(athlete.position),
+    brans: mapBrans(athlete.discipline),
     features,
   };
 }

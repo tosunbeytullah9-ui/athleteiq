@@ -28,7 +28,7 @@ const fixtureAthlete = {
   notes: "Dizinde eski bir sakatlık geçmişi var.",
   birth_date: "2008-05-01",
   gender: "female",
-  position: "ARTİSTİK Cimnastik",
+  discipline: "ARTİSTİK CİMNASTİK",
 };
 
 const insightDate = "2026-09-20";
@@ -52,7 +52,7 @@ const features = computeFeatures({
   ],
   workouts: [],
   wellness: [],
-  athlete: { birth_date: fixtureAthlete.birth_date, gender: fixtureAthlete.gender, position: fixtureAthlete.position },
+  athlete: { birth_date: fixtureAthlete.birth_date, gender: fixtureAthlete.gender, discipline: fixtureAthlete.discipline },
 });
 
 Deno.test("payload: UUID regex'i eşleşmemeli", () => {

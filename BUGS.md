@@ -342,6 +342,11 @@
 
 ## Düşük (kozmetik / tamamlanmamış)
 
+- **⚪ AÇIK KAYIT (bilinçli kapsam kararı) — bulundu: 2026-09-22, Branş/Mevki/Grup ayrımı sırasında** — **AI analiz asistanının `brans` sözlüğü yalnızca cimnastiği tanıyor** (`supabase/functions/athlete-ai-insight/payload.ts`, `prompt.ts`)
+  - `mapBrans()` iki değer döndürür: `"artistik cimnastik"` veya `"cimnastik"`. Amerikan futbolu sporcusu için `"cimnastik"` döner — yanlış ama zararsız, çünkü `SYSTEM_PROMPT` (`PROMPT_VERSION = "insight-v1"`) zaten "artistik cimnastikte uzmanlaşmış" bir asistan olarak sabitlenmiş ve CLAUDE.md'de değiştirilemez olarak işaretli. Sözlüğü genişletmek prompt sözleşmesini değiştirmek demek, bu yüzden bu Parti'de YAPILMADI.
+  - Aynı oturumda düzeltilen gerçek regresyon: `mapBrans` girdisini `athletes.position`'dan alıyordu; backfill sonrası o kolon MEVKİ tuttuğu için branş sessizce hep `"cimnastik"` olurdu. Kaynak `teams.discipline`'a taşındı (`20260922084236`), yani cimnastik sporcuları için davranış eskisiyle aynı.
+  - Düzeltme gerekirse: `brans` alanını serbest metne çevirip `SYSTEM_PROMPT`'u branştan bağımsız hale getirmek ve `PROMPT_VERSION`'ı yükseltmek gerekir.
+
 - **🟡 AÇIK (izleniyor / WONTFIX şimdilik) — bulundu: 2026-09-16, Parti 20-W'nin whoop-webhook incelemesi sırasında** — **`wearable_daily_metrics.metric_date`, `recovery.created_at`'in UTC tarihinden türetiliyor** (`supabase/functions/whoop-webhook/index.ts`)
   - Türkiye saatiyle 00:00–03:00 arası (UTC+3) oluşan bir recovery, UTC'de hâlâ bir önceki güne denk düştüğü için o günün satırına değil bir önceki güne yazılabilir — sporcunun gerçek "bugün"ü ile kaydedilen `metric_date` bir gün kayabilir. Parti 20-W kapsamında bilinçli olarak DÜZELTİLMEDİ (görev talimatının açık kararı) — yalnızca kayda geçirildi. Düzeltme gerekirse `metricDate` hesabı sporcunun/organizasyonun zaman dilimine göre kaydırılmalı (WHOOP payload'ında `timezone_offset` alanı zaten mevcut, kullanılmıyor).
 

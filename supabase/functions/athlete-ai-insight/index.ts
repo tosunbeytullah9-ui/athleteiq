@@ -139,13 +139,21 @@ Deno.serve(async (req: Request) => {
     // 6. Veri yükleme (service role)
     const { data: athlete, error: athleteError } = await supabaseService
       .from("athletes")
-      .select("id, birth_date, gender, position, is_active")
+      .select("id, birth_date, gender, is_active, teams(discipline)")
       .eq("id", athleteId)
       .maybeSingle();
 
     if (athleteError || !athlete || !athlete.is_active) {
       return json({ error: "athlete_not_found" }, 404);
     }
+
+    // Branş takımdan gelir (044). PostgREST to-one embed'i nesne döndürür, ama
+    // istemci tipsiz olduğu için dizi gelme ihtimaline karşı normalize edilir.
+    const teamRel = (athlete as { teams?: unknown }).teams;
+    const discipline =
+      (Array.isArray(teamRel)
+        ? (teamRel[0] as { discipline?: string | null } | undefined)?.discipline
+        : (teamRel as { discipline?: string | null } | null)?.discipline) ?? null;
 
     const metricsStart = addDays(insightDate, -41);
     const workoutsStart = `${addDays(insightDate, -8)}T00:00:00.000Z`;
@@ -194,7 +202,11 @@ Deno.serve(async (req: Request) => {
       dailyMetrics: (metricsRes.data ?? []) as DailyMetricRow[],
       workouts: (workoutsRes.data ?? []) as WorkoutRow[],
       wellness: (wellnessRes.data ?? []) as WellnessRow[],
-      athlete: { birth_date: athlete.birth_date, gender: athlete.gender, position: athlete.position },
+      athlete: {
+        birth_date: athlete.birth_date,
+        gender: athlete.gender,
+        discipline,
+      },
     });
 
     const baseRow = {
@@ -233,7 +245,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const payload = buildPayload(
-      { birth_date: athlete.birth_date, gender: athlete.gender, position: athlete.position },
+      {
+        birth_date: athlete.birth_date,
+        gender: athlete.gender,
+        discipline,
+      },
       insightDate,
       features
     );

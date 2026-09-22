@@ -20,7 +20,7 @@ import type { LatestAcwrRow } from "@athleteiq/db/queries/acwr";
 import { getAcwrColor, getAcwrLabel } from "@/lib/acwr";
 
 type Athlete = Tables<"athletes">;
-type Team = { id: string; name: string };
+type Team = { id: string; name: string; discipline: string | null };
 
 interface Props {
   athletes: Athlete[];
@@ -70,7 +70,12 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
 
   const filtered = useMemo(() => {
     return initialAthletes.filter((a) => {
-      const matchSearch = a.full_name.toLowerCase().includes(search.toLowerCase());
+      const q = search.toLowerCase();
+      const matchSearch =
+        q === "" ||
+        a.full_name.toLowerCase().includes(q) ||
+        (a.position ?? "").toLowerCase().includes(q) ||
+        (a.training_group ?? "").toLowerCase().includes(q);
       const matchTeam = selectedTeam === "all" || a.team_id === selectedTeam;
       const matchActive = showInactive || a.is_active;
       return matchSearch && matchTeam && matchActive;
@@ -79,6 +84,12 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
 
   const teamMap = useMemo(
     () => Object.fromEntries(teams.map((t) => [t.id, t.name])),
+    [teams]
+  );
+
+  // Branş sporcuda TUTULMAZ, takımdan türetilir (teams.discipline tek kaynak).
+  const disciplineMap = useMemo(
+    () => Object.fromEntries(teams.map((t) => [t.id, t.discipline])),
     [teams]
   );
 
@@ -152,9 +163,14 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ad Soyad</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Takım</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                  Takım / Branş
+                </th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Mevki</th>
+                <th className="text-left px-4 py-3 font-medium text-muted-foreground">
+                  Antrenman Grubu
+                </th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Yaş</th>
-                <th className="text-left px-4 py-3 font-medium text-muted-foreground">Branş</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Son ACWR</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Durum</th>
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Giriş</th>
@@ -185,7 +201,14 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
                     {athlete.team_id ? (
-                      teamMap[athlete.team_id] ?? "—"
+                      <div className="flex flex-col">
+                        <span>{teamMap[athlete.team_id] ?? "—"}</span>
+                        {disciplineMap[athlete.team_id] && (
+                          <span className="text-xs text-muted-foreground/70">
+                            {disciplineMap[athlete.team_id]}
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">
                         Takımsız
@@ -193,10 +216,17 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
                     )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {calculateAge(athlete.birth_date)}
+                    {athlete.position ?? "—"}
+                  </td>
+                  <td className="px-4 py-3">
+                    {athlete.training_group ? (
+                      <Badge variant="secondary">{athlete.training_group}</Badge>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">
-                    {athlete.position ?? "—"}
+                    {calculateAge(athlete.birth_date)}
                   </td>
                   <td className="px-4 py-3">
                     {(() => {

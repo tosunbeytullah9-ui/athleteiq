@@ -168,8 +168,14 @@ export default function ProfileScreen() {
         <Text className="text-white text-xl font-bold mt-3">
           {athlete?.full_name ?? "—"}
         </Text>
-        {athlete?.position && (
-          <Text className="text-blue-200 text-sm mt-0.5">{athlete.position}</Text>
+        {/* Branş takımdan, mevki sporcudan (044). */}
+        {(athlete?.teams?.discipline || athlete?.position) && (
+          <Text className="text-blue-200 text-sm mt-0.5">
+            {[athlete?.teams?.discipline, athlete?.position].filter(Boolean).join(" · ")}
+          </Text>
+        )}
+        {athlete?.training_group && (
+          <Text className="text-blue-300 text-xs mt-0.5">{athlete.training_group}</Text>
         )}
       </View>
 

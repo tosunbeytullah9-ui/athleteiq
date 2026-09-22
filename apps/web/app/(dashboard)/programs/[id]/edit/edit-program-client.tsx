@@ -31,6 +31,7 @@ interface Props {
     full_name: string;
     team_id: string | null;
     training_group: string | null;
+    position: string | null;
   }[];
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];

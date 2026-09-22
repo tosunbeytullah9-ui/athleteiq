@@ -293,7 +293,9 @@ AthleteIQ/
 │   │   ├── 20260916134047_athlete_ai_insights.sql
 │   │   ├── 20260917072700_session_feedback.sql
 │   │   ├── 20260917074747_session_feedback_function_hardening.sql
-│   │   └── 20260921081206_annual_plans.sql
+│   │   ├── 20260921081206_annual_plans.sql
+│   │   ├── 20260922084236_position_vs_training_group.sql
+│   │   └── 20260922084343_position_vs_training_group_move_mevki.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -334,7 +336,7 @@ AthleteIQ/
 - **athlete_1rm_records** — Sporcunun kayıtlı 1RM (bir tekrar maksimum) değerleri; %1RM bazlı yük hesaplama ve program builder'daki "Son max" rozeti bu tablodan beslenir (005_exercises.sql, UI kablolaması Parti 2.2.E).
 - **athlete_ai_insights** — Süper admin'in tek tuşla ürettiği, bir sporcunun WHOOP verisi üzerine deterministik özellik hesaplama + LLM yorumundan oluşan Türkçe koç değerlendirmesi kaydı; yalnızca athlete-ai-insight Edge Function'ının service role'ü yazar, RLS SELECT'i yalnızca is_super_admin() true ise açar (20260916134047_athlete_ai_insights.sql, Parti 21-AI).
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
-- **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo/pozisyon vb. (001_schema.sql).
+- **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo vb. (001_schema.sql). ÜÇ AYRI KAVRAM karıştırılmasın (20260922084236_position_vs_training_group.sql): BRANŞ sporcuda TUTULMAZ, teams.discipline'dan türetilir (tek kaynak); position = MEVKİ (Tight End, RB — serbest metin, bilgi amaçlı); training_group = ANTRENMAN GRUBU (Hücum Hattı, Skill), program görünürlüğünü RLS düzeyinde daraltan tek alan.
 - **attendance_records** — Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).
 - **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql).
 - **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
@@ -354,9 +356,9 @@ AthleteIQ/
 - **program_blocks** — Birden fazla haftalık training_programs satırını ortak bir döneme (örn. "8 Haftalık Hazırlık Dönemi") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).
 - **readiness_scores** — wellness_checkins'ten türetilen, bireysel taban çizgisine dayalı readiness skoru cache'i; sadece service_role/Edge Function yazar, hesaplama motoru henüz aktif değil (şema hazır) (013_readiness_scores.sql).
 - **session_feedback** — Sporcunun bir antrenman seansı için koça verdiği geri bildirim (sporcu × seans): RPE (1-10), gerçek süre, tamamlanma durumu (completed/partial/skipped), ağrı bayrağı + bölge, serbest not ve koçun okundu/yanıt alanları. training_sessions.session_rpe/athlete_session_notes kolonlarının yerini alır — onlar takım programlarında tüm takımca paylaşılan bir satırda durduğu için sporcu bazlı veri tutamıyordu. Kaydedilince acwr_logs'un o günkü satırını ağırlıklı sRPE ile otomatik üretir (20260917072700_session_feedback.sql, Parti 22-FB).
-- **teams** — Bir organizasyona bağlı takım (discipline: artistic/rhythmic/trampoline/diving vb.) (001_schema.sql).
+- **teams** — Bir organizasyona bağlı takım. discipline = BRANŞ (Amerikan Futbolu, ARTİSTİK CİMNASTİK vb.) ve sporcunun branşının TEK KAYNAĞIDIR — athletes tablosunda branş kolonu yoktur, UI takımdan türetir (001_schema.sql, 20260922084236_position_vs_training_group.sql).
 - **test_results** — Sporcu fiziksel test sonuçları (CMJ, sprint, kuvvet testleri vb. — bkz. ayrıca athlete_1rm_records) (001_schema.sql).
-- **training_programs** — Takıma VEYA bireysel sporcuya atanan haftalık antrenman programı (team_id XOR athlete_id); is_published=false iken sporcu göremez (001_schema.sql).
+- **training_programs** — Takıma VEYA bireysel sporcuya atanan haftalık antrenman programı (team_id XOR athlete_id); is_published=false iken sporcu göremez (001_schema.sql). training_group doluysa yalnızca grubu VEYA mevkisi eşleşen takım sporcuları görür (matches_training_group, 20260922084236).
 - **training_sessions** — Bir programa ait, haftanın belirli bir gününe düşen antrenman seansı (strength/conditioning/technical/recovery/competition) (001_schema.sql).
 - **wearable_connections** — Sporcunun WHOOP/Polar hesabına bağlı OAuth access/refresh token'ları (şifreli saklanır) (004_wearables.sql).
 - **wearable_daily_metrics** — WHOOP ve Polar'dan normalize edilmiş, ortak şemaya dönüştürülmüş günlük recovery/sleep/strain verisi (004_wearables.sql).
@@ -620,6 +622,51 @@ giriş erişimi kalkar). İkisi de `create-org-user`/`reset-user-password` ile a
 taşır: yalnızca `super_admin` veya hedef org'un admin'i (koç ÇAĞIRAMAZ), süper admin hesapları
 bu yoldan silinemez/rolü değiştirilemez, ve `delete-org-user` org'un son admin'ini silmeyi
 reddeder (org'u kilitlemesin diye).
+
+### 4.4 Branş / Mevki / Antrenman Grubu — üç ayrı kavram (2026-09-22)
+
+Bu üçü yıllarca tek bir "Pozisyon / Branş" kutusuna sıkışmıştı ve canlı veride
+**13 sporcunun 12'sinde `athletes.position` yalnızca takımın branşını tekrar
+ediyordu** ("ARTİSTİK CİMNASTİK", "Amerikan Futbolu"). Gerçek mevki bilgisi
+gidecek yeri olmadığı için `training_group`'a yazılmıştı (Koç Rams: TE, RB,
+Linebacker) — yani görünürlüğü daraltan alan, bilgi amaçlı bir alan gibi
+kullanılıyordu. `20260922084236_position_vs_training_group.sql` bunu ayırdı:
+
+| Kavram | Nerede durur | Görünürlüğe etkisi |
+|---|---|---|
+| **Branş** | `teams.discipline` — **TEK KAYNAK** | Yok |
+| **Mevki** | `athletes.position` (Tight End, RB) | Yalnızca fallback (aşağıda) |
+| **Antrenman Grubu** | `athletes.training_group` (Hücum Hattı, Skill) | **Asıl daraltma** |
+
+**Branş sporcuda TUTULMAZ.** `athletes`'a branş kolonu eklenmedi — aynı bilgiyi
+iki yerde tutmak uyuşmazlık üretir. Tüm arayüzler (sporcu listesi, sporcu detayı,
+web/mobil profil, sporcu ekle/düzenle formları) branşı takımdan türetir. Sporcu
+formlarında branş **girdisi yoktur**, yalnızca seçili takımın branşı bilgi olarak
+gösterilir.
+
+**Eşleşme kuralı — `matches_training_group(grup, mevki, program_grubu)`:** bir
+takım programının grubu boşsa takımın tamamı görür; doluysa sporcunun **grubu
+VEYA mevkisi** eşleşmelidir. Bu `coalesce` DEĞİL `OR`'dur ve bilinçlidir: koçun
+aynı değeri hem Mevki hem Grup kutusuna yazmasını önler, ama "Hücum Hattı"
+grubundaki bir TE'nin yalnızca TE'lere açılan bir programı da görmesini sağlar.
+Karşılaştırma `tr_fold()` ile Türkçe duyarlıdır — `lower()` tek başına yetmez,
+çünkü en_US.UTF-8 altında `lower('İ')` = `i` + U+0307 olduğundan
+'Artistik Cimnastik' ile 'ARTİSTİK CİMNASTİK' eşleşmez (canlı veride 3 satırda
+doğrulandı). Her iki fonksiyon da saf ve SECURITY INVOKER'dır (tabloya erişmez),
+bu yüzden §4.1'in SECURITY DEFINER yetki-kontrolü kuralı kapsamları dışındadır.
+
+Kural `programs_select` / `sessions_select` / `exercises_select` /
+`exercise_sets_select` politikalarının dördünde de aynı fonksiyon çağrısıyla
+tekil tutulur. TS ikizi `packages/validators/athlete.ts`'te
+(`trFold` / `matchesTrainingGroup`, 10 birim test) — program builder'ın "bu
+grupla N sporcu görecek: ..." önizlemesi sporcunun gerçekte göreceğiyle aynı
+kuralı kullansın diye. **Biri değişirse diğeri de değişmelidir.**
+
+`athlete-ai-insight`'ın `payload.ts`'i branşı ARTIK `position`'dan değil
+`teams.discipline`'dan okur — backfill sonrası `position` mevki tuttuğu için eski
+kaynak `brans`'ı sessizce hep "cimnastik" döndürürdü. `SYSTEM_PROMPT` artistik
+cimnastiğe sabitli olduğundan `brans` sözlüğü genişletilmedi (Amerikan futbolu
+sporcuları için hâlâ "cimnastik" döner — bkz. BUGS.md).
 
 ---
 
@@ -1676,7 +1723,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-21
+Son otomatik senkron: 2026-09-22
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1746,6 +1793,8 @@ Son otomatik senkron: 2026-09-21
 - 20260917072700_session_feedback.sql
 - 20260917074747_session_feedback_function_hardening.sql
 - 20260921081206_annual_plans.sql
+- 20260922084236_position_vs_training_group.sql
+- 20260922084343_position_vs_training_group_move_mevki.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1785,6 +1834,13 @@ Son otomatik senkron: 2026-09-21
   (Parti 4.B/4.C, hâlâ paralel), middleware (role-based routing)
 - ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama + düzenleme + silme (Parti 16, düzenleme/silme 2026-09-09)
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay, düzenleme, pasife alma/kalıcı silme (2026-09-09 — bkz. §4.1, §6 Agent 3)
+- ✅ Branş / Mevki / Antrenman Grubu ayrımı (2026-09-22) — eski tek "Pozisyon / Branş"
+  kutusu üçe ayrıldı: branş takımdan türetilir (`teams.discipline`, sporcu formunda
+  girdi YOK), mevki `athletes.position`'da, program görünürlüğünü daraltan grup
+  `athletes.training_group`'ta. Sporcu listesinde artık Takım/Branş, Mevki ve
+  Antrenman Grubu kolonları var; arama mevki ve grubu da kapsıyor. Program
+  oluşturma/düzenleme formu yazılan grubun kimi kapsadığını kaydetmeden önce
+  gösterir ("3 sporcu görecek: ..."). Bkz. §4.4.
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish. Liste 2026-09-16'da hedef
   (takım/sporcu) → blok kırılımlı gruplu görünüme geçti — çok haftalı bloklar tek kartta
   toplanıp haftalar tıklanabilir rozetlere indi, "bu hafta" vurgulanıyor, arama eklendi;

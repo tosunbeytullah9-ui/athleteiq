@@ -31,6 +31,7 @@ import {
 } from "@/components/features/program-builder/wod-session-fields";
 import { AthleteDataWarningDialog } from "@/components/features/program-builder/athlete-data-warning-dialog";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
+import { matchesTrainingGroup } from "@athleteiq/validators/athlete";
 
 export type ProgramRow = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
@@ -149,6 +150,7 @@ interface Props {
     full_name: string;
     team_id: string | null;
     training_group: string | null;
+    position: string | null;
   }[];
   platformExercises?: PlatformExercise[];
   orgExercises?: OrgExercise[];
@@ -311,14 +313,29 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
 
   const watchedSessions = watch("sessions");
 
+  // Mevkiler de öneriye dahil: grubu boş bir sporcu için mevki grup yerine geçer (044).
   const trainingGroupSuggestions = useMemo(() => {
     const set = new Set(
       athletes
-        .filter((a) => a.team_id === program.team_id && a.training_group)
-        .map((a) => a.training_group as string)
+        .filter((a) => a.team_id === program.team_id)
+        .flatMap((a) => [a.training_group, a.position].filter(Boolean) as string[])
     );
     return Array.from(set).sort();
   }, [athletes, program.team_id]);
+
+  const watchedTrainingGroup = watch("training_group");
+
+  // Koç yazdığı grubun kimi kapsadığını kaydetmeden önce görsün — eşleşme kuralı
+  // RLS'teki public.matches_training_group ile birebir aynı (044).
+  const groupMatches = useMemo(() => {
+    const group = watchedTrainingGroup?.trim();
+    if (!group || !program.team_id) return null;
+    return athletes.filter(
+      (a) =>
+        a.team_id === program.team_id &&
+        matchesTrainingGroup(a.training_group, a.position, group)
+    );
+  }, [athletes, program.team_id, watchedTrainingGroup]);
 
   const pickerAthleteMaxes = useMemo(
     () =>
@@ -620,8 +637,21 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                   </datalist>
                   <p className="text-xs text-muted-foreground">
                     Boş bırakılırsa tüm takım görür; doldurulursa yalnızca bu gruptaki sporcular
-                    görür
+                    görür (grubu boş olan sporcuda mevki grup yerine geçer)
                   </p>
+                  {groupMatches && (
+                    <p
+                      className={`text-xs ${
+                        groupMatches.length === 0 ? "text-warning" : "text-muted-foreground"
+                      }`}
+                    >
+                      {groupMatches.length === 0
+                        ? "Bu grupla eşleşen sporcu yok — programı kimse göremez."
+                        : `${groupMatches.length} sporcu görecek: ${groupMatches
+                            .map((a) => a.full_name)
+                            .join(", ")}`}
+                    </p>
+                  )}
                 </div>
               )}
 

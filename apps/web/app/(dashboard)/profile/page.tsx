@@ -5,7 +5,7 @@ import type { Tables } from "@athleteiq/db/types";
 import { ProfileClient } from "./profile-client";
 
 type AthleteProfile = Tables<"athletes"> & {
-  teams: { name: string } | null;
+  teams: { name: string; discipline: string | null } | null;
   organizations: { name: string } | null;
 };
 
@@ -25,7 +25,7 @@ export default async function ProfilePage() {
 
   const { data: athlete } = (await supabase
     .from("athletes")
-    .select("*, teams(name), organizations(name)")
+    .select("*, teams(name, discipline), organizations(name)")
     .eq("user_id", user.id)
     .maybeSingle()) as { data: AthleteProfile | null };
 

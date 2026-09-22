@@ -2095,6 +2095,14 @@ export type Database = {
         Args: { p_feedback_id: string }
         Returns: undefined
       }
+      matches_training_group: {
+        Args: {
+          p_athlete_group: string
+          p_athlete_position: string
+          p_program_group: string
+        }
+        Returns: boolean
+      }
       my_role: { Args: { org: string }; Returns: string }
       my_team_id: { Args: { org: string }; Returns: string }
       propagate_week_to_future: {
@@ -2113,6 +2121,7 @@ export type Database = {
         Args: { p_feedback_id: string; p_reply: string }
         Returns: undefined
       }
+      tr_fold: { Args: { p_value: string }; Returns: string }
       update_program_week: {
         Args: {
           p_discipline?: string
