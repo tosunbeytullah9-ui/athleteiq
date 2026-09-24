@@ -15,7 +15,11 @@
     "./exercise": "./exercise.ts",
     "./org-user": "./org-user.ts",
     "./session-feedback": "./session-feedback.ts",
-    "./annual-plan": "./annual-plan.ts"
+    "./annual-plan": "./annual-plan.ts",
+    "./csv": "./csv.ts",
+    "./athlete-import": "./athlete-import.ts",
+    "./program-import": "./program-import.ts",
+    "./one-rm-import": "./one-rm-import.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

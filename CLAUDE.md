@@ -192,17 +192,25 @@ AthleteIQ/
 │       ├── acwr.ts
 │       ├── annual-plan.test.ts
 │       ├── annual-plan.ts
+│       ├── athlete-import.test.ts
+│       ├── athlete-import.ts
 │       ├── athlete.test.ts
 │       ├── athlete.ts
 │       ├── attendance.ts
 │       ├── auth.test.ts
 │       ├── auth.ts
+│       ├── csv.test.ts
+│       ├── csv.ts
 │       ├── exercise.test.ts
 │       ├── exercise.ts
 │       ├── index.ts
+│       ├── one-rm-import.test.ts
+│       ├── one-rm-import.ts
 │       ├── org-user.ts
 │       ├── organization.ts
 │       ├── package.json
+│       ├── program-import.test.ts
+│       ├── program-import.ts
 │       ├── program.ts
 │       ├── session-feedback.test.ts
 │       ├── session-feedback.ts
@@ -1037,6 +1045,58 @@ durum 15 hafta → 5 bölüm / 8 kart. Detay sayfası (`/programs/[id]`) zaten b
 çalışıyordu (blok yayınla/sil) — liste artık onunla tutarlı. Sporcu görünümü (`AthleteProgramView`)
 ve mobil DEĞİŞMEDİ. [Son doğrulama: 2026-09-16]
 
+**Sonradan eklenen görevler (2026-09-24 — sporcu / antrenman programı / 1RM içe aktarma):**
+```
+[x] packages/validators/csv.ts → YENİ, bağımlılıksız CSV/TSV ayrıştırıcı (tırnaklı alan, alan içi satır sonu, CRLF, BOM) + ayırıcı otomatik tespiti + Türkçe-duyarlı başlık eşleme (mapColumns/normalizeHeaderKey) + değer ayrıştırıcıları (parseNumber "84,5" / parseDate "12.04.2004") + toCsv (şablon üretimi)
+[x] packages/validators/athlete-import.ts → YENİ, sporcu satırı → athletes taslağı + satır bazlı hata/uyarı; takım adını trFold ile çözer, kullanıcı adını ATHLETE_USERNAME_RE ile doğrular, şifre yoksa generateTempPassword üretir
+[x] packages/validators/program-import.ts → YENİ, "satır başına bir set" tablosu → create_program_with_weeks'in p_sessions ağacı (hafta → gün/seans → egzersiz → set); yük tipi çözümlemesi (kg / %1RM / vücut ağırlığı / bant), tekrar-veya-süre kuralı (exerciseSchema ile aynı), hafta karşılaştırması (sessionsEqual)
+[x] packages/validators/{csv,athlete-import,program-import}.test.ts → 68 birim test (toplam 134)
+[x] apps/web/components/features/import/import-source.tsx → YENİ, iki sayfanın ortak kaynak girişi: dosya seç / Excel'den yapıştır / örnek şablon indir; UTF-8 çözülemezse windows-1254'e düşer (Türkçe Excel CSV'si)
+[x] apps/web/app/(dashboard)/athletes/import/ → YENİ sayfa: önizleme tablosu (satır bazlı hata/uyarı), hedef takım seçici, kadro satırları tek insert + giriş hesabı satırları create-athlete-account, sonuç ekranında tek seferlik kimlik bilgisi listesi (CSV indirilebilir)
+[x] apps/web/app/(dashboard)/programs/import/ → YENİ sayfa: program meta formu (başlık/kapsam/başlangıç/faz/branş/grup) + hafta-seans-egzersiz önizlemesi + create_program_with_weeks (+ farklı haftalar için update_program_week)
+[x] packages/validators/one-rm-import.ts → YENİ, 1RM satırı → athlete_1rm_records taslağı; sporcuyu isimden (gerekirse "Takım" sütunuyla ayırt ederek), egzersizi normalizeExerciseName ile KATALOGDAN çözer, eşleşmeyende yakın ad önerir; tarih sütunu boşsa varsayılan test tarihine düşer
+[x] apps/web/app/(dashboard)/tests/import-1rm/ → YENİ sayfa: varsayılan test tarihi seçici + satır bazlı önizleme + tek insert (athlete_1rm_records, 1rm_insert RLS)
+[x] athletes-client.tsx / programs-client.tsx / tests-client.tsx (1RM bölümü) → başlığa "İçe Aktar" butonu
+[x] middleware.ts + (dashboard)/layout.tsx → athlete guard'ın isBlocked listesine "/programs/import" eklendi
+```
+**Neden yeni bir yazma yolu AÇILMADI:** içe aktarma, elle ekleme akışlarının geçtiği aynı
+yollardan geçer — kadro satırları `athletes` tablosuna RLS altında insert edilir (koç kendi
+takımı dışına yazamaz), giriş hesabı istenen satırlar `create-athlete-account` Edge
+Function'ına gider, 1RM satırları `athlete_1rm_records`'a `1rm_insert` politikası altında
+yazılır (031_1rm_team_scoped_rls.sql — koç yalnızca kendi takımı), program ise
+`create_program_with_weeks` / `update_program_week` RPC'lerini çağırır (kendi
+`coalesce(..., false)` yetki kontrolleri devrede). Ayrıcalıklı toplu-yazma endpoint'i,
+service-role kullanımı veya yeni migration YOK.
+
+**Neden hatalı satır varken içe aktarma tamamen engellenir:** yarım yüklenmiş bir kadro/program,
+kullanıcının hangi satırın geçtiğini bilmeden dosyayı ikinci kez yüklemesine ve tekrar kayıt
+oluşmasına yol açar. Önizleme tüm satırları gösterir, tek bir hata bile varken buton kapalıdır.
+
+**İçe aktarma biçimi kararları (kullanıcı onaylı):**
+- Sporcu dosyasında yalnızca **Ad Soyad** zorunludur; **Kullanıcı Adı** sütunu dolu olan satırlar
+  için ek olarak giriş hesabı açılır (şifre boşsa üretilir). Sütun hiç yoksa dosyanın tamamı
+  kadro-only'dir.
+- 1RM dosyasında egzersiz adı **katalogda (platform + org) bulunmak ZORUNDADIR** — serbest
+  metin bir ad kabul edilmez. Sebep: `%1RM` çözümlemesi (`buildMaxLookup`,
+  `packages/db/queries/exercises.ts`) kaydı `exercise_id` ile DEĞİL,
+  `normalizeExerciseName(exercise_name)` ile arar; yanlış yazılmış bir ad tabloya yazılır ama
+  program builder'daki hiçbir egzersizle eşleşmez ve yükler SESSİZCE boş kalırdı. Elle form da
+  zaten yalnızca katalogdan seçtiriyor. Eşleşmeyen adlar için en yakın 3 aday önerilir. Aynı ad
+  hem org hem platform kütüphanesindeyse **org kazanır** (fork'lanmış/özelleştirilmiş sürüm).
+- 1RM önizlemesi iki sessiz tuzağı uyarı olarak yüzeye çıkarır: aynı sporcu/egzersiz/tarih için
+  kayıt zaten varsa, ve içe aktarılan satırdan **daha güncel** bir kayıt varsa (o satır yazılır
+  ama `dedupeLatestMaxes` en güncel tarihi seçtiği için %1RM hesaplarına hiç yansımaz).
+- Program dosyasında **her satır bir settir** (`set_no` opsiyonel — yoksa sıra numarası verilir).
+  Aynı egzersizin ARDIŞIK satırları tek egzersizin setleri olarak gruplanır.
+- Çok haftalı blok: `create_program_with_weeks` tek bir `p_sessions`'ı N haftaya klonladığı için
+  1. hafta onunla oluşur, içeriği farklı olan haftalar `update_program_week` ile ayrıca yazılır.
+  Hafta tarihleri iki yolda da AYNI formülle (`blok başlangıcı + (i-1)*7`) hesaplanır.
+- **KAPSAM DIŞI (bilinçli):** `.xlsx` ikili dosya desteği (bağımlılık gerektirir — kullanıcı
+  Excel'den doğrudan YAPIŞTIRIR, pano TSV bırakır; ya da "CSV olarak kaydet"), WOD/CrossFit
+  formatındaki seanslar (`workout_format` + `movement_detail` — "set başına satır" modeliyle
+  çelişir), mevcut sporcu/programın içe aktarmayla GÜNCELLENMESİ (yalnızca yeni kayıt oluşturulur),
+  yıllık plan ızgarasının içe aktarımı.
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -1723,7 +1783,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-22
+Son otomatik senkron: 2026-09-24
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1841,6 +1901,18 @@ Son otomatik senkron: 2026-09-22
   Antrenman Grubu kolonları var; arama mevki ve grubu da kapsıyor. Program
   oluşturma/düzenleme formu yazılan grubun kimi kapsadığını kaydetmeden önce
   gösterir ("3 sporcu görecek: ..."). Bkz. §4.4.
+- ✅ Toplu içe aktarma (2026-09-24) — `/athletes/import`, `/programs/import` ve
+  `/tests/import-1rm`: Excel/CSV'den sporcu kadrosu, haftalık antrenman programı ve 1RM
+  kayıtları tek seferde yüklenir. Dosya seçilebilir veya
+  Excel'den doğrudan yapıştırılabilir (pano TSV bırakır, ayırıcı otomatik algılanır); her iki
+  sayfada indirilebilir örnek şablon var. Sütun adları Türkçe/İngilizce, büyük-küçük harf ve
+  Türkçe karakter farkı gözetmeden tanınır. İçe aktarmadan ÖNCE satır bazlı önizleme + hata/uyarı
+  listesi gösterilir; tek bir hata varken buton kapalıdır. Sporcu dosyasında "Kullanıcı Adı"
+  sütunu dolu olan satırlar için giriş hesabı da açılır ve şifreler sonuç ekranında tek seferlik
+  gösterilir (CSV indirilebilir). 1RM dosyasında egzersiz adı katalogda bulunmak zorundadır
+  (yanlış yazım %1RM yüklerini sessizce boş bırakırdı — eşleşmeyene yakın ad önerilir) ve
+  önizleme "daha güncel kayıt var" durumunu ayrıca uyarır. Yeni bir yazma yolu açılmadı —
+  mevcut RLS/Edge Function/RPC yolları kullanılır. Bkz. §6 Agent 3.
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish. Liste 2026-09-16'da hedef
   (takım/sporcu) → blok kırılımlı gruplu görünüme geçti — çok haftalı bloklar tek kartta
   toplanıp haftalar tıklanabilir rozetlere indi, "bu hafta" vurgulanıyor, arama eklendi;

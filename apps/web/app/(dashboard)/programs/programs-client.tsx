@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   Rows3,
   Search,
+  Upload,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
@@ -214,12 +215,20 @@ export function ProgramsClient({
           </p>
         </div>
         {!isAthlete && (
-          <Button asChild>
-            <Link href="/programs/new">
-              <Plus className="h-4 w-4" />
-              Yeni Program
-            </Link>
-          </Button>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" asChild>
+              <Link href="/programs/import">
+                <Upload className="h-4 w-4" />
+                İçe Aktar
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/programs/new">
+                <Plus className="h-4 w-4" />
+                Yeni Program
+              </Link>
+            </Button>
+          </div>
         )}
       </div>
 

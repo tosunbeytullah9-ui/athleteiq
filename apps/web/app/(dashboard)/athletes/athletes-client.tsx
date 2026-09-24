@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
-import { Search, UserCircle2, Trash2, RotateCcw } from "lucide-react";
+import { Search, UserCircle2, Trash2, RotateCcw, Upload } from "lucide-react";
 import { Input } from "@athleteiq/ui/components/input";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Skeleton } from "@athleteiq/ui/components/skeleton";
@@ -107,12 +107,20 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
             {initialAthletes.length} sporcu kayıtlı
           </p>
         </div>
-        <AddAthleteModal
-          teams={teams}
-          orgId={orgId}
-          existingAthletes={initialAthletes}
-          onSuccess={() => router.refresh()}
-        />
+        <div className="flex items-center gap-3">
+          <Button variant="outline" asChild>
+            <Link href="/athletes/import">
+              <Upload className="h-4 w-4" />
+              İçe Aktar
+            </Link>
+          </Button>
+          <AddAthleteModal
+            teams={teams}
+            orgId={orgId}
+            existingAthletes={initialAthletes}
+            onSuccess={() => router.refresh()}
+          />
+        </div>
       </div>
 
       <div className="flex gap-3">

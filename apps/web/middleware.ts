@@ -156,11 +156,13 @@ export async function middleware(request: NextRequest) {
   // check-in'ini girer, kendi yarışma/profil/wearable bilgisini görür.
   // İzin verilen yollar /dashboard (Ana Sayfa), /programs (+ [id] detay),
   // /wellness, /competitions, /profile, /wearables (+ kendi WHOOP/Polar/Fitbit
-  // OAuth connect/callback/disconnect/sync route'ları). Program oluşturma/düzenleme
-  // ve diğer tüm dashboard sayfaları bloklanır → /dashboard'a redirect.
+  // OAuth connect/callback/disconnect/sync route'ları). Program oluşturma/düzenleme/
+  // içe aktarma ve diğer tüm dashboard sayfaları bloklanır → /dashboard'a redirect.
   if (role === "athlete") {
     const isBlocked =
-      pathname === "/programs/new" || pathname.endsWith("/edit");
+      pathname === "/programs/new" ||
+      pathname === "/programs/import" ||
+      pathname.endsWith("/edit");
     const isAllowed =
       pathname === "/dashboard" ||
       (pathname.startsWith("/programs") && !isBlocked) ||

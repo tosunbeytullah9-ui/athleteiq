@@ -20,14 +20,16 @@ export default async function DashboardLayout({
   // /wellness + /competitions + /profile + /wearables'e kilitliyor, ama
   // server component'te de rolü doğrula. Athlete sadece /dashboard (Ana
   // Sayfa), /programs, /programs/[id] (salt-okunur), /wellness,
-  // /competitions, /profile ve /wearables görebilir; new/edit ve diğer
-  // sayfalar bloklı.
+  // /competitions, /profile ve /wearables görebilir; new/import/edit ve
+  // diğer sayfalar bloklı.
   if (role === "athlete") {
     const headerStore = await headers();
     const pathname = headerStore.get("x-pathname") ?? "";
     if (pathname) {
       const isBlocked =
-        pathname === "/programs/new" || pathname.endsWith("/edit");
+        pathname === "/programs/new" ||
+        pathname === "/programs/import" ||
+        pathname.endsWith("/edit");
       const isAllowed =
         pathname === "/dashboard" ||
         (pathname.startsWith("/programs") && !isBlocked) ||

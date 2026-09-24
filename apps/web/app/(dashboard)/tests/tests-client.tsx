@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, X, Activity, ArrowUp, ArrowDown, Minus, Trash2, Dumbbell } from "lucide-react";
+import Link from "next/link";
+import { Plus, X, Activity, ArrowUp, ArrowDown, Minus, Trash2, Dumbbell, Upload } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
@@ -698,10 +699,18 @@ export function TestsClient({
             </p>
           </div>
           {canManage && (
-            <Button onClick={() => setShowRmForm((v) => !v)} variant="outline">
-              {showRmForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-              {showRmForm ? "İptal" : "Yeni Kayıt Ekle"}
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button variant="outline" asChild>
+                <Link href="/tests/import-1rm">
+                  <Upload className="h-4 w-4" />
+                  İçe Aktar
+                </Link>
+              </Button>
+              <Button onClick={() => setShowRmForm((v) => !v)} variant="outline">
+                {showRmForm ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                {showRmForm ? "İptal" : "Yeni Kayıt Ekle"}
+              </Button>
+            </div>
           )}
         </div>
 
