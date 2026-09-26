@@ -130,12 +130,37 @@ describe("parseOneRmImport — değer ve tarih", () => {
     expect(r.rows[0]!.weight_kg).toBe(142.5);
   });
 
-  it("boş, sayı olmayan ve negatif değeri reddeder", () => {
+  it("sayı olmayan ve negatif değeri reddeder", () => {
     const r = parseOneRmImport(
-      "Sporcu;Egzersiz;kg\nElif Demir;Deadlift;\nElif Demir;Deadlift;abc\nElif Demir;Deadlift;-5",
+      "Sporcu;Egzersiz;kg\nElif Demir;Deadlift;abc\nElif Demir;Deadlift;-5",
       ctx()
     );
-    expect(r.errorCount).toBe(3);
+    expect(r.errorCount).toBe(2);
+  });
+
+  it("1RM hücresi boş satırı hata saymadan atlar", () => {
+    // Sakat sporcunun Back Squat maxı bilinmiyor — hücre boş, liste kilitlenmemeli.
+    const r = parseOneRmImport(
+      `${HEADER}\nAhmet Yılmaz;ACE;Bench Press;95;\nAhmet Yılmaz;ACE;Back Squat;;\nElif Demir;ACE;Deadlift;  ;`,
+      ctx()
+    );
+    expect(r.errorCount).toBe(0);
+    expect(r.validCount).toBe(1);
+    expect(r.rows.map((row) => row.exercise_name)).toEqual(["Bench Press"]);
+    expect(r.skippedLines).toEqual([3, 4]);
+  });
+
+  it("tire ile işaretlenmiş 1RM hücresini de boş sayar", () => {
+    const r = parseOneRmImport("Sporcu;Egzersiz;kg\nElif Demir;Deadlift;-\nElif Demir;Deadlift;—", ctx());
+    expect(r.rows).toHaveLength(0);
+    expect(r.skippedLines).toEqual([2, 3]);
+  });
+
+  it("1RM boşsa diğer sütunlardaki hatalar da engellemez", () => {
+    // Yazılacak bir değer yok — sporcu/egzersiz çözümlemesine gerek yok.
+    const r = parseOneRmImport("Sporcu;Egzersiz;kg\nBilinmeyen Kişi;Bak Squat;", ctx());
+    expect(r.errorCount).toBe(0);
+    expect(r.skippedLines).toEqual([2]);
   });
 
   it("çok yüksek değeri uyarı yapar, hata değil", () => {

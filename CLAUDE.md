@@ -1086,6 +1086,12 @@ oluşmasına yol açar. Önizleme tüm satırları gösterir, tek bir hata bile 
 - 1RM önizlemesi iki sessiz tuzağı uyarı olarak yüzeye çıkarır: aynı sporcu/egzersiz/tarih için
   kayıt zaten varsa, ve içe aktarılan satırdan **daha güncel** bir kayıt varsa (o satır yazılır
   ama `dedupeLatestMaxes` en güncel tarihi seçtiği için %1RM hesaplarına hiç yansımaz).
+- 1RM hücresi **boş** (veya yalnızca `-`/`–`/`—`) olan satır hata DEĞİLDİR, **atlanır**
+  (`skippedLines`) ve önizlemede sayısıyla bildirilir (2026-09-26). Sebep: sakatlık vb.
+  yüzünden test edilmemiş bir max bilinmeyen bir değerdir, yazılacak bir şey yoktur — hata
+  sayılsaydı "tek hata varken buton kapalı" kuralı yüzünden tek bir eksik ölçüm tüm listeyi
+  kilitlerdi. Değer boşsa o satırın sporcu/egzersiz sütunları da doğrulanmaz. Boş OLMAYAN
+  ama geçersiz değerler (`abc`, `0`, negatif) hâlâ hatadır.
 - Program dosyasında **her satır bir settir** (`set_no` opsiyonel — yoksa sıra numarası verilir).
   Aynı egzersizin ARDIŞIK satırları tek egzersizin setleri olarak gruplanır.
 - Çok haftalı blok: `create_program_with_weeks` tek bir `p_sessions`'ı N haftaya klonladığı için

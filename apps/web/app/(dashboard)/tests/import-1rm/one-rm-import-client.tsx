@@ -136,7 +136,8 @@ export function OneRmImportClient({ athletes, teams, exercises, existingRecords 
               <>
                 Zorunlu sütunlar: <strong>Sporcu</strong>, <strong>Egzersiz</strong>,{" "}
                 <strong>1RM (kg)</strong>. Opsiyonel: Takım (aynı isimli sporcuları ayırt etmek
-                için), Tarih, Not. Egzersiz adı <strong>egzersiz kütüphanesinde</strong> bulunmalı —
+                için), Tarih, Not. 1RM hücresi boş (veya &quot;-&quot;) olan satırlar atlanır —
+                bilinmeyen bir max için satırı silmeniz gerekmez. Egzersiz adı <strong>egzersiz kütüphanesinde</strong> bulunmalı —
                 serbest metin bir ad %1RM hesaplarında eşleşmez, bu yüzden reddedilir ve yakın
                 adlar önerilir.
               </>
@@ -185,11 +186,30 @@ export function OneRmImportClient({ athletes, teams, exercises, existingRecords 
               </p>
             )}
 
+            {result.skippedLines.length > 0 && (
+              <p className="rounded-md bg-muted px-3 py-2 text-sm text-muted-foreground">
+                1RM değeri boş olan {result.skippedLines.length} satır atlanacak (satır{" "}
+                {result.skippedLines.join(", ")}) — bilinmeyen bir max için kayıt oluşturulmaz.
+              </p>
+            )}
+
+            {result.rows.length === 0 &&
+              result.skippedLines.length > 0 &&
+              !result.fatalError &&
+              result.missingColumns.length === 0 && (
+                <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  Dosyada 1RM değeri girilmiş hiçbir satır yok.
+                </p>
+              )}
+
             {result.rows.length > 0 && (
               <>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="secondary">{result.rows.length} satır okundu</Badge>
                   <Badge variant="secondary">{result.validCount} kayıt eklenecek</Badge>
+                  {result.skippedLines.length > 0 && (
+                    <Badge variant="outline">{result.skippedLines.length} boş satır atlandı</Badge>
+                  )}
                   {result.errorCount > 0 && (
                     <Badge variant="destructive">{result.errorCount} hatalı satır</Badge>
                   )}

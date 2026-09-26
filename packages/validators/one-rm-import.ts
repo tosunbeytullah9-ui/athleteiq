@@ -93,6 +93,13 @@ export interface OneRmImportRow {
 
 export interface OneRmImportResult {
   rows: OneRmImportRow[];
+  /**
+   * 1RM hücresi boş (veya yalnızca "-") olduğu için ATLANAN satırların
+   * numaraları. Bilinmeyen bir max (örn. sakatlık yüzünden hiç test edilmemiş
+   * Back Squat) hata değildir — yazılacak bir değer yoktur, satır sessizce
+   * değil ama engellemeden geçilir. `rows` bu satırları İÇERMEZ.
+   */
+  skippedLines: number[];
   unknownColumns: string[];
   missingColumns: string[];
   fatalError: string | null;
@@ -109,6 +116,9 @@ export interface OneRmImportContext {
   /** Mevcut 1RM kayıtları — tekrar ve "daha güncel kayıt var" uyarıları için. */
   existingRecords?: { athlete_id: string; exercise_name: string; test_date: string }[];
 }
+
+/** Excel'de "bilinmiyor" anlamında sık kullanılan tire yazımları da boş sayılır. */
+const EMPTY_VALUE_RE = /^[-–—]*$/;
 
 function fold(raw: string): string {
   return (trFold(raw) ?? "").replace(/\s+/g, " ").trim();
@@ -218,6 +228,7 @@ export function parseOneRmImport(
 ): OneRmImportResult {
   const empty = (fatalError: string | null, missingColumns: string[] = []): OneRmImportResult => ({
     rows: [],
+    skippedLines: [],
     unknownColumns: [],
     missingColumns,
     fatalError,
@@ -249,7 +260,16 @@ export function parseOneRmImport(
     existingExact.add(`${key}|${rec.test_date}`);
   }
 
-  const rows: OneRmImportRow[] = table.rows.map((row) => {
+  // 1RM hücresi boş satır = "bu sporcunun bu egzersizde bilinen maxı yok".
+  // Hata sayılsaydı tek bir eksik ölçüm tüm listeyi kilitlerdi.
+  const skippedLines: number[] = [];
+  const dataRows = table.rows.filter((row) => {
+    const isEmpty = EMPTY_VALUE_RE.test(cell(row, mapping, "weight_kg"));
+    if (isEmpty) skippedLines.push(row.line);
+    return !isEmpty;
+  });
+
+  const rows: OneRmImportRow[] = dataRows.map((row) => {
     const read = (field: OneRmImportField) => cell(row, mapping, field);
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -262,9 +282,7 @@ export function parseOneRmImport(
 
     const weightRaw = read("weight_kg");
     const weight_kg = parseNumber(weightRaw);
-    if (weightRaw === "") {
-      errors.push("1RM değeri boş");
-    } else if (weight_kg === null) {
+    if (weight_kg === null) {
       errors.push(`1RM sayı değil: "${weightRaw}"`);
     } else if (weight_kg <= 0) {
       errors.push(`1RM pozitif olmalı: "${weightRaw}"`);
@@ -334,6 +352,7 @@ export function parseOneRmImport(
 
   return {
     rows,
+    skippedLines,
     unknownColumns: mapping.unknown,
     missingColumns: [],
     fatalError: null,
