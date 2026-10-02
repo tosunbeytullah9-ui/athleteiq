@@ -201,6 +201,8 @@ AthleteIQ/
 │       ├── auth.ts
 │       ├── csv.test.ts
 │       ├── csv.ts
+│       ├── endurance.test.ts
+│       ├── endurance.ts
 │       ├── exercise.test.ts
 │       ├── exercise.ts
 │       ├── index.ts
@@ -209,6 +211,8 @@ AthleteIQ/
 │       ├── org-user.ts
 │       ├── organization.ts
 │       ├── package.json
+│       ├── program-copy.test.ts
+│       ├── program-copy.ts
 │       ├── program-import.test.ts
 │       ├── program-import.ts
 │       ├── program.ts
@@ -303,7 +307,10 @@ AthleteIQ/
 │   │   ├── 20260917074747_session_feedback_function_hardening.sql
 │   │   ├── 20260921081206_annual_plans.sql
 │   │   ├── 20260922084236_position_vs_training_group.sql
-│   │   └── 20260922084343_position_vs_training_group_move_mevki.sql
+│   │   ├── 20260922084343_position_vs_training_group_move_mevki.sql
+│   │   ├── 20261002113316_endurance_sessions_and_block_copy.sql
+│   │   ├── 20261002113426_endurance_recovery_target.sql
+│   │   └── 20261002113543_week_number_allow_53.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -313,6 +320,7 @@ AthleteIQ/
 ├── .npmrc
 ├── .prettierignore
 ├── .prettierrc
+├── AGENTS.md
 ├── BUGS.md
 ├── CLAUDE.md
 ├── MOBILE_STATUS.md
@@ -351,7 +359,7 @@ AthleteIQ/
 - **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
 - **exercise_1rm_ratios** — Egzersizler arası bilinen 1RM oran ilişkisi (örn. Front Squat = Back Squat * 0.85); platform geneli, super admin panelinden yönetilir, sporcunun türetilen egzersizde doğrudan kaydı yoksa %1RM çözümlemesinde sessiz fallback olarak kullanılır (20260914075144_exercise_1rm_ratios.sql).
 - **exercise_sets** — Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).
-- **exercises** — Bir seansa ait tekil egzersiz kaydı (sets/reps/load) — set bazlı detay için bkz. exercise_sets (001_schema.sql).
+- **exercises** — Bir seansa ait tekil egzersiz kaydı (sets/reps/load) — set bazlı detay için bkz. exercise_sets (001_schema.sql). Dayanıklılık seansında (training_sessions.endurance_modality dolu) her satır bir BÖLÜMDÜR: segment_type (warmup/steady/interval/recovery/cooldown), segment_repeats, TEK tekrarın segment_distance_m/segment_duration_sec'i, intensity_zone (1-5), intensity_target ve interval toparlanması (rest_sec + segment_recovery_target) — exercise_sets oluşturulmaz (20261002113316, 20261002113426).
 - **fitbit_activities** — Fitbit'e özel, tekil antrenman (activity log) kaydı — whoop_workouts/polar_exercises'ın Fitbit karşılığı; manuel "Senkronize Et" butonuyla GET /1/user/-/activities/list.json ile çekilir, mesafe kullanıcının hesap birimine (km/mil) bağlı olduğundan distance_meter bilinçli olarak null bırakılır (20260913201909_fitbit_activities.sql).
 - **memberships** — Kullanıcı-organizasyon-takım-rol ilişkisi (admin/coach/athlete); bir kullanıcının bir org'daki tek yetkisi (001_schema.sql).
 - **org_exercise_categories** — Bir organizasyona özel, platform kütüphanesini genişleten egzersiz kategorileri (005_exercises.sql).
@@ -361,13 +369,13 @@ AthleteIQ/
 - **polar_exercises** — Polar'a özel, tekil antrenman (exercise) kaydı — whoop_workouts'un Polar karşılığı, ancak alan adları Polar AccessLink v4 exercise şemasına göre (calories, training_load, distance_meter); manuel "Senkronize Et" butonuyla transaction lifecycle (aç→listele→commit) ile çekilir (20260913131022_polar_exercises.sql).
 - **polar_sync_state** — Polar'ın transaction-tabanlı senkronizasyon modelinde, kaynak tipi başına son commit edilen transaction ID'si (004_wearables.sql).
 - **profiles** — auth.users ile 1:1, org kapsamlı kullanıcı adı + görünen ad; sentetik email desenindeki ({username}@{org_slug}.athleteiq.app) org_id/username kaynağı, yalnızca service-role Edge Function'lar yazar (032_profiles.sql, Parti 16).
-- **program_blocks** — Birden fazla haftalık training_programs satırını ortak bir döneme (örn. "8 Haftalık Hazırlık Dönemi") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B).
+- **program_blocks** — Birden fazla haftalık training_programs satırını ortak bir döneme (örn. "8 Haftalık Hazırlık Dönemi") gruplayan üst seviye konteyner (017_program_blocks.sql, Parti 3.B). copy_program_block() bir bloğu tüm hafta ağacıyla yeni tarihe/hedefe TASLAK olarak kopyalar (20261002113316).
 - **readiness_scores** — wellness_checkins'ten türetilen, bireysel taban çizgisine dayalı readiness skoru cache'i; sadece service_role/Edge Function yazar, hesaplama motoru henüz aktif değil (şema hazır) (013_readiness_scores.sql).
 - **session_feedback** — Sporcunun bir antrenman seansı için koça verdiği geri bildirim (sporcu × seans): RPE (1-10), gerçek süre, tamamlanma durumu (completed/partial/skipped), ağrı bayrağı + bölge, serbest not ve koçun okundu/yanıt alanları. training_sessions.session_rpe/athlete_session_notes kolonlarının yerini alır — onlar takım programlarında tüm takımca paylaşılan bir satırda durduğu için sporcu bazlı veri tutamıyordu. Kaydedilince acwr_logs'un o günkü satırını ağırlıklı sRPE ile otomatik üretir (20260917072700_session_feedback.sql, Parti 22-FB).
 - **teams** — Bir organizasyona bağlı takım. discipline = BRANŞ (Amerikan Futbolu, ARTİSTİK CİMNASTİK vb.) ve sporcunun branşının TEK KAYNAĞIDIR — athletes tablosunda branş kolonu yoktur, UI takımdan türetir (001_schema.sql, 20260922084236_position_vs_training_group.sql).
 - **test_results** — Sporcu fiziksel test sonuçları (CMJ, sprint, kuvvet testleri vb. — bkz. ayrıca athlete_1rm_records) (001_schema.sql).
 - **training_programs** — Takıma VEYA bireysel sporcuya atanan haftalık antrenman programı (team_id XOR athlete_id); is_published=false iken sporcu göremez (001_schema.sql). training_group doluysa yalnızca grubu VEYA mevkisi eşleşen takım sporcuları görür (matches_training_group, 20260922084236).
-- **training_sessions** — Bir programa ait, haftanın belirli bir gününe düşen antrenman seansı (strength/conditioning/technical/recovery/competition) (001_schema.sql).
+- **training_sessions** — Bir programa ait, haftanın belirli bir gününe düşen antrenman seansı (strength/conditioning/technical/recovery/competition) (001_schema.sql). Seans yapısı üçten biridir: standart (set bazlı), WOD (workout_format) veya dayanıklılık (endurance_modality: run/bike/row/swim/ski/walk/other) — ikisi birden dolu olamaz (training_sessions_single_structure_check, 20261002113316).
 - **wearable_connections** — Sporcunun WHOOP/Polar hesabına bağlı OAuth access/refresh token'ları (şifreli saklanır) (004_wearables.sql).
 - **wearable_daily_metrics** — WHOOP ve Polar'dan normalize edilmiş, ortak şemaya dönüştürülmüş günlük recovery/sleep/strain verisi (004_wearables.sql).
 - **wellness_checkins** — Sporcunun günlük 5 maddelik özbildirim wellness anketi (McLean ve ark. 2010 ölçeği, 1=en kötü/5=en iyi, reverse-coding yok); readiness katmanının ham girdisi — üründe "Hooper Index" olarak ADLANDIRILMAZ (012_wellness.sql).
@@ -1103,6 +1111,51 @@ oluşmasına yol açar. Önizleme tüm satırları gösterir, tek bir hata bile 
   çelişir), mevcut sporcu/programın içe aktarmayla GÜNCELLENMESİ (yalnızca yeni kayıt oluşturulur),
   yıllık plan ızgarasının içe aktarımı.
 
+**Sonradan eklenen görevler (2026-10-02 — dayanıklılık programı + blok kopyalama):**
+```
+[x] 20261002113316_endurance_sessions_and_block_copy.sql → training_sessions.endurance_modality (run/bike/row/swim/ski/walk/other) + training_sessions_single_structure_check (workout_format ile birlikte dolu olamaz); exercises'a segment_type/segment_repeats/segment_distance_m/segment_duration_sec/intensity_zone/intensity_target; insert_sessions_tree + copy_program_tree yeni kolonlarla (aynı imza/yetki); YENİ copy_program_block RPC'si
+[x] 20261002113426_endurance_recovery_target.sql → exercises.segment_recovery_target (interval toparlanmasının yoğunluğu — "%50 tempo jog")
+[x] 20261002113543_week_number_allow_53.sql → training_programs.week_number check 1–52 → 1–53 (2026'nın ISO 53. haftası, 28.12.2026–03.01.2027, hiçbir yoldan oluşturulamıyordu)
+[x] packages/validators/endurance.ts (+42 test) → modalite/bölüm/bölge sabitleri, süre-mesafe ayrıştırma ("20" = 20 dk, "4:30", "30 sn"; "400" = 400 m, "5 km"), bölüm/seans toplamları, bölge dağılımı, tempo (/km, /500 m, /100 m, km/sa), özet metinleri, form şeması (refineEnduranceSession), form ↔ DB satırı dönüşümleri — web + mobil TEK kaynak
+[x] packages/validators/program-copy.ts (+8 test) → copy_program_block'un hafta tarihi kuralının TS ikizi (önizleme + çakışma uyarısı)
+[x] apps/web/components/features/program-builder/endurance-session-fields.tsx → SessionStructureSelect (eski "Format" select'inin yerine: Standart / Dayanıklılık / CrossFit formatları) + EnduranceSessionFields (modalite, hızlı ekleme butonları, sıralanabilir/çoğaltılabilir bölüm kartları, canlı önizleme satırı, toplam + bölge şeridi, "seans süresini N dk yap")
+[x] apps/web/components/features/program-builder/endurance-session-card.tsx → salt-okunur kart (koç detayı + sporcu web görünümü); apps/mobile/components/EnduranceSessionCard.tsx → mobil ikizi (her iki gün ekranı)
+[x] apps/web/app/(dashboard)/programs/new/endurance/page.tsx → YENİ sayfa, aynı sihirbaz variant="endurance" (yeni seans ısınma+soğuma hazır gelir); veri yükleyici new/load-new-program-data.tsx'e taşındı; programs-client.tsx'e "Dayanıklılık Programı" butonu
+[x] apps/web/components/features/program-builder/copy-block-dialog.tsx → program detayında "Bloğu Kopyala" (bloksuz programda "Kopyala"): başlangıç tarihi (varsayılan: bloğun hemen ardı), hedef (aynı / başka takım / başka sporcu), başlık, hafta tarihleri önizlemesi, hedefte çakışan program uyarısı
+[x] middleware.ts + (dashboard)/layout.tsx → athlete guard "/programs/new/" önekini de blokluyor (önceden yalnızca tam eşleşme vardı — /programs/new/endurance sporcuya açık kalırdı)
+```
+**Dayanıklılık neden WOD'un deseniyle kuruldu:** bölümler `exercises` satırı olarak tutulur
+(WOD hareketleri gibi) — yeni tablo YOK, dolayısıyla yeni RLS YOK: `exercises_select`'in
+program/yayın/antrenman grubu kuralları otomatik kapsar; `insert_sessions_tree` /
+`copy_program_tree` / `update_program_week` / `propagate_week_to_future` / blok kopyalama
+aynı ağaç yolundan geçer. Bir seans ya standart, ya WOD, ya dayanıklılıktır (DB check).
+Mesafe/süre **TEK tekrar** içindir ("8 × 400 m" → repeats 8, distance 400); toplamlar
+saklanmaz, `endurance.ts`'te hesaplanır. Seans süresi boş bırakılırsa bölümlerden
+hesaplanan süre yazılır (sporcunun geri bildirim formu planlanan süreyi buradan alır).
+Tasarımı canlı veri belirledi: "Ünilig Takımı Dayanıklılık Antrenmanları" bloğunda koç
+interval'ı "For Time" formatına "30 sn %80 tempo" + "90 sn %50 tempo" diye İKİ ayrı hareket
+olarak yazmıştı (tekrar sayısı yok) — bu yüzden interval'da toparlanmanın kendi yoğunluğu
+(`segment_recovery_target`) ve yoğunluk için serbest metin hedef (`%80 tempo`) var. O blok
+DEĞİŞTİRİLMEDİ (WOD olarak kalıyor).
+
+**Blok kopyalama (`copy_program_block`):** kaynak bloğun HERHANGİ bir haftasının id'si +
+yeni başlangıç tarihi (+ opsiyonel başlık / hedef takım XOR sporcu). Haftalar kaynaktaki
+göreli aralıklarını korur; kopya her zaman **taslak** ve arşivsizdir; antrenman grubu
+yalnızca AYNI takıma kopyalanırken taşınır. Yetki §4.1 kalıbında: rol + koç için hem kaynak
+hem hedef kendi takımı, hedef aynı org'da olmalı, hepsi `coalesce(..., false)`; `anon`/`PUBLIC`
+EXECUTE yok. Canlı DB'de 9 senaryoyla (ROLLBACK içinde) doğrulandı: admin kendi org'u ✓,
+koç kendi takımı ✓, koç başka takım ✗, koç başka takıma hedef ✗, başka org admini ✗, başka
+org'a hedef ✗, iki hedef birden ✗, üyeliksiz ✗, yılbaşını aşan 6 haftalık kopya ✓ (hafta 53
+düzeltmesinden sonra). Ayrıca form → `buildSessionsPayload` → `create_program_with_weeks` →
+`copy_program_block` turu gerçek payload'la uçtan uca doğrulandı.
+
+**Kapsam dışı (bilinçli):** mobilde program oluşturma (zaten yok), dayanıklılık için
+içe aktarma (`program-import` "set başına satır" modeli), GPS/wearable verisiyle
+planlanan-gerçekleşen karşılaştırması, bölgelerin sporcuya özel nabız/tempo değerlerine
+çevrilmesi (sporcu profilinde maks. nabız/eşik tempo alanı yok), seans içi tekrar eden
+blok gruplama ("3 × [1 km + 400 m]"), mevcut WOD'a sıkıştırılmış dayanıklılık seanslarının
+otomatik dönüştürülmesi.
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -1789,7 +1842,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-09-24
+Son otomatik senkron: 2026-10-02
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1861,6 +1914,9 @@ Son otomatik senkron: 2026-09-24
 - 20260921081206_annual_plans.sql
 - 20260922084236_position_vs_training_group.sql
 - 20260922084343_position_vs_training_group_move_mevki.sql
+- 20261002113316_endurance_sessions_and_block_copy.sql
+- 20261002113426_endurance_recovery_target.sql
+- 20261002113543_week_number_allow_53.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -1919,6 +1975,15 @@ Son otomatik senkron: 2026-09-24
   (yanlış yazım %1RM yüklerini sessizce boş bırakırdı — eşleşmeyene yakın ad önerilir) ve
   önizleme "daha güncel kayıt var" durumunu ayrıca uyarır. Yeni bir yazma yolu açılmadı —
   mevcut RLS/Edge Function/RPC yolları kullanılır. Bkz. §6 Agent 3.
+- ✅ Dayanıklılık programı (2026-10-02) — `/programs/new/endurance` (+ her seansın "Format"
+  seçicisinde "Dayanıklılık"): koşu/bisiklet/kürek/yüzme/SkiErg/yürüyüş seansları; seans
+  ısınma / sürekli / interval / toparlanma / soğuma bölümlerinden oluşur (mesafe ve/veya
+  süre, tekrar, 5 bölgeli yoğunluk + serbest hedef "%80 tempo", interval toparlanması).
+  Toplam mesafe/süre, bölge dağılımı ve türetilen tempo canlı hesaplanır; koç detayı, sporcu
+  web görünümü ve mobil gün ekranları aynı kartı gösterir. Bkz. §6 Agent 3.
+- ✅ Blok kopyalama (2026-10-02) — program detayında "Bloğu Kopyala": bir bloğun tüm haftaları
+  (seans/egzersiz/set/WOD/dayanıklılık ağacıyla) yeni bir tarihe, aynı ya da başka takıma /
+  sporcuya taslak olarak kopyalanır; hedefte çakışan program varsa uyarır. Bkz. §6 Agent 3.
 - ✅ Program yönetimi: oluşturma, listeleme, detay, publish. Liste 2026-09-16'da hedef
   (takım/sporcu) → blok kırılımlı gruplu görünüme geçti — çok haftalı bloklar tek kartta
   toplanıp haftalar tıklanabilir rozetlere indi, "bu hafta" vurgulanıyor, arama eklendi;

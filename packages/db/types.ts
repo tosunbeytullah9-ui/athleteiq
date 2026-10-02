@@ -768,6 +768,8 @@ export type Database = {
           completed_at: string | null
           duration_sec: number | null
           id: string
+          intensity_target: string | null
+          intensity_zone: number | null
           load_kg: number | null
           load_percent: number | null
           load_percent_1rm: number | null
@@ -779,6 +781,11 @@ export type Database = {
           reps: number | null
           rest_sec: number | null
           rpe_target: number | null
+          segment_distance_m: number | null
+          segment_duration_sec: number | null
+          segment_recovery_target: string | null
+          segment_repeats: number | null
+          segment_type: string | null
           session_id: string
           sets: number | null
           superset_group: string | null
@@ -790,6 +797,8 @@ export type Database = {
           completed_at?: string | null
           duration_sec?: number | null
           id?: string
+          intensity_target?: string | null
+          intensity_zone?: number | null
           load_kg?: number | null
           load_percent?: number | null
           load_percent_1rm?: number | null
@@ -801,6 +810,11 @@ export type Database = {
           reps?: number | null
           rest_sec?: number | null
           rpe_target?: number | null
+          segment_distance_m?: number | null
+          segment_duration_sec?: number | null
+          segment_recovery_target?: string | null
+          segment_repeats?: number | null
+          segment_type?: string | null
           session_id: string
           sets?: number | null
           superset_group?: string | null
@@ -812,6 +826,8 @@ export type Database = {
           completed_at?: string | null
           duration_sec?: number | null
           id?: string
+          intensity_target?: string | null
+          intensity_zone?: number | null
           load_kg?: number | null
           load_percent?: number | null
           load_percent_1rm?: number | null
@@ -823,6 +839,11 @@ export type Database = {
           reps?: number | null
           rest_sec?: number | null
           rpe_target?: number | null
+          segment_distance_m?: number | null
+          segment_duration_sec?: number | null
+          segment_recovery_target?: string | null
+          segment_repeats?: number | null
+          segment_type?: string | null
           session_id?: string
           sets?: number | null
           superset_group?: string | null
@@ -1672,6 +1693,7 @@ export type Database = {
           day_of_week: number | null
           description: string | null
           duration_min: number | null
+          endurance_modality: string | null
           id: string
           interval_rest_sec: number | null
           order_index: number | null
@@ -1689,6 +1711,7 @@ export type Database = {
           day_of_week?: number | null
           description?: string | null
           duration_min?: number | null
+          endurance_modality?: string | null
           id?: string
           interval_rest_sec?: number | null
           order_index?: number | null
@@ -1706,6 +1729,7 @@ export type Database = {
           day_of_week?: number | null
           description?: string | null
           duration_min?: number | null
+          endurance_modality?: string | null
           id?: string
           interval_rest_sec?: number | null
           order_index?: number | null
@@ -2035,6 +2059,16 @@ export type Database = {
       can_manage_athlete_feedback: {
         Args: { p_athlete_id: string }
         Returns: boolean
+      }
+      copy_program_block: {
+        Args: {
+          p_athlete_id?: string
+          p_source_program_id: string
+          p_start_date: string
+          p_team_id?: string
+          p_title?: string
+        }
+        Returns: Json
       }
       copy_program_tree: {
         Args: { p_source_program_id: string; p_target_program_id: string }

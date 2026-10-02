@@ -23,6 +23,7 @@ import {
 import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
 import { getTodayDayOfWeek, toLocalDateString } from "@/lib/date";
 import { AthleteFeedbackCard } from "@/components/features/session-feedback/athlete-feedback-card";
+import { EnduranceSessionCard } from "@/components/features/program-builder/endurance-session-card";
 import { resolveSessionDate } from "@athleteiq/validators/session-feedback";
 
 type ExerciseWithSets = Tables<"exercises"> & {
@@ -327,7 +328,9 @@ export function AthleteProgramView({
                           </span>
                         )}
                       </div>
-                      {session.workout_format ? (
+                      {session.endurance_modality ? (
+                        <EnduranceSessionCard session={session} />
+                      ) : session.workout_format ? (
                         <WodSessionCard session={session} />
                       ) : (
                         <div className="space-y-2">

@@ -1,6 +1,25 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-09-17 (**Ağrı bildiriminde koça uyarı (Parti 22-FB-N)** — kullanıcı
+> Son güncelleme: 2026-10-02 (**Dayanıklılık programı + blok kopyalama**) — kullanıcı iki
+> ekleme istedi: (1) CrossFit (WOD) bölümü gibi çalışan, sporcu/takıma özel dayanıklılık programı
+> oluşturma sayfası; (2) 2 haftalık bir bloğu başka haftalarda yeniden oluşturmak yerine kopyalama.
+> **Dayanıklılık:** WOD'un deseniyle — `training_sessions.endurance_modality` + bölüm başına
+> `exercises.segment_*` kolonları (yeni tablo/RLS yok), `/programs/new/endurance` (aynı sihirbaz,
+> `variant="endurance"`), seans "Format" seçicisi Standart/Dayanıklılık/CrossFit'e genişledi,
+> koç detayı + sporcu web + mobil kartları. Saf mantık `packages/validators/endurance.ts`'te
+> (+42 test). Tasarım canlı veriden çıktı: koç dayanıklılığı "For Time"a sıkıştırmış, interval'ı
+> "30 sn %80 / 90 sn %50" diye iki hareketle yazmıştı → interval toparlanmasının kendi yoğunluğu
+> (`segment_recovery_target`) ayrıca eklendi. **Blok kopyalama:** `copy_program_block` RPC'si
+> (§4.1 kalıbı, 9 senaryo ROLLBACK içinde doğrulandı) + program detayında "Bloğu Kopyala"
+> diyaloğu (tarih/hedef/başlık, hafta önizlemesi, çakışma uyarısı; `program-copy.ts` +8 test).
+> **Yan bulgu ve düzeltme:** `training_programs.week_number` check'i 1–52 idi, 2026'nın ISO 53.
+> haftası (28.12.2026–03.01.2027) hiçbir yoldan oluşturulamıyordu — 1–53'e genişletildi.
+> **Doğrulama:** form → `buildSessionsPayload` → `create_program_with_weeks` → `copy_program_block`
+> gerçek payload'la canlı DB'de uçtan uca (ROLLBACK); `@athleteiq/validators run test` **210/210**,
+> web `type-check` temiz, `run lint` **0 hata**, `run build` temiz (55/55, `/programs/new/endurance`
+> dahil); mobil `tsc` yalnızca önceden var olan `my-athletes/.../[day].tsx:61` hatasını veriyor.
+> Arayüz tarayıcıda/emülatörde elle tıklanarak DOĞRULANMADI.
+> Önceki: 2026-09-17 (**Ağrı bildiriminde koça uyarı (Parti 22-FB-N)** — kullanıcı
 > "ağrı bildiriminde koça push bildirimi de ekleyelim" dedi. **Önce tespit edilen gerçek durum:**
 > bu projede push zinciri HİÇ KURULU DEĞİL — `apps/mobile/lib/notifications.ts`'teki
 > `registerForPushNotifications()` `undefined` döndüren bir stub, `expo-notifications` kurulu değil,

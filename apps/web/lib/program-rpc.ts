@@ -3,6 +3,12 @@ import type {
   ExerciseSetFormValues,
 } from "@/components/features/program-builder/exercise-list";
 import type { WodMovementFormValues } from "@/components/features/program-builder/wod-session-fields";
+import {
+  SEGMENT_TYPE_LABELS,
+  enduranceSegmentToRow,
+  suggestedDurationMin,
+  type EnduranceSegmentFormValues,
+} from "@athleteiq/validators/endurance";
 
 // new-program-client.tsx ve edit-program-client.tsx'in birebir aynı
 // sessionSchema'sından (z.infer) türeyen şekil — iki dosya da kendi zod
@@ -27,6 +33,11 @@ export interface SessionFormValues {
   work_sec?: number;
   interval_rest_sec?: number;
   wod_movements?: WodMovementFormValues[];
+  // Dayanıklılık seansı — endurance_modality doluysa exercises YERİNE
+  // endurance_segments gönderilir (bkz. buildSessionsPayload). workout_format
+  // ile birlikte dolu olamaz (DB check constraint), payload bunu garanti eder.
+  endurance_modality?: string;
+  endurance_segments?: EnduranceSegmentFormValues[];
 }
 
 // Set bazlı yük tipini exercise_sets kolonlarına çevirir — yalnızca seçili
@@ -63,37 +74,84 @@ function buildWodMovementExercise(movement: WodMovementFormValues, exIdx: number
   };
 }
 
-export function buildSessionsPayload(sessions: SessionFormValues[]) {
-  return sessions.map((session, sessionIdx) => ({
-    day_of_week: session.day_of_week,
-    session_type: session.session_type ?? null,
-    title: session.title ?? null,
-    duration_min: session.duration_min ?? null,
-    order_index: sessionIdx,
-    workout_format: session.workout_format ?? null,
-    time_cap_sec: session.time_cap_min != null ? session.time_cap_min * 60 : null,
-    rounds: session.rounds ?? null,
-    work_sec: session.work_sec ?? null,
-    interval_rest_sec: session.interval_rest_sec ?? null,
-    exercises: session.workout_format
-      ? (session.wod_movements ?? []).map((m, exIdx) => buildWodMovementExercise(m, exIdx))
-      : session.exercises.map((ex, exIdx) => ({
-          name: ex.name,
-          category: ex.category ?? null,
-          rest_sec: ex.rest_sec ?? null,
-          notes: ex.notes ?? null,
-          order_index: exIdx,
-          superset_group: ex.superset_group ?? null,
-          superset_order: ex.superset_order ?? 0,
-          sets: ex.exercise_sets.map((set, setIdx) => ({
-            set_number: setIdx + 1,
-            reps: ex.is_duration_based ? null : set.reps ?? null,
-            duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
-            notes: set.notes ?? null,
-            ...setToInsertColumns(set),
-          })),
-        })),
+// Dayanıklılık bölümünü exercises insert şekline çevirir — set YOK, bölüm
+// alanları segment_* kolonlarına (20261002113316_endurance_sessions_and_block_copy.sql).
+// exercises.name NOT NULL: koç ad yazmadıysa bölüm tipinin etiketi kullanılır.
+function buildEnduranceSegmentExercise(segment: EnduranceSegmentFormValues, exIdx: number) {
+  const row = enduranceSegmentToRow(segment);
+  return {
+    name: segment.name?.trim() || SEGMENT_TYPE_LABELS[segment.segment_type] || "Bölüm",
+    category: null,
+    rest_sec: row.rest_sec,
+    notes: segment.notes?.trim() || null,
+    order_index: exIdx,
+    superset_group: null,
+    superset_order: 0,
+    movement_detail: null,
+    segment_type: row.segment_type,
+    segment_repeats: row.segment_repeats,
+    segment_distance_m: row.segment_distance_m,
+    segment_duration_sec: row.segment_duration_sec,
+    intensity_zone: row.intensity_zone,
+    intensity_target: row.intensity_target,
+    segment_recovery_target: row.segment_recovery_target,
+    sets: [],
+  };
+}
+
+function buildStandardExercises(session: SessionFormValues) {
+  return session.exercises.map((ex, exIdx) => ({
+    name: ex.name,
+    category: ex.category ?? null,
+    rest_sec: ex.rest_sec ?? null,
+    notes: ex.notes ?? null,
+    order_index: exIdx,
+    superset_group: ex.superset_group ?? null,
+    superset_order: ex.superset_order ?? 0,
+    sets: ex.exercise_sets.map((set, setIdx) => ({
+      set_number: setIdx + 1,
+      reps: ex.is_duration_based ? null : set.reps ?? null,
+      duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
+      notes: set.notes ?? null,
+      ...setToInsertColumns(set),
+    })),
   }));
+}
+
+export function buildSessionsPayload(sessions: SessionFormValues[]) {
+  return sessions.map((session, sessionIdx) => {
+    // Seans yapısı: dayanıklılık > WOD > standart. Yapı değiştirilince formda
+    // kalan diğer yapının verisi (eski hareketler/bölümler) GÖNDERİLMEZ.
+    const isEndurance = !!session.endurance_modality;
+    const isWod = !isEndurance && !!session.workout_format;
+    const segments = isEndurance ? (session.endurance_segments ?? []) : [];
+    const durationMin =
+      session.duration_min != null && Number.isFinite(session.duration_min)
+        ? session.duration_min
+        : null;
+
+    return {
+      day_of_week: session.day_of_week,
+      session_type: session.session_type ?? null,
+      title: session.title ?? null,
+      // Dayanıklılık seansında süre boş bırakıldıysa bölümlerden hesaplanan
+      // süre yazılır — sporcunun geri bildirim formu planlanan süreyi buradan alır.
+      duration_min:
+        durationMin ?? (isEndurance ? suggestedDurationMin(segments.map(enduranceSegmentToRow)) : null),
+      order_index: sessionIdx,
+      workout_format: isWod ? session.workout_format : null,
+      time_cap_sec: isWod && session.time_cap_min != null ? session.time_cap_min * 60 : null,
+      rounds: isWod ? session.rounds ?? null : null,
+      work_sec: isWod ? session.work_sec ?? null : null,
+      interval_rest_sec: isWod ? session.interval_rest_sec ?? null : null,
+      endurance_modality: isEndurance ? session.endurance_modality : null,
+      exercises: isEndurance
+        ? segments.map((seg, exIdx) => buildEnduranceSegmentExercise(seg, exIdx))
+        : isWod
+          ? (session.wod_movements ?? []).map((m, exIdx) => buildWodMovementExercise(m, exIdx))
+          : buildStandardExercises(session),
+    };
+  });
 }
 
 // RPC'lerin RAISE EXCEPTION mesajlarını (018_create_program_with_weeks.sql,
@@ -121,6 +179,16 @@ export function mapRpcError(rawMessage: string): string {
   }
   if (rawMessage.includes("sonraki hafta yok")) {
     return "Bu zaten bloktaki son hafta, uygulanacak sonraki hafta yok.";
+  }
+  // copy_program_block
+  if (rawMessage.includes("hedef bulunamadı")) {
+    return "Seçilen takım veya sporcu bulunamadı.";
+  }
+  if (rawMessage.includes("Bu sporcu sizin takımınızda değil")) {
+    return "Yalnızca kendi takımınıza ait programlarla çalışabilirsiniz.";
+  }
+  if (rawMessage.includes("başlangıç tarihi gerekli")) {
+    return "Başlangıç tarihi seçin.";
   }
   return "Program kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.";
 }

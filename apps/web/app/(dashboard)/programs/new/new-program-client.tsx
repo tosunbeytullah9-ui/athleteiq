@@ -20,12 +20,21 @@ import type {
 } from "@athleteiq/db/queries/exercises";
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
 import {
-  WORKOUT_FORMATS,
   WodFormatFields,
   WodMovementList,
   wodMovementSchema,
   type WorkoutFormat,
 } from "@/components/features/program-builder/wod-session-fields";
+import {
+  EnduranceSessionFields,
+  SessionStructureSelect,
+  describeSessionContent,
+} from "@/components/features/program-builder/endurance-session-fields";
+import {
+  enduranceSessionFields,
+  newEnduranceSegment,
+  refineEnduranceSession,
+} from "@athleteiq/validators/endurance";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
 import { matchesTrainingGroup } from "@athleteiq/validators/athlete";
 
@@ -72,7 +81,10 @@ const sessionSchema = z.object({
   work_sec: z.number().int().positive().optional(),
   interval_rest_sec: z.number().int().positive().optional(),
   wod_movements: z.array(wodMovementSchema).default([]),
-});
+  // Dayanıklılık seansı — bölüm kuralları yalnızca endurance_modality doluyken
+  // uygulanır (refineEnduranceSession), yapı değiştirilince kayıt kilitlenmez.
+  ...enduranceSessionFields,
+}).superRefine(refineEnduranceSession);
 
 const programSchema = z.object({
   title: z.string().min(1, "Program başlığı gerekli"),
@@ -110,6 +122,12 @@ interface Props {
   orgExercises?: OrgExercise[];
   categories?: OrgExerciseCategory[];
   athleteMaxes?: Athlete1RMRecord[];
+  /**
+   * "endurance": /programs/new/endurance — aynı sihirbaz, ama yeni seanslar
+   * dayanıklılık seansı olarak (ısınma + soğuma hazır) açılır. Koç yine de
+   * seans bazında yapıyı değiştirebilir (örn. aynı haftaya bir kuvvet seansı).
+   */
+  variant?: "standard" | "endurance";
 }
 
 const STEPS = ["Temel Bilgiler", "Seanslar", "Özet"];
@@ -122,8 +140,10 @@ export function NewProgramClient({
   orgExercises = [],
   categories = [],
   athleteMaxes = [],
+  variant = "standard",
 }: Props) {
   const router = useRouter();
+  const isEnduranceVariant = variant === "endurance";
   const [step, setStep] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -196,13 +216,31 @@ export function NewProgramClient({
   }, [athletes, selectedTeamId, watchedTrainingGroup]);
 
   function addSession(dayOfWeek: number) {
-    appendSession({
-      day_of_week: dayOfWeek,
-      session_type: "strength",
-      title: "",
-      exercises: [],
-      wod_movements: [],
-    });
+    if (isEnduranceVariant) {
+      // Son eklenen dayanıklılık seansının modalitesini devral — koç haftayı
+      // genelde tek modaliteyle kurar (hep koşu, hep kürek).
+      const lastModality = [...(watchedSessions ?? [])]
+        .reverse()
+        .find((s) => s?.endurance_modality)?.endurance_modality;
+      appendSession({
+        day_of_week: dayOfWeek,
+        session_type: "conditioning",
+        title: "",
+        exercises: [],
+        wod_movements: [],
+        endurance_modality: lastModality ?? "run",
+        endurance_segments: [newEnduranceSegment("warmup"), newEnduranceSegment("cooldown")],
+      });
+    } else {
+      appendSession({
+        day_of_week: dayOfWeek,
+        session_type: "strength",
+        title: "",
+        exercises: [],
+        wod_movements: [],
+        endurance_segments: [],
+      });
+    }
     setActiveSession(sessionFields.length);
   }
 
@@ -271,7 +309,9 @@ export function NewProgramClient({
           <ArrowLeft className="h-4 w-4" />
           Programlar
         </Button>
-        <h1 className="text-2xl font-bold">Yeni Program Oluştur</h1>
+        <h1 className="text-2xl font-bold">
+          {isEnduranceVariant ? "Yeni Dayanıklılık Programı" : "Yeni Program Oluştur"}
+        </h1>
       </div>
 
       {/* Adım göstergesi */}
@@ -316,7 +356,11 @@ export function NewProgramClient({
                 <Input
                   id="title"
                   {...register("title")}
-                  placeholder="Örn: Hazırlık Dönemi — Hafta 1"
+                  placeholder={
+                    isEnduranceVariant
+                      ? "Örn: Aerobik Taban — 4 Hafta"
+                      : "Örn: Hazırlık Dönemi — Hafta 1"
+                  }
                 />
                 {errors.title && (
                   <p className="text-xs text-destructive">{errors.title.message}</p>
@@ -528,7 +572,9 @@ export function NewProgramClient({
                   })}
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
-                  Seans eklemek için güne tıklayın
+                  {isEnduranceVariant
+                    ? "Seans eklemek için güne tıklayın — ısınma ve soğuma hazır gelir, aradaki ana bölümü ekleyin"
+                    : "Seans eklemek için güne tıklayın"}
                 </p>
                 {weeksCount > 1 && (
                   <p className="text-xs text-muted-foreground text-center mt-1">
@@ -560,10 +606,7 @@ export function NewProgramClient({
                             {session?.title || SESSION_TYPES.find((t) => t.value === session?.session_type)?.label || "Seans"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {session?.workout_format
-                              ? session.wod_movements?.length ?? 0
-                              : session?.exercises?.length ?? 0}{" "}
-                            {session?.workout_format ? "hareket" : "egzersiz"}
+                            {session ? describeSessionContent(session) : ""}
                           </p>
                         </div>
                       </button>
@@ -617,21 +660,23 @@ export function NewProgramClient({
                         </div>
                         <div className="space-y-1.5">
                           <Label>Format</Label>
-                          <select
-                            {...register(`sessions.${sessionIdx}.workout_format`)}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                          >
-                            <option value="">Standart (set bazlı)</option>
-                            {WORKOUT_FORMATS.map((f) => (
-                              <option key={f.value} value={f.value}>
-                                {f.label}
-                              </option>
-                            ))}
-                          </select>
+                          <SessionStructureSelect
+                            sessionIdx={sessionIdx}
+                            watch={watch}
+                            setValue={setValue}
+                          />
                         </div>
                       </div>
 
-                      {session?.workout_format ? (
+                      {session?.endurance_modality ? (
+                        <EnduranceSessionFields
+                          sessionIdx={sessionIdx}
+                          register={register}
+                          control={control}
+                          watch={watch}
+                          setValue={setValue}
+                        />
+                      ) : session?.workout_format ? (
                         <>
                           <WodFormatFields
                             sessionIdx={sessionIdx}
@@ -724,8 +769,7 @@ export function NewProgramClient({
                                   "Seans"}
                               </span>
                               <span className="text-muted-foreground">
-                                {s.workout_format ? s.wod_movements?.length ?? 0 : s.exercises?.length ?? 0}{" "}
-                                {s.workout_format ? "hareket" : "egzersiz"}
+                                {describeSessionContent(s)}
                               </span>
                             </li>
                           ))}

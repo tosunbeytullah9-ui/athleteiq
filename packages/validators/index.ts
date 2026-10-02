@@ -14,3 +14,5 @@ export * from "./csv";
 export * from "./athlete-import";
 export * from "./program-import";
 export * from "./one-rm-import";
+export * from "./endurance";
+export * from "./program-copy";

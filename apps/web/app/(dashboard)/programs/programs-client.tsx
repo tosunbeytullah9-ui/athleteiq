@@ -15,6 +15,7 @@ import {
   Rows3,
   Search,
   Upload,
+  Footprints,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
@@ -215,11 +216,17 @@ export function ProgramsClient({
           </p>
         </div>
         {!isAthlete && (
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <Button variant="outline" asChild>
               <Link href="/programs/import">
                 <Upload className="h-4 w-4" />
                 İçe Aktar
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/programs/new/endurance">
+                <Footprints className="h-4 w-4" />
+                Dayanıklılık Programı
               </Link>
             </Button>
             <Button asChild>

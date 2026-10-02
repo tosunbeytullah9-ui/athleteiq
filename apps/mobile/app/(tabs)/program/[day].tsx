@@ -13,6 +13,7 @@ import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import { ExerciseCard } from "@/components/ExerciseCard";
 import { SupersetGroup } from "@/components/SupersetGroup";
 import { WodSessionCard } from "@/components/WodSessionCard";
+import { EnduranceSessionCard } from "@/components/EnduranceSessionCard";
 import { groupExercisesForRender } from "@/lib/supersetGroups";
 import { getDaySessions } from "@athleteiq/db/queries/programs";
 import {
@@ -121,8 +122,9 @@ export default function ProgramDayScreen() {
     (sum, s) => sum + (s.duration_min ?? 0),
     0
   );
+  // Dayanıklılık bölümleri "egzersiz" sayılmaz — o seansın hacmi kartında.
   const totalExercises = sessions.reduce(
-    (sum, s) => sum + s.exercises.length,
+    (sum, s) => sum + (s.endurance_modality ? 0 : s.exercises.length),
     0
   );
 
@@ -217,7 +219,9 @@ export default function ProgramDayScreen() {
               )}
 
               {/* Egzersizler */}
-              {session.workout_format ? (
+              {session.endurance_modality ? (
+                <EnduranceSessionCard session={session} />
+              ) : session.workout_format ? (
                 <WodSessionCard session={session} />
               ) : session.exercises.length === 0 ? (
                 <Text className="text-gray-400 text-sm italic">

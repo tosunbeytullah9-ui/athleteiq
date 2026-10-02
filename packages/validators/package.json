@@ -19,7 +19,9 @@
     "./csv": "./csv.ts",
     "./athlete-import": "./athlete-import.ts",
     "./program-import": "./program-import.ts",
-    "./one-rm-import": "./one-rm-import.ts"
+    "./one-rm-import": "./one-rm-import.ts",
+    "./endurance": "./endurance.ts",
+    "./program-copy": "./program-copy.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

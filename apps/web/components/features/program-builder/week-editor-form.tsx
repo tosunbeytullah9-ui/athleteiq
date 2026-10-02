@@ -23,12 +23,22 @@ import type {
 import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
 import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
 import {
-  WORKOUT_FORMATS,
   WodFormatFields,
   WodMovementList,
   wodMovementSchema,
   type WorkoutFormat,
 } from "@/components/features/program-builder/wod-session-fields";
+import {
+  EnduranceSessionFields,
+  SessionStructureSelect,
+  describeSessionContent,
+} from "@/components/features/program-builder/endurance-session-fields";
+import {
+  enduranceRowToSegment,
+  enduranceSessionFields,
+  newEnduranceSegment,
+  refineEnduranceSession,
+} from "@athleteiq/validators/endurance";
 import { AthleteDataWarningDialog } from "@/components/features/program-builder/athlete-data-warning-dialog";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
 import { matchesTrainingGroup } from "@athleteiq/validators/athlete";
@@ -103,7 +113,9 @@ const sessionSchema = z.object({
   work_sec: z.number().int().positive().optional(),
   interval_rest_sec: z.number().int().positive().optional(),
   wod_movements: z.array(wodMovementSchema).default([]),
-});
+  // Dayanıklılık seansı — bkz. endurance-session-fields.tsx / new-program-client.tsx.
+  ...enduranceSessionFields,
+}).superRefine(refineEnduranceSession);
 
 // scope/team_id/athlete_id BİLEREK yok — update_program_week RPC'si (020/026)
 // program kapsamını (hangi takım/sporcu) DEĞİŞTİRMEZ, imzasında bu
@@ -215,6 +227,11 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
     .map((s) => {
       const workoutFormat = (s.workout_format as WorkoutFormat | null) ?? undefined;
+      const enduranceModality =
+        (s.endurance_modality as ProgramForm["sessions"][number]["endurance_modality"]) ?? undefined;
+      const sortedExercises = s.exercises
+        .slice()
+        .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
       return {
         day_of_week: s.day_of_week ?? 1,
         session_type: (s.session_type as ProgramForm["sessions"][number]["session_type"]) ?? undefined,
@@ -225,7 +242,9 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
         rounds: s.rounds ?? undefined,
         work_sec: s.work_sec ?? undefined,
         interval_rest_sec: s.interval_rest_sec ?? undefined,
-        exercises: workoutFormat
+        endurance_modality: enduranceModality,
+        endurance_segments: enduranceModality ? sortedExercises.map(enduranceRowToSegment) : [],
+        exercises: workoutFormat || enduranceModality
           ? []
           : s.exercises
               .slice()
@@ -263,10 +282,8 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                       : [{ load_type: "kg" as const }],
                 };
               }),
-        wod_movements: workoutFormat
-          ? s.exercises
-              .slice()
-              .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
+        wod_movements: workoutFormat && !enduranceModality
+          ? sortedExercises
               .map((e) => ({
                 name: e.name,
                 movement_detail:
@@ -346,13 +363,31 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
   );
 
   function addSession(dayOfWeek: number) {
-    appendSession({
-      day_of_week: dayOfWeek,
-      session_type: "strength",
-      title: "",
-      exercises: [],
-      wod_movements: [],
-    });
+    // Bu hafta dayanıklılık seanslarından oluşuyorsa yeni seans da öyle açılır
+    // (dayanıklılık sayfasından oluşturulan programın düzenlenmesi).
+    const enduranceModality = watchedSessions.find((s) => s?.endurance_modality)?.endurance_modality;
+    const isEnduranceWeek =
+      watchedSessions.length > 0 && watchedSessions.every((s) => s?.endurance_modality);
+    appendSession(
+      isEnduranceWeek
+        ? {
+            day_of_week: dayOfWeek,
+            session_type: "conditioning",
+            title: "",
+            exercises: [],
+            wod_movements: [],
+            endurance_modality: enduranceModality,
+            endurance_segments: [newEnduranceSegment("warmup"), newEnduranceSegment("cooldown")],
+          }
+        : {
+            day_of_week: dayOfWeek,
+            session_type: "strength",
+            title: "",
+            exercises: [],
+            wod_movements: [],
+            endurance_segments: [],
+          }
+    );
     setActiveSession(sessionFields.length);
   }
 
@@ -739,10 +774,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                             {session?.title || SESSION_TYPES.find((t) => t.value === session?.session_type)?.label || "Seans"}
                           </p>
                           <p className="text-xs text-muted-foreground">
-                            {session?.workout_format
-                              ? session.wod_movements?.length ?? 0
-                              : session?.exercises?.length ?? 0}{" "}
-                            {session?.workout_format ? "hareket" : "egzersiz"}
+                            {session ? describeSessionContent(session) : ""}
                           </p>
                         </div>
                       </button>
@@ -796,21 +828,23 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                         </div>
                         <div className="space-y-1.5">
                           <Label>Format</Label>
-                          <select
-                            {...register(`sessions.${sessionIdx}.workout_format`)}
-                            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
-                          >
-                            <option value="">Standart (set bazlı)</option>
-                            {WORKOUT_FORMATS.map((f) => (
-                              <option key={f.value} value={f.value}>
-                                {f.label}
-                              </option>
-                            ))}
-                          </select>
+                          <SessionStructureSelect
+                            sessionIdx={sessionIdx}
+                            watch={watch}
+                            setValue={setValue}
+                          />
                         </div>
                       </div>
 
-                      {session?.workout_format ? (
+                      {session?.endurance_modality ? (
+                        <EnduranceSessionFields
+                          sessionIdx={sessionIdx}
+                          register={register}
+                          control={control}
+                          watch={watch}
+                          setValue={setValue}
+                        />
+                      ) : session?.workout_format ? (
                         <>
                           <WodFormatFields
                             sessionIdx={sessionIdx}
@@ -903,8 +937,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                                   "Seans"}
                               </span>
                               <span className="text-muted-foreground">
-                                {s.workout_format ? s.wod_movements?.length ?? 0 : s.exercises?.length ?? 0}{" "}
-                                {s.workout_format ? "hareket" : "egzersiz"}
+                                {describeSessionContent(s)}
                               </span>
                             </li>
                           ))}

@@ -12,6 +12,7 @@ import {
   Send,
   Pencil,
   Trash2,
+  CopyPlus,
 } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
@@ -45,6 +46,13 @@ import {
 } from "@/lib/tonnage";
 import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
 import { SessionFeedbackStrip } from "@/components/features/session-feedback/session-feedback-strip";
+import { EnduranceSessionCard } from "@/components/features/program-builder/endurance-session-card";
+import { CopyBlockDialog } from "@/components/features/program-builder/copy-block-dialog";
+import {
+  formatDistance,
+  formatDuration,
+  summarizeEnduranceSegments,
+} from "@athleteiq/validators/endurance";
 import type { FeedbackInboxRow } from "@athleteiq/db/queries/session-feedback";
 import {
   formatSetReps,
@@ -248,6 +256,7 @@ export function ProgramDetailClient({
     blockId: string | null;
   } | null>(null);
   const [isDeleteBusy, setIsDeleteBusy] = useState(false);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const maxHistoryLookup = useMemo(
@@ -272,6 +281,15 @@ export function ProgramDetailClient({
     () => calculateProgramTonnage(program.training_sessions, tonnageContext),
     [program.training_sessions, tonnageContext]
   );
+  // Haftanın dayanıklılık hacmi (tüm dayanıklılık seanslarının bölümleri).
+  // Yalnızca dayanıklılık seansı varsa gösterilir; tonaj yalnızca set bazlı
+  // seans varsa — saf dayanıklılık programında "Toplam Tonaj: 0 kg" yanıltıcı.
+  const enduranceSummary = useMemo(() => {
+    const sessions = program.training_sessions.filter((s) => s.endurance_modality);
+    if (sessions.length === 0) return null;
+    return summarizeEnduranceSegments(sessions.flatMap((s) => s.exercises));
+  }, [program.training_sessions]);
+  const showTonnage = !enduranceSummary || programTonnage.totalSetCount > 0;
 
   async function refreshBlockPublishInfo(blockId: string) {
     const supabase = createClient();
@@ -451,6 +469,10 @@ export function ProgramDetailClient({
               <Pencil className="h-4 w-4" />
               Düzenle
             </Button>
+            <Button variant="outline" size="sm" onClick={() => setShowCopyDialog(true)}>
+              <CopyPlus className="h-4 w-4" />
+              {program.block_id ? "Bloğu Kopyala" : "Kopyala"}
+            </Button>
             <Button variant="outline" size="sm" onClick={handleDeleteClick}>
               <Trash2 className="h-4 w-4" />
               Sil
@@ -458,6 +480,14 @@ export function ProgramDetailClient({
           </div>
         )}
       </div>
+
+      {showCopyDialog && (
+        <CopyBlockDialog
+          program={program}
+          sourceTargetLabel={team?.name ?? athlete?.full_name ?? "—"}
+          onClose={() => setShowCopyDialog(false)}
+        />
+      )}
 
       {deleteDialog && (
         <AthleteDataWarningDialog
@@ -531,12 +561,31 @@ export function ProgramDetailClient({
                   </span>
                 )}
                 <span>{program.training_sessions.length} seans</span>
-                <span className="font-medium text-foreground">
-                  {programTonnage.totalSetCount > 0 &&
-                  programTonnage.resolvedSetCount === 0
-                    ? "Tonaj hesaplanamıyor"
-                    : `Toplam Tonaj: ${formatTonnage(programTonnage.totalKg)}`}
-                </span>
+                {showTonnage && (
+                  <span className="font-medium text-foreground">
+                    {programTonnage.totalSetCount > 0 &&
+                    programTonnage.resolvedSetCount === 0
+                      ? "Tonaj hesaplanamıyor"
+                      : `Toplam Tonaj: ${formatTonnage(programTonnage.totalKg)}`}
+                  </span>
+                )}
+                {enduranceSummary &&
+                  (enduranceSummary.totalDistanceM > 0 ||
+                    enduranceSummary.totalDurationSec > 0) && (
+                    <span className="font-medium text-foreground">
+                      Dayanıklılık:{" "}
+                      {[
+                        enduranceSummary.totalDistanceM > 0
+                          ? formatDistance(enduranceSummary.totalDistanceM)
+                          : null,
+                        enduranceSummary.totalDurationSec > 0
+                          ? `${enduranceSummary.durationIncomplete ? "~" : ""}${formatDuration(enduranceSummary.totalDurationSec)}`
+                          : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  )}
               </div>
 
               <TonnageBreakdown tonnage={programTonnage} />
@@ -644,7 +693,7 @@ export function ProgramDetailClient({
                             {session.description}
                           </p>
                         )}
-                        {!session.workout_format && (
+                        {!session.workout_format && !session.endurance_modality && (
                           <>
                             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                               <span className="font-medium text-foreground">
@@ -659,7 +708,11 @@ export function ProgramDetailClient({
                         )}
                       </CardHeader>
 
-                      {session.workout_format ? (
+                      {session.endurance_modality ? (
+                        <CardContent>
+                          <EnduranceSessionCard session={session} />
+                        </CardContent>
+                      ) : session.workout_format ? (
                         <CardContent>
                           <WodSessionCard session={session} />
                         </CardContent>

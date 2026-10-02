@@ -161,6 +161,7 @@ export async function middleware(request: NextRequest) {
   if (role === "athlete") {
     const isBlocked =
       pathname === "/programs/new" ||
+      pathname.startsWith("/programs/new/") ||
       pathname === "/programs/import" ||
       pathname.endsWith("/edit");
     const isAllowed =

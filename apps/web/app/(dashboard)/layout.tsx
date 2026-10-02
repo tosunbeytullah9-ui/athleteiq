@@ -28,6 +28,7 @@ export default async function DashboardLayout({
     if (pathname) {
       const isBlocked =
         pathname === "/programs/new" ||
+        pathname.startsWith("/programs/new/") ||
         pathname === "/programs/import" ||
         pathname.endsWith("/edit");
       const isAllowed =
