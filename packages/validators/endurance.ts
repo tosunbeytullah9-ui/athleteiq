@@ -54,86 +54,6 @@ export const INTENSITY_ZONES = [
 ] as const;
 
 // ---------------------------------------------
-// Süre / mesafe girdisi
-// ---------------------------------------------
-
-function toNumber(raw: string): number | null {
-  const n = Number(raw.replace(",", "."));
-  return Number.isFinite(n) ? n : null;
-}
-
-/**
- * Koçun yazdığı süreyi saniyeye çevirir. Boş → null, anlaşılmazsa → NaN.
- *   "45" / "45 dk" / "1,5"  → dakika      (2700 / 2700 / 90)
- *   "4:30" / "1:05:00"      → dk:sn / sa:dk:sn
- *   "30 sn" / "30s"         → saniye
- *   "1 sa" / "1,5 saat"     → saat
- * Çıplak sayı DAKİKA'dır — bölüm süreleri ("20 dk sürekli") çoğunlukla dakikayla
- * yazılır; saniye için birim yazılır ("30 sn").
- */
-export function parseDurationInput(raw: string | null | undefined): number | null {
-  const s = (raw ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-  if (s === "") return null;
-
-  if (/^\d+(:\d{1,2}){1,2}$/.test(s)) {
-    const parts = s.split(":").map(Number);
-    if (parts.slice(1).some((p) => p >= 60)) return NaN;
-    const sec = parts.reduce((acc, p) => acc * 60 + p, 0);
-    return sec > 0 ? sec : NaN;
-  }
-
-  const m = /^(\d+(?:[.,]\d+)?)\s*(sn|saniye|s|sec|dk|dakika|min|m|'|sa|saat|h)?$/.exec(s);
-  if (!m) return NaN;
-  const value = toNumber(m[1]!);
-  if (value == null || value <= 0) return NaN;
-  const unit = m[2] ?? "dk";
-  const factor = ["sn", "saniye", "s", "sec"].includes(unit)
-    ? 1
-    : ["sa", "saat", "h"].includes(unit)
-      ? 3600
-      : 60;
-  const sec = Math.round(value * factor);
-  return sec > 0 ? sec : NaN;
-}
-
-/**
- * Koçun yazdığı mesafeyi metreye çevirir. Boş → null, anlaşılmazsa → NaN.
- *   "400" / "400 m"         → metre
- *   "5 km" / "5k" / "1,5km" → kilometre
- * Çıplak sayı METRE'dir (interval mesafeleri — 200, 400, 1000 — böyle yazılır).
- */
-export function parseDistanceInput(raw: string | null | undefined): number | null {
-  const s = (raw ?? "").trim().toLowerCase().replace(/\s+/g, "");
-  if (s === "") return null;
-  const m = /^(\d+(?:[.,]\d+)?)(m|metre|km|k)?$/.exec(s);
-  if (!m) return NaN;
-  const value = toNumber(m[1]!);
-  if (value == null || value <= 0) return NaN;
-  const meters = Math.round(m[2] === "km" || m[2] === "k" ? value * 1000 : value);
-  return meters > 0 ? meters : NaN;
-}
-
-const isBlankOrValid = (parse: (v: string) => number | null) => (v: string | undefined) => {
-  const parsed = parse(v ?? "");
-  return parsed === null || !Number.isNaN(parsed);
-};
-
-/** Saniyeyi forma geri yazılacak, parseDurationInput ile aynı değere dönen metne çevirir. */
-export function formatDurationInput(sec: number | null | undefined): string {
-  if (sec == null || sec <= 0) return "";
-  if (sec < 60) return `${sec} sn`;
-  if (sec % 60 === 0) return String(sec / 60);
-  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
-}
-
-/** Metreyi forma geri yazılacak metne çevirir. */
-export function formatDistanceInput(meters: number | null | undefined): string {
-  if (meters == null || meters <= 0) return "";
-  if (meters >= 1000) return `${String(meters / 1000).replace(".", ",")} km`;
-  return String(meters);
-}
-
-// ---------------------------------------------
 // Görüntüleme
 // ---------------------------------------------
 
@@ -339,65 +259,37 @@ export function formatEnduranceSummary(
 }
 
 // ---------------------------------------------
-// Form şeması — program oluşturma/düzenleme formlarının bölüm satırı.
-// Mesafe/süre METİN olarak tutulur (koç "5 km", "4:30" yazabilsin), RPC
-// payload'ına enduranceSegmentToRow ile çevrilir.
+// Form modeli — program oluşturma/düzenleme formlarının bölüm satırı.
+// Süre/mesafe SAYI olarak (saniye/metre) tutulur; arayüz bunları
+// "sayı + birim düğmesi" (dk|sn, m|km) ile girdirir — serbest metin
+// ayrıştırması yok, yanlış anlaşılma yok.
+//
+// BİLİNÇLİ OLARAK GEVŞEK: hiçbir alan kaydı engellemez (koç yarım bir
+// bölümle de kaydedebilmeli). Anlamsız değerler enduranceSegmentToRow'da
+// null'a düşer, tamamen boş bölümler isEmptySegment ile payload'dan atlanır.
 // ---------------------------------------------
 
-const optionalText = z.string().optional();
-// Boş number input'u (valueAsNumber → NaN / setValueAs → undefined) "girilmedi" sayılır.
-const optionalInt = (min: number, max: number) =>
-  z.preprocess(
-    (v) => (typeof v === "number" && Number.isNaN(v) ? undefined : v),
-    z.number().int().min(min).max(max).optional()
-  );
+const nanToUndefined = (v: unknown) =>
+  (typeof v === "number" && Number.isNaN(v)) || v === null ? undefined : v;
+const optionalNumber = z.preprocess(nanToUndefined, z.number().optional());
 
-/**
- * Bölüm satırının YAPISI — yalnızca tipler. İçerik kuralları (mesafe/süre
- * anlaşılır mı, ikisinden biri var mı) enduranceSegmentIssues'ta; formlar bu
- * kuralları yalnızca seans GERÇEKTEN dayanıklılık seansıyken uygular
- * (refineEnduranceSession). Aksi halde koç yapıyı "Standart"a geri çevirdiğinde
- * formda kalan, ekranda görünmeyen bir bölüm kaydı sessizce kilitlerdi.
- */
 export const enduranceSegmentFieldsSchema = z.object({
   segment_type: z.enum(["warmup", "steady", "interval", "recovery", "cooldown"]),
-  name: optionalText,
-  repeats: optionalInt(1, 200),
-  distance: optionalText,
-  duration: optionalText,
-  intensity_zone: optionalInt(1, 5),
-  intensity_target: optionalText,
-  rest_sec: optionalInt(1, 3600),
-  recovery_target: optionalText,
-  notes: optionalText,
+  /** Eski kayıtlardan gelebilir; arayüzde girdisi yok. */
+  name: z.string().optional(),
+  repeats: optionalNumber,
+  distance_m: optionalNumber,
+  duration_sec: optionalNumber,
+  intensity_zone: optionalNumber,
+  intensity_target: z.string().optional(),
+  rest_sec: optionalNumber,
+  recovery_target: z.string().optional(),
+  notes: z.string().optional(),
 });
 
 export type EnduranceSegmentFormValues = z.infer<typeof enduranceSegmentFieldsSchema>;
 
-export function enduranceSegmentIssues(
-  v: Pick<EnduranceSegmentFormValues, "distance" | "duration">
-): { field: "distance" | "duration"; message: string }[] {
-  const issues: { field: "distance" | "duration"; message: string }[] = [];
-  if (!isBlankOrValid(parseDistanceInput)(v.distance)) {
-    issues.push({ field: "distance", message: "Mesafe anlaşılamadı (örn: 400, 5 km)" });
-  }
-  if (!isBlankOrValid(parseDurationInput)(v.duration)) {
-    issues.push({ field: "duration", message: "Süre anlaşılamadı (örn: 20, 4:30, 30 sn)" });
-  }
-  if (issues.length === 0 && parseDistanceInput(v.distance) === null && parseDurationInput(v.duration) === null) {
-    issues.push({ field: "duration", message: "Mesafe veya süre girin" });
-  }
-  return issues;
-}
-
-/** Tek bir bölümün tam doğrulaması (yapı + içerik). */
-export const enduranceSegmentFormSchema = enduranceSegmentFieldsSchema.superRefine((v, ctx) => {
-  for (const issue of enduranceSegmentIssues(v)) {
-    ctx.addIssue({ code: z.ZodIssueCode.custom, path: [issue.field], message: issue.message });
-  }
-});
-
-/** Formların seans alanları — new-program / week-editor sessionSchema'sına yayılır. */
+/** Formların seans alanları — sessionSchema'ya yayılır. */
 export const enduranceSessionFields = {
   // "" native <select>'in boş değeri — WOD'un workout_format'ıyla aynı dönüşüm.
   endurance_modality: z
@@ -407,42 +299,17 @@ export const enduranceSessionFields = {
   endurance_segments: z.array(enduranceSegmentFieldsSchema).default([]),
 };
 
-/** sessionSchema.superRefine içinden çağrılır — kuralları yalnızca dayanıklılık seansında uygular. */
-export function refineEnduranceSession(
-  session: { endurance_modality?: string; endurance_segments?: EnduranceSegmentFormValues[] },
-  ctx: z.RefinementCtx
-): void {
-  if (!session.endurance_modality) return;
-  const segments = session.endurance_segments ?? [];
-  if (segments.length === 0) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ["endurance_segments"],
-      message: "En az bir bölüm ekleyin",
-    });
-  }
-  segments.forEach((seg, i) => {
-    for (const issue of enduranceSegmentIssues(seg)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ["endurance_segments", i, issue.field],
-        message: issue.message,
-      });
-    }
-  });
-}
-
 const PRESET_DEFAULTS: Record<SegmentType, Partial<EnduranceSegmentFormValues>> = {
-  warmup: { duration: "10", intensity_zone: 1 },
-  steady: { intensity_zone: 2 },
-  interval: { repeats: 6, intensity_zone: 4 },
-  recovery: { duration: "5", intensity_zone: 1 },
-  cooldown: { duration: "10", intensity_zone: 1 },
+  warmup: { duration_sec: 600, intensity_zone: 1 },
+  steady: { duration_sec: 1800, intensity_zone: 2 },
+  interval: { repeats: 6, duration_sec: 60, rest_sec: 60, intensity_zone: 4 },
+  recovery: { duration_sec: 300, intensity_zone: 1 },
+  cooldown: { duration_sec: 600, intensity_zone: 1 },
 };
 
 /** "+ Isınma", "+ İnterval" gibi hızlı ekleme butonlarının varsayılanları. */
 export function newEnduranceSegment(type: SegmentType): EnduranceSegmentFormValues {
-  return { segment_type: type, ...PRESET_DEFAULTS[type] } as EnduranceSegmentFormValues;
+  return { segment_type: type, ...PRESET_DEFAULTS[type] };
 }
 
 /**
@@ -461,21 +328,40 @@ export function segmentInsertIndex(existingTypes: readonly string[], type: Segme
   return idx;
 }
 
-/** Form satırı → DB/hesap şekli (EnduranceSegmentLike). Geçersiz mesafe/süre null'a düşer. */
+function positiveInt(n: number | undefined, max = Number.MAX_SAFE_INTEGER): number | null {
+  if (n == null || !Number.isFinite(n)) return null;
+  const r = Math.round(n);
+  return r >= 1 && r <= max ? r : null;
+}
+
+function cleanText(t: string | undefined): string | null {
+  return t?.trim() ? t.trim() : null;
+}
+
+/** Form satırı → DB/hesap şekli. DB check'lerini ihlal edecek değerler null'a düşer. */
 export function enduranceSegmentToRow(v: EnduranceSegmentFormValues): EnduranceSegmentLike {
   const isInterval = v.segment_type === "interval";
-  const clean = (n: number | null) => (n == null || Number.isNaN(n) ? null : n);
-  const text = (t: string | undefined) => (t?.trim() ? t.trim() : null);
   return {
     segment_type: v.segment_type,
-    segment_repeats: isInterval ? (v.repeats ?? 1) : null,
-    segment_distance_m: clean(parseDistanceInput(v.distance)),
-    segment_duration_sec: clean(parseDurationInput(v.duration)),
-    intensity_zone: v.intensity_zone ?? null,
-    intensity_target: text(v.intensity_target),
-    rest_sec: isInterval ? (v.rest_sec ?? null) : null,
-    segment_recovery_target: isInterval ? text(v.recovery_target) : null,
+    segment_repeats: isInterval ? (positiveInt(v.repeats, 200) ?? 1) : null,
+    segment_distance_m: positiveInt(v.distance_m),
+    segment_duration_sec: positiveInt(v.duration_sec),
+    intensity_zone: positiveInt(v.intensity_zone, 5),
+    intensity_target: cleanText(v.intensity_target),
+    rest_sec: isInterval ? positiveInt(v.rest_sec) : null,
+    segment_recovery_target: isInterval ? cleanText(v.recovery_target) : null,
   };
+}
+
+/** Mesafe, süre, hedef ve not hepsi boş — kaydedilecek bir şey yok, payload'dan atlanır. */
+export function isEmptySegment(v: EnduranceSegmentFormValues): boolean {
+  const row = enduranceSegmentToRow(v);
+  return (
+    row.segment_distance_m == null &&
+    row.segment_duration_sec == null &&
+    row.intensity_target == null &&
+    !v.notes?.trim()
+  );
 }
 
 /** DB satırı → form satırı (düzenleme formunun defaultValues'u). */
@@ -485,15 +371,14 @@ export function enduranceRowToSegment(
   const type = (SEGMENT_TYPES.some((t) => t.value === row.segment_type)
     ? row.segment_type
     : "steady") as SegmentType;
-  const label = SEGMENT_TYPE_LABELS[type];
   return {
     segment_type: type,
-    // Ad, tipin varsayılan etiketiyle aynıysa (enduranceSegmentToRow'un
-    // otomatik verdiği) forma boş döner — koç yazmadıysa yazmamış görünsün.
-    name: row.name && row.name !== label ? row.name : undefined,
+    // Ad, tipin varsayılan etiketiyle aynıysa (payload'ın otomatik verdiği)
+    // forma boş döner.
+    name: row.name && row.name !== SEGMENT_TYPE_LABELS[type] ? row.name : undefined,
     repeats: row.segment_repeats ?? undefined,
-    distance: formatDistanceInput(row.segment_distance_m),
-    duration: formatDurationInput(row.segment_duration_sec),
+    distance_m: row.segment_distance_m ?? undefined,
+    duration_sec: row.segment_duration_sec ?? undefined,
     intensity_zone: row.intensity_zone ?? undefined,
     intensity_target: row.intensity_target ?? undefined,
     rest_sec: row.rest_sec ?? undefined,
@@ -501,3 +386,97 @@ export function enduranceRowToSegment(
     notes: row.notes ?? undefined,
   };
 }
+
+// ---------------------------------------------
+// Hazır seans şablonları — tek tıkla bölüm listesini kurar, koç sonra
+// sayıları değiştirir. "İnterval 30/90" canlı veriden: koçun "For Time"a
+// sıkıştırdığı 30 sn %80 / 90 sn %50 seansının birebir karşılığı.
+// ---------------------------------------------
+
+export interface EnduranceTemplate {
+  id: string;
+  label: string;
+  description: string;
+  segments: EnduranceSegmentFormValues[];
+}
+
+const warmup = (min: number): EnduranceSegmentFormValues => ({
+  segment_type: "warmup",
+  duration_sec: min * 60,
+  intensity_zone: 1,
+});
+const cooldown = (min: number): EnduranceSegmentFormValues => ({
+  segment_type: "cooldown",
+  duration_sec: min * 60,
+  intensity_zone: 1,
+});
+
+export const ENDURANCE_TEMPLATES: readonly EnduranceTemplate[] = [
+  {
+    id: "aerobic",
+    label: "Sürekli (aerobik)",
+    description: "10 dk ısınma · 30 dk Z2 · 5 dk soğuma",
+    segments: [
+      warmup(10),
+      { segment_type: "steady", duration_sec: 1800, intensity_zone: 2, intensity_target: "%60-70 tempo" },
+      cooldown(5),
+    ],
+  },
+  {
+    id: "interval-30-90",
+    label: "İnterval 30/90",
+    description: "10 × (30 sn %80 + 90 sn %50)",
+    segments: [
+      warmup(10),
+      {
+        segment_type: "interval",
+        repeats: 10,
+        duration_sec: 30,
+        intensity_zone: 4,
+        intensity_target: "%80 tempo",
+        rest_sec: 90,
+        recovery_target: "%50 tempo",
+      },
+      cooldown(5),
+    ],
+  },
+  {
+    id: "tempo",
+    label: "Tempo / eşik",
+    description: "10 dk ısınma · 20 dk Z3 · 10 dk soğuma",
+    segments: [
+      warmup(10),
+      { segment_type: "steady", duration_sec: 1200, intensity_zone: 3, intensity_target: "%75-80 tempo" },
+      cooldown(10),
+    ],
+  },
+  {
+    id: "repeats-400",
+    label: "400 m tekrarlar",
+    description: "8 × 400 m Z5 · 90 sn yürüyüş",
+    segments: [
+      warmup(15),
+      {
+        segment_type: "interval",
+        repeats: 8,
+        distance_m: 400,
+        intensity_zone: 5,
+        rest_sec: 90,
+        recovery_target: "yürüyüş",
+      },
+      cooldown(10),
+    ],
+  },
+  {
+    id: "long",
+    label: "Uzun yavaş",
+    description: "60 dk Z2",
+    segments: [{ segment_type: "steady", duration_sec: 3600, intensity_zone: 2 }],
+  },
+  {
+    id: "recovery",
+    label: "Toparlanma",
+    description: "20 dk Z1",
+    segments: [{ segment_type: "recovery", duration_sec: 1200, intensity_zone: 1 }],
+  },
+];

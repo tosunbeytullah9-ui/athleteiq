@@ -34,7 +34,8 @@ export type WorkoutFormat = (typeof WORKOUT_FORMATS)[number]["value"];
 const numberOrUndefined = (v: string) => (v === "" ? undefined : Number(v));
 
 export const wodMovementSchema = z.object({
-  name: z.string().min(1, "Hareket adı gerekli"),
+  // Boş ad kaydı engellemez — isimsiz hareket payload'da atlanır (program-rpc.ts).
+  name: z.string().default(""),
   movement_detail: z.string().optional(),
   notes: z.string().optional(),
   order_index: z.number().int().default(0),

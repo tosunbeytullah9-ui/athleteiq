@@ -1116,7 +1116,7 @@ oluşmasına yol açar. Önizleme tüm satırları gösterir, tek bir hata bile 
 [x] 20261002113316_endurance_sessions_and_block_copy.sql → training_sessions.endurance_modality (run/bike/row/swim/ski/walk/other) + training_sessions_single_structure_check (workout_format ile birlikte dolu olamaz); exercises'a segment_type/segment_repeats/segment_distance_m/segment_duration_sec/intensity_zone/intensity_target; insert_sessions_tree + copy_program_tree yeni kolonlarla (aynı imza/yetki); YENİ copy_program_block RPC'si
 [x] 20261002113426_endurance_recovery_target.sql → exercises.segment_recovery_target (interval toparlanmasının yoğunluğu — "%50 tempo jog")
 [x] 20261002113543_week_number_allow_53.sql → training_programs.week_number check 1–52 → 1–53 (2026'nın ISO 53. haftası, 28.12.2026–03.01.2027, hiçbir yoldan oluşturulamıyordu)
-[x] packages/validators/endurance.ts (+42 test) → modalite/bölüm/bölge sabitleri, süre-mesafe ayrıştırma ("20" = 20 dk, "4:30", "30 sn"; "400" = 400 m, "5 km"), bölüm/seans toplamları, bölge dağılımı, tempo (/km, /500 m, /100 m, km/sa), özet metinleri, form şeması (refineEnduranceSession), form ↔ DB satırı dönüşümleri — web + mobil TEK kaynak
+[x] packages/validators/endurance.ts (+33 test) → modalite/bölüm/bölge sabitleri, hazır seans şablonları, bölüm/seans toplamları, bölge dağılımı, tempo (/km, /500 m, /100 m, km/sa), özet metinleri, gevşek form modeli (sayısal distance_m/duration_sec), form ↔ DB satırı dönüşümleri — web + mobil TEK kaynak
 [x] packages/validators/program-copy.ts (+8 test) → copy_program_block'un hafta tarihi kuralının TS ikizi (önizleme + çakışma uyarısı)
 [x] apps/web/components/features/program-builder/endurance-session-fields.tsx → SessionStructureSelect (eski "Format" select'inin yerine: Standart / Dayanıklılık / CrossFit formatları) + EnduranceSessionFields (modalite, hızlı ekleme butonları, sıralanabilir/çoğaltılabilir bölüm kartları, canlı önizleme satırı, toplam + bölge şeridi, "seans süresini N dk yap")
 [x] apps/web/components/features/program-builder/endurance-session-card.tsx → salt-okunur kart (koç detayı + sporcu web görünümü); apps/mobile/components/EnduranceSessionCard.tsx → mobil ikizi (her iki gün ekranı)
@@ -1148,6 +1148,27 @@ koç kendi takımı ✓, koç başka takım ✗, koç başka takıma hedef ✗, 
 org'a hedef ✗, iki hedef birden ✗, üyeliksiz ✗, yılbaşını aşan 6 haftalık kopya ✓ (hafta 53
 düzeltmesinden sonra). Ayrıca form → `buildSessionsPayload` → `create_program_with_weeks` →
 `copy_program_block` turu gerçek payload'la uçtan uca doğrulandı.
+
+**Program formu artık kaydı engellemiyor + sadeleştirilmiş dayanıklılık arayüzü (2026-10-02,
+aynı gün, canlı test geri bildirimi).** Koç ACK için program oluştururken "Formda eksik veya
+hatalı alanlar var" uyarısında takıldı. Kök neden: boş bırakılan "Tahmini Seans Süresi"
+(`valueAsNumber` → `NaN`, zod reddediyordu) ve boş tekrar/kg ya da isimsiz egzersiz satırı kaydı
+SESSİZCE kilitliyordu; hata kapalı bir seans kartının içinde kaldığı için görünmüyordu.
+Kullanıcı kararı: uyarı tamamen kalksın. Artık:
+- İki form da ORTAK, gevşek `sessionFormSchema`'yı kullanır (`apps/web/lib/program-form-schema.ts`);
+  `exerciseSchema`/`exerciseSetSchema`/`wodMovementSchema` zorunlulukları kaldırıldı. Seans
+  içindeki hiçbir alan kaydı engellemez.
+- Temizlik `buildSessionsPayload`'da (`apps/web/lib/program-rpc.ts`): isimsiz egzersiz/WOD
+  hareketi ve boş dayanıklılık bölümü atlanır, boş/≤0/NaN sayılar null olur (DB check'leri asla
+  ihlal edilmez — canlıda ACK koçu kimliğiyle doğrulandı).
+- Zorunlu kalanlar yalnızca 1. adımda (başlık, başlangıç tarihi, takım/sporcu, hafta sayısı):
+  "Devam"da `trigger` ile kontrol edilir, hata alanın altında gösterilir; `alert()` YOK.
+- Dayanıklılık editörü: form modeli metin yerine sayı (`distance_m`/`duration_sec`), arayüzde
+  "sayı + birim düğmesi" (dk|sn, m|km; interval ve toparlanmada varsayılan sn), Z1–Z5 tek tık
+  düğmeleri, modalite çipleri, 6 hazır şablon (`ENDURANCE_TEMPLATES` — "İnterval 30/90" koçun
+  canlı verideki seansı) + "geri al", "Not ekle" ikonu, seans süresi boşsa bölümlerden otomatik
+  ("Otomatik: N" placeholder). Her iki formda seans kartında "Başka güne kopyala"
+  (`copy-session-to-day.tsx`).
 
 **Kapsam dışı (bilinçli):** mobilde program oluşturma (zaten yok), dayanıklılık için
 içe aktarma (`program-import` "set başına satır" modeli), GPS/wearable verisiyle

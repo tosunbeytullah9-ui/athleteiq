@@ -50,66 +50,37 @@ export const BAND_RESISTANCE_OPTIONS = [
 // Yeni set alanları bu deseni tekrar etmesin diye setValueAs kullanılıyor.
 const numberOrUndefined = (v: string) => (v === "" ? undefined : Number(v));
 
-export const exerciseSetSchema = z
-  .object({
-    reps: z.number().int().positive().optional(),
-    duration_sec: z.number().int().positive().optional(),
-    load_type: z.enum(["kg", "percent_1rm", "bodyweight", "band"]).default("kg"),
-    load_kg: z.number().positive().optional(),
-    percent_1rm: z.number().positive().max(100).optional(),
-    band_resistance: z.enum(["soft", "medium", "hard"]).optional(),
-    rpe: z.number().min(1).max(10).optional(),
-    notes: z.string().optional(),
-  })
-  .superRefine((val, ctx) => {
-    if (val.load_type === "kg" && val.load_kg == null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Yük (kg) gerekli",
-        path: ["load_kg"],
-      });
-    }
-    if (val.load_type === "percent_1rm" && val.percent_1rm == null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "1RM % gerekli",
-        path: ["percent_1rm"],
-      });
-    }
-    if (val.load_type === "band" && !val.band_resistance) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Direnç seviyesi gerekli",
-        path: ["band_resistance"],
-      });
-    }
-  });
+// Gevşek şema (2026-10-02): boş tekrar/kg, isimsiz egzersiz veya setsiz
+// egzersiz kaydı ENGELLEMEZ — önceki zorunluluklar kapalı seans kartlarının
+// içinde görünmeden kalıp kaydı sessizce kilitliyordu. Temizlik payload'da
+// (program-rpc.ts): isimsiz egzersiz atlanır, anlamsız sayılar null'a düşer.
+const nanToUndefined = (v: unknown) =>
+  (typeof v === "number" && Number.isNaN(v)) || v === null ? undefined : v;
+const optionalNumber = z.preprocess(nanToUndefined, z.number().optional());
+
+export const exerciseSetSchema = z.object({
+  reps: optionalNumber,
+  duration_sec: optionalNumber,
+  load_type: z.enum(["kg", "percent_1rm", "bodyweight", "band"]).default("kg"),
+  load_kg: optionalNumber,
+  percent_1rm: optionalNumber,
+  band_resistance: z.enum(["soft", "medium", "hard"]).optional(),
+  rpe: optionalNumber,
+  notes: z.string().optional(),
+});
 
 export type ExerciseSetFormValues = z.infer<typeof exerciseSetSchema>;
 
-export const exerciseSchema = z
-  .object({
-    name: z.string().min(1, "Egzersiz adı gerekli"),
-    category: z.string().optional(),
-    is_duration_based: z.boolean().default(false),
-    rest_sec: z.number().int().positive().optional().or(z.literal(undefined)),
-    notes: z.string().optional(),
-    superset_group: z.string().optional(),
-    superset_order: z.number().int().default(0),
-    exercise_sets: z.array(exerciseSetSchema).min(1, "En az bir set gerekli"),
-  })
-  .superRefine((val, ctx) => {
-    val.exercise_sets.forEach((set, idx) => {
-      const hasValue = val.is_duration_based ? set.duration_sec != null : set.reps != null;
-      if (!hasValue) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: val.is_duration_based ? "Süre gerekli" : "Tekrar gerekli",
-          path: ["exercise_sets", idx, val.is_duration_based ? "duration_sec" : "reps"],
-        });
-      }
-    });
-  });
+export const exerciseSchema = z.object({
+  name: z.string().default(""),
+  category: z.string().optional(),
+  is_duration_based: z.boolean().default(false),
+  rest_sec: optionalNumber,
+  notes: z.string().optional(),
+  superset_group: z.string().optional(),
+  superset_order: z.number().int().default(0),
+  exercise_sets: z.array(exerciseSetSchema).default([]),
+});
 
 export type ExerciseFormValues = z.infer<typeof exerciseSchema>;
 

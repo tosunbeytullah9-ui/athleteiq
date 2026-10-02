@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { z } from "zod";
 import {
-  parseDurationInput,
-  parseDistanceInput,
-  formatDurationInput,
-  formatDistanceInput,
   formatDuration,
   formatDistance,
   formatPace,
@@ -13,12 +8,13 @@ import {
   suggestedDurationMin,
   describeSegment,
   formatEnduranceSummary,
-  enduranceSegmentFormSchema,
+  enduranceSegmentFieldsSchema,
   enduranceSegmentToRow,
   enduranceRowToSegment,
+  isEmptySegment,
   newEnduranceSegment,
-  refineEnduranceSession,
   segmentInsertIndex,
+  ENDURANCE_TEMPLATES,
   type EnduranceSegmentLike,
 } from "./endurance";
 
@@ -35,68 +31,6 @@ function seg(partial: Partial<EnduranceSegmentLike>): EnduranceSegmentLike {
     ...partial,
   };
 }
-
-describe("parseDurationInput", () => {
-  it("çıplak sayı dakikadır", () => {
-    expect(parseDurationInput("45")).toBe(2700);
-    expect(parseDurationInput("1,5")).toBe(90);
-    expect(parseDurationInput("20 dk")).toBe(1200);
-    expect(parseDurationInput("20dk")).toBe(1200);
-  });
-
-  it("dk:sn ve sa:dk:sn biçimleri", () => {
-    expect(parseDurationInput("4:30")).toBe(270);
-    expect(parseDurationInput("1:05:00")).toBe(3900);
-    expect(Number.isNaN(parseDurationInput("4:75"))).toBe(true);
-  });
-
-  it("saniye ve saat birimleri", () => {
-    expect(parseDurationInput("30 sn")).toBe(30);
-    expect(parseDurationInput("30 saniye")).toBe(30);
-    expect(parseDurationInput("90s")).toBe(90);
-    expect(parseDurationInput("1 sa")).toBe(3600);
-    expect(parseDurationInput("1,5 saat")).toBe(5400);
-  });
-
-  it("boş → null, anlamsız → NaN", () => {
-    expect(parseDurationInput("")).toBeNull();
-    expect(parseDurationInput("   ")).toBeNull();
-    expect(parseDurationInput(undefined)).toBeNull();
-    expect(Number.isNaN(parseDurationInput("abc"))).toBe(true);
-    expect(Number.isNaN(parseDurationInput("0"))).toBe(true);
-    expect(Number.isNaN(parseDurationInput("-5"))).toBe(true);
-  });
-});
-
-describe("parseDistanceInput", () => {
-  it("çıplak sayı metredir", () => {
-    expect(parseDistanceInput("400")).toBe(400);
-    expect(parseDistanceInput("400 m")).toBe(400);
-  });
-
-  it("km / k birimleri, Türkçe ondalık", () => {
-    expect(parseDistanceInput("5 km")).toBe(5000);
-    expect(parseDistanceInput("5k")).toBe(5000);
-    expect(parseDistanceInput("1,5 km")).toBe(1500);
-    expect(parseDistanceInput("21.1km")).toBe(21100);
-  });
-
-  it("boş → null, anlamsız → NaN", () => {
-    expect(parseDistanceInput("")).toBeNull();
-    expect(Number.isNaN(parseDistanceInput("uzun"))).toBe(true);
-    expect(Number.isNaN(parseDistanceInput("0"))).toBe(true);
-  });
-});
-
-describe("form metni gidiş-dönüş", () => {
-  it.each([30, 90, 270, 1200, 2700, 3900])("süre %i sn aynı değere döner", (sec) => {
-    expect(parseDurationInput(formatDurationInput(sec))).toBe(sec);
-  });
-
-  it.each([200, 400, 1000, 1500, 5000, 21100])("mesafe %i m aynı değere döner", (m) => {
-    expect(parseDistanceInput(formatDistanceInput(m))).toBe(m);
-  });
-});
 
 describe("görüntüleme", () => {
   it("formatDuration", () => {
@@ -204,22 +138,75 @@ describe("describeSegment", () => {
   });
 });
 
-describe("enduranceSegmentFormSchema", () => {
-  it("mesafe veya süre zorunlu", () => {
-    expect(enduranceSegmentFormSchema.safeParse({ segment_type: "steady" }).success).toBe(false);
-    expect(enduranceSegmentFormSchema.safeParse({ segment_type: "steady", duration: "20" }).success).toBe(true);
-    expect(enduranceSegmentFormSchema.safeParse({ segment_type: "steady", distance: "5 km" }).success).toBe(true);
+describe("form modeli — hiçbir alan kaydı engellemez", () => {
+  it("boş veya NaN sayılar şemadan geçer (undefined olur)", () => {
+    const res = enduranceSegmentFieldsSchema.safeParse({
+      segment_type: "steady",
+      duration_sec: Number.NaN,
+      distance_m: null,
+      intensity_zone: undefined,
+    });
+    expect(res.success).toBe(true);
+    expect(res.success && res.data.duration_sec).toBeUndefined();
   });
 
-  it("anlaşılamayan süre/mesafe reddedilir", () => {
-    expect(enduranceSegmentFormSchema.safeParse({ segment_type: "steady", duration: "biraz" }).success).toBe(false);
-    expect(enduranceSegmentFormSchema.safeParse({ segment_type: "steady", distance: "uzun" }).success).toBe(false);
+  it("DB check'lerini ihlal edecek değerler null'a düşer", () => {
+    const row = enduranceSegmentToRow({
+      segment_type: "interval",
+      repeats: 500,
+      distance_m: -400,
+      duration_sec: 0,
+      intensity_zone: 9,
+      rest_sec: 90,
+    });
+    expect(row.segment_repeats).toBe(1);
+    expect(row.segment_distance_m).toBeNull();
+    expect(row.segment_duration_sec).toBeNull();
+    expect(row.intensity_zone).toBeNull();
+    expect(row.rest_sec).toBe(90);
   });
 
-  it("hızlı ekleme varsayılanları geçerlidir (interval hariç — hacmi koç girer)", () => {
-    expect(enduranceSegmentFormSchema.safeParse(newEnduranceSegment("warmup")).success).toBe(true);
-    expect(enduranceSegmentFormSchema.safeParse(newEnduranceSegment("cooldown")).success).toBe(true);
-    expect(enduranceSegmentFormSchema.safeParse(newEnduranceSegment("interval")).success).toBe(false);
+  it("interval olmayan bölümde tekrar/toparlanma DB'ye yazılmaz", () => {
+    const row = enduranceSegmentToRow({
+      segment_type: "steady",
+      repeats: 4,
+      duration_sec: 1800,
+      rest_sec: 60,
+      recovery_target: "jog",
+    });
+    expect(row.segment_repeats).toBeNull();
+    expect(row.rest_sec).toBeNull();
+    expect(row.segment_recovery_target).toBeNull();
+    expect(row.segment_duration_sec).toBe(1800);
+  });
+
+  it("isEmptySegment: mesafe/süre/hedef/not yoksa boş sayılır", () => {
+    expect(isEmptySegment({ segment_type: "steady", intensity_zone: 2 })).toBe(true);
+    expect(isEmptySegment({ segment_type: "steady", duration_sec: 600 })).toBe(false);
+    expect(isEmptySegment({ segment_type: "steady", intensity_target: "rahat" })).toBe(false);
+    expect(isEmptySegment({ segment_type: "steady", notes: "çim zemin" })).toBe(false);
+  });
+
+  it("DB satırı forma geri döner ve tekrar aynı satırı üretir", () => {
+    const original = seg({
+      segment_type: "interval",
+      segment_repeats: 8,
+      segment_distance_m: 400,
+      segment_duration_sec: 75,
+      intensity_zone: 5,
+      intensity_target: "1:15",
+      rest_sec: 90,
+      segment_recovery_target: "%50 tempo jog",
+    });
+    const form = enduranceRowToSegment({ ...original, name: "İnterval", notes: null });
+    expect(form.name).toBeUndefined();
+    expect(enduranceSegmentToRow(form)).toEqual(original);
+  });
+
+  it("hızlı ekleme varsayılanları dolu bir bölüm üretir", () => {
+    for (const t of ["warmup", "steady", "interval", "recovery", "cooldown"] as const) {
+      expect(isEmptySegment(newEnduranceSegment(t))).toBe(false);
+    }
   });
 });
 
@@ -239,59 +226,23 @@ describe("segmentInsertIndex", () => {
   });
 });
 
-describe("refineEnduranceSession (sessionSchema.superRefine)", () => {
-  const sessionSchema = z
-    .object({ endurance_modality: z.string().optional(), endurance_segments: z.array(z.any()).default([]) })
-    .superRefine(refineEnduranceSession);
-
-  it("dayanıklılık seansı DEĞİLSE bozuk bölümler kaydı kilitlemez", () => {
-    const res = sessionSchema.safeParse({ endurance_segments: [{ segment_type: "steady", duration: "biraz" }] });
-    expect(res.success).toBe(true);
+describe("ENDURANCE_TEMPLATES", () => {
+  it("her şablon şemadan geçer ve boş bölüm içermez", () => {
+    for (const t of ENDURANCE_TEMPLATES) {
+      for (const s of t.segments) {
+        expect(enduranceSegmentFieldsSchema.safeParse(s).success).toBe(true);
+        expect(isEmptySegment(s)).toBe(false);
+      }
+    }
   });
 
-  it("dayanıklılık seansında bölüm hatası doğru path'e düşer", () => {
-    const res = sessionSchema.safeParse({
-      endurance_modality: "run",
-      endurance_segments: [{ segment_type: "warmup", duration: "10" }, { segment_type: "interval" }],
-    });
-    expect(res.success).toBe(false);
-    expect(res.error?.issues.map((i) => i.path.join("."))).toEqual(["endurance_segments.1.duration"]);
+  it("İnterval 30/90 koçun canlı verideki seansıyla aynı süreyi verir", () => {
+    const t = ENDURANCE_TEMPLATES.find((x) => x.id === "interval-30-90")!;
+    expect(suggestedDurationMin(t.segments.map(enduranceSegmentToRow))).toBe(34);
   });
 
-  it("bölümsüz dayanıklılık seansı reddedilir", () => {
-    const res = sessionSchema.safeParse({ endurance_modality: "bike", endurance_segments: [] });
-    expect(res.success).toBe(false);
-  });
-});
-
-describe("form ↔ DB satırı", () => {
-  it("interval olmayan bölümde tekrar/toparlanma DB'ye yazılmaz", () => {
-    const row = enduranceSegmentToRow({
-      segment_type: "steady",
-      repeats: 4,
-      duration: "30",
-      rest_sec: 60,
-      recovery_target: "jog",
-    });
-    expect(row.segment_repeats).toBeNull();
-    expect(row.rest_sec).toBeNull();
-    expect(row.segment_recovery_target).toBeNull();
-    expect(row.segment_duration_sec).toBe(1800);
-  });
-
-  it("DB satırı forma geri döner ve tekrar aynı satırı üretir", () => {
-    const original = seg({
-      segment_type: "interval",
-      segment_repeats: 8,
-      segment_distance_m: 400,
-      segment_duration_sec: 75,
-      intensity_zone: 5,
-      intensity_target: "1:15",
-      rest_sec: 90,
-      segment_recovery_target: "%50 tempo jog",
-    });
-    const form = enduranceRowToSegment({ ...original, name: "İnterval", notes: null });
-    expect(form.name).toBeUndefined();
-    expect(enduranceSegmentToRow(form)).toEqual(original);
+  it("şablon kimlikleri benzersiz", () => {
+    const ids = ENDURANCE_TEMPLATES.map((t) => t.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

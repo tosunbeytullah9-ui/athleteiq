@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
-import type { FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Trash2, ArrowLeft, ArrowRight, Check } from "lucide-react";
@@ -18,24 +17,22 @@ import type {
   OrgExerciseCategory,
   Athlete1RMRecord,
 } from "@athleteiq/db/queries/exercises";
-import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
+import { ExerciseList } from "@/components/features/program-builder/exercise-list";
 import {
   WodFormatFields,
   WodMovementList,
-  wodMovementSchema,
   type WorkoutFormat,
 } from "@/components/features/program-builder/wod-session-fields";
 import {
   EnduranceSessionFields,
   SessionStructureSelect,
+  autoDurationMin,
   describeSessionContent,
 } from "@/components/features/program-builder/endurance-session-fields";
-import {
-  enduranceSessionFields,
-  newEnduranceSegment,
-  refineEnduranceSession,
-} from "@athleteiq/validators/endurance";
+import { CopySessionToDay } from "@/components/features/program-builder/copy-session-to-day";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
+import { sessionFormSchema } from "@/lib/program-form-schema";
+import { toast } from "@/components/ui/use-toast";
 import { matchesTrainingGroup } from "@athleteiq/validators/athlete";
 
 const DAY_LABELS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
@@ -62,30 +59,6 @@ const DISCIPLINE_SUGGESTIONS = [
   "Fizyoterapi",
 ] as const;
 
-const sessionSchema = z.object({
-  day_of_week: z.number().int().min(1).max(7),
-  session_type: z.enum(["strength", "conditioning", "technical", "recovery", "competition"]).optional(),
-  title: z.string().optional(),
-  duration_min: z.number().int().positive().optional().or(z.literal(undefined)),
-  exercises: z.array(exerciseSchema).default([]),
-  // CrossFit tarzı (WOD) seans alanları — boşsa davranış değişmez. Bkz.
-  // wod-session-fields.tsx / week-editor-form.tsx'teki aynı ekleme.
-  // "" native <select>'in seçilmemiş varsayılan değeri — bkz. week-editor-form.tsx'teki
-  // aynı düzeltme (phase alanındaki AYNI sınıf, önceden var olan bug'ı tekrarlamamak için).
-  workout_format: z
-    .enum(["amrap", "emom", "for_time", "tabata", "rounds_for_time", "chipper", ""])
-    .optional()
-    .transform((v) => (v ? v : undefined)),
-  time_cap_min: z.number().positive().optional(),
-  rounds: z.number().int().positive().optional(),
-  work_sec: z.number().int().positive().optional(),
-  interval_rest_sec: z.number().int().positive().optional(),
-  wod_movements: z.array(wodMovementSchema).default([]),
-  // Dayanıklılık seansı — bölüm kuralları yalnızca endurance_modality doluyken
-  // uygulanır (refineEnduranceSession), yapı değiştirilince kayıt kilitlenmez.
-  ...enduranceSessionFields,
-}).superRefine(refineEnduranceSession);
-
 const programSchema = z.object({
   title: z.string().min(1, "Program başlığı gerekli"),
   scope: z.enum(["team", "athlete"]),
@@ -103,7 +76,16 @@ const programSchema = z.object({
   discipline: z.string().optional(),
   training_group: z.string().optional(),
   notes: z.string().optional(),
-  sessions: z.array(sessionSchema).default([]),
+  // Seans içindeki hiçbir alan kaydı engellemez — bkz. lib/program-form-schema.ts.
+  sessions: z.array(sessionFormSchema).default([]),
+}).superRefine((v, ctx) => {
+  // Program kapsamı RPC için zorunlu; hata 1. adımda alanın altında görünür.
+  if (v.scope === "team" && !v.team_id) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["team_id"], message: "Takım seçin" });
+  }
+  if (v.scope === "athlete" && !v.athlete_id) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["athlete_id"], message: "Sporcu seçin" });
+  }
 });
 
 type ProgramForm = z.infer<typeof programSchema>;
@@ -124,7 +106,7 @@ interface Props {
   athleteMaxes?: Athlete1RMRecord[];
   /**
    * "endurance": /programs/new/endurance — aynı sihirbaz, ama yeni seanslar
-   * dayanıklılık seansı olarak (ısınma + soğuma hazır) açılır. Koç yine de
+   * dayanıklılık seansı olarak (şablon seçicisiyle) açılır. Koç yine de
    * seans bazında yapıyı değiştirebilir (örn. aynı haftaya bir kuvvet seansı).
    */
   variant?: "standard" | "endurance";
@@ -155,6 +137,8 @@ export function NewProgramClient({
     handleSubmit,
     watch,
     setValue,
+    getValues,
+    trigger,
     formState: { errors },
   } = useForm<ProgramForm>({
     resolver: zodResolver(programSchema),
@@ -229,7 +213,7 @@ export function NewProgramClient({
         exercises: [],
         wod_movements: [],
         endurance_modality: lastModality ?? "run",
-        endurance_segments: [newEnduranceSegment("warmup"), newEnduranceSegment("cooldown")],
+        endurance_segments: [],
       });
     } else {
       appendSession({
@@ -244,9 +228,24 @@ export function NewProgramClient({
     setActiveSession(sessionFields.length);
   }
 
-  function onInvalid(formErrors: FieldErrors<ProgramForm>) {
-    console.error("Form validasyon hatası:", formErrors);
-    alert("Formda eksik veya hatalı alanlar var. Kırmızı işaretli/boş bırakılan alanları kontrol edin.");
+  // Seansı başka bir güne kopyalar (Salı'daki interval'ı Perşembe'ye de koymak gibi).
+  function copySessionToDay(sessionIdx: number, dayOfWeek: number) {
+    const source = getValues(`sessions.${sessionIdx}`);
+    appendSession({ ...structuredClone(source), day_of_week: dayOfWeek });
+    setActiveSession(sessionFields.length);
+  }
+
+  // Zorunlu alanlar yalnızca 1. adımda (başlık, tarih, takım/sporcu, hafta
+  // sayısı) — seans içindeki hiçbir alan kaydı engellemez. Uyarı penceresi YOK:
+  // eksik alan 1. adımda kendi altında kırmızı yazıyla gösterilir.
+  const STEP0_FIELDS = ["title", "start_date", "team_id", "athlete_id", "weeks_count"] as const;
+
+  async function goToSessions() {
+    if (await trigger([...STEP0_FIELDS])) setStep(1);
+  }
+
+  function onInvalid() {
+    setStep(0);
   }
 
   async function onSubmit(data: ProgramForm) {
@@ -287,9 +286,10 @@ export function NewProgramClient({
         throw new Error("Program oluşturulamadı.");
       }
 
-      if (typedResult.block_id) {
-        alert(`${data.weeks_count} hafta oluşturuldu.`);
-      }
+      toast({
+        title: typedResult.block_id ? `${data.weeks_count} haftalık program oluşturuldu` : "Program oluşturuldu",
+        description: "Taslak olarak kaydedildi — sporcuların görmesi için yayınlayın.",
+      });
 
       router.push(`/programs/${typedResult.program_ids[0]}`);
     } catch (error) {
@@ -405,6 +405,9 @@ export function NewProgramClient({
                       </option>
                     ))}
                   </select>
+                  {errors.team_id && (
+                    <p className="text-xs text-destructive">{errors.team_id.message}</p>
+                  )}
                   {selectedTeamId && (
                     <div className="space-y-1.5 pt-2">
                       <Label htmlFor="training_group">Alt Grup (opsiyonel)</Label>
@@ -454,6 +457,9 @@ export function NewProgramClient({
                       </option>
                     ))}
                   </select>
+                  {errors.athlete_id && (
+                    <p className="text-xs text-destructive">{errors.athlete_id.message}</p>
+                  )}
                 </div>
               )}
 
@@ -527,7 +533,7 @@ export function NewProgramClient({
               </div>
 
               <div className="flex justify-end pt-2">
-                <Button type="button" onClick={() => setStep(1)}>
+                <Button type="button" onClick={goToSessions}>
                   Devam
                   <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -573,7 +579,7 @@ export function NewProgramClient({
                 </div>
                 <p className="text-xs text-muted-foreground text-center">
                   {isEnduranceVariant
-                    ? "Seans eklemek için güne tıklayın — ısınma ve soğuma hazır gelir, aradaki ana bölümü ekleyin"
+                    ? "Seans eklemek için güne tıklayın — sonra hazır bir şablon seçin ya da bölümleri kendiniz ekleyin"
                     : "Seans eklemek için güne tıklayın"}
                 </p>
                 {weeksCount > 1 && (
@@ -610,6 +616,11 @@ export function NewProgramClient({
                           </p>
                         </div>
                       </button>
+                      <CopySessionToDay
+                        dayLabels={DAY_LABELS}
+                        currentDay={session?.day_of_week ?? 1}
+                        onCopy={(day) => copySessionToDay(sessionIdx, day)}
+                      />
                       <Button
                         type="button"
                         variant="ghost"
@@ -651,11 +662,17 @@ export function NewProgramClient({
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <Label>Tahmini Seans Süresi (dk)</Label>
+                          <Label>Seans Süresi (dk)</Label>
                           <Input
                             type="number"
-                            {...register(`sessions.${sessionIdx}.duration_min`, { valueAsNumber: true })}
-                            placeholder="60"
+                            {...register(`sessions.${sessionIdx}.duration_min`, {
+                              setValueAs: (v) => (v === "" ? undefined : Number(v)),
+                            })}
+                            placeholder={
+                              session?.endurance_modality
+                                ? `Otomatik: ${autoDurationMin(session) ?? "—"}`
+                                : "60"
+                            }
                           />
                         </div>
                         <div className="space-y-1.5">

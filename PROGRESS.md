@@ -1,6 +1,19 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-10-02 (**Dayanıklılık programı + blok kopyalama**) — kullanıcı iki
+> Son güncelleme: 2026-10-02 (**Program formu kaydı engellemiyor + sade dayanıklılık arayüzü**) —
+> canlı testte koç ACK için program oluşturamadı ("Formda eksik veya hatalı alanlar var"). Kök
+> neden: boş "Tahmini Seans Süresi" `valueAsNumber` ile `NaN` oluyor ve zod reddediyordu; boş
+> tekrar/kg ve isimsiz egzersiz satırı da kaydı kilitliyordu, hatalar kapalı seans kartlarında
+> görünmüyordu. Kullanıcı isteğiyle uyarı tamamen kaldırıldı: ortak gevşek `sessionFormSchema`
+> (`apps/web/lib/program-form-schema.ts`), temizlik `buildSessionsPayload`'da (isimsiz/boş satır
+> atlanır, anlamsız sayı null), zorunlu alanlar yalnızca 1. adımda alan altında. Dayanıklılık
+> editörü sadeleştirildi: hazır şablonlar, sayı + birim düğmeleri, Z1–Z5 düğmeleri, otomatik
+> seans süresi, "Başka güne kopyala". **Doğrulama:** eski uyarıyı tetikleyen form değerleri GERÇEK
+> şema + payload koduyla geçti (isimsiz satır ve boş bölüm atlandı, süre otomatik 34 dk), çıkan
+> payload canlı DB'de ACK koçu kimliğiyle `create_program_with_weeks`'ten geçti (ROLLBACK);
+> validators **192/192**, web type-check + lint (0 hata) + build temiz. Arayüz tarayıcıda elle
+> tıklanarak DOĞRULANMADI.
+> Önceki: 2026-10-02 (**Dayanıklılık programı + blok kopyalama**) — kullanıcı iki
 > ekleme istedi: (1) CrossFit (WOD) bölümü gibi çalışan, sporcu/takıma özel dayanıklılık programı
 > oluşturma sayfası; (2) 2 haftalık bir bloğu başka haftalarda yeniden oluşturmak yerine kopyalama.
 > **Dayanıklılık:** WOD'un deseniyle — `training_sessions.endurance_modality` + bölüm başına

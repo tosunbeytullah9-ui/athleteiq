@@ -3,7 +3,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm, useFieldArray } from "react-hook-form";
-import type { FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus, Trash2, ArrowLeft, ArrowRight, Check, AlertTriangle, Copy } from "lucide-react";
@@ -20,24 +19,23 @@ import type {
   OrgExerciseCategory,
   Athlete1RMRecord,
 } from "@athleteiq/db/queries/exercises";
-import { ExerciseList, exerciseSchema } from "@/components/features/program-builder/exercise-list";
+import { ExerciseList } from "@/components/features/program-builder/exercise-list";
 import type { ExerciseSetFormValues } from "@/components/features/program-builder/exercise-list";
 import {
   WodFormatFields,
   WodMovementList,
-  wodMovementSchema,
   type WorkoutFormat,
 } from "@/components/features/program-builder/wod-session-fields";
 import {
   EnduranceSessionFields,
   SessionStructureSelect,
+  autoDurationMin,
   describeSessionContent,
 } from "@/components/features/program-builder/endurance-session-fields";
+import { CopySessionToDay } from "@/components/features/program-builder/copy-session-to-day";
+import { sessionFormSchema } from "@/lib/program-form-schema";
 import {
   enduranceRowToSegment,
-  enduranceSessionFields,
-  newEnduranceSegment,
-  refineEnduranceSession,
 } from "@athleteiq/validators/endurance";
 import { AthleteDataWarningDialog } from "@/components/features/program-builder/athlete-data-warning-dialog";
 import { buildSessionsPayload, mapRpcError } from "@/lib/program-rpc";
@@ -93,30 +91,6 @@ const DISCIPLINE_SUGGESTIONS = [
   "Fizyoterapi",
 ] as const;
 
-const sessionSchema = z.object({
-  day_of_week: z.number().int().min(1).max(7),
-  session_type: z.enum(["strength", "conditioning", "technical", "recovery", "competition"]).optional(),
-  title: z.string().optional(),
-  duration_min: z.number().int().positive().optional().or(z.literal(undefined)),
-  exercises: z.array(exerciseSchema).default([]),
-  // CrossFit tarzı (WOD) seans alanları — boşsa (mevcut programlar) davranış
-  // değişmez. Bkz. wod-session-fields.tsx.
-  // "" native <select>'in seçilmemiş varsayılan değeri (bkz. Format seçicisindeki
-  // boş "Standart" option'ı) — phase alanındaki AYNI sınıf bug'ı tekrar etmemek
-  // için burada açıkça kabul edilip undefined'a çevriliyor.
-  workout_format: z
-    .enum(["amrap", "emom", "for_time", "tabata", "rounds_for_time", "chipper", ""])
-    .optional()
-    .transform((v) => (v ? v : undefined)),
-  time_cap_min: z.number().positive().optional(),
-  rounds: z.number().int().positive().optional(),
-  work_sec: z.number().int().positive().optional(),
-  interval_rest_sec: z.number().int().positive().optional(),
-  wod_movements: z.array(wodMovementSchema).default([]),
-  // Dayanıklılık seansı — bkz. endurance-session-fields.tsx / new-program-client.tsx.
-  ...enduranceSessionFields,
-}).superRefine(refineEnduranceSession);
-
 // scope/team_id/athlete_id BİLEREK yok — update_program_week RPC'si (020/026)
 // program kapsamını (hangi takım/sporcu) DEĞİŞTİRMEZ, imzasında bu
 // parametreler yok. Kapsam, program oluşturulduğunda (create_program_with_weeks)
@@ -128,7 +102,8 @@ const programSchema = z.object({
   discipline: z.string().optional(),
   training_group: z.string().optional(),
   notes: z.string().optional(),
-  sessions: z.array(sessionSchema).default([]),
+  // Seans içindeki hiçbir alan kaydı engellemez — bkz. lib/program-form-schema.ts.
+  sessions: z.array(sessionFormSchema).default([]),
 });
 
 type ProgramForm = z.infer<typeof programSchema>;
@@ -377,7 +352,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
             exercises: [],
             wod_movements: [],
             endurance_modality: enduranceModality,
-            endurance_segments: [newEnduranceSegment("warmup"), newEnduranceSegment("cooldown")],
+            endurance_segments: [],
           }
         : {
             day_of_week: dayOfWeek,
@@ -391,9 +366,21 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
     setActiveSession(sessionFields.length);
   }
 
-  function onInvalid(formErrors: FieldErrors<ProgramForm>) {
-    console.error("Form validasyon hatası:", formErrors);
-    alert("Formda eksik veya hatalı alanlar var. Kırmızı işaretli/boş bırakılan alanları kontrol edin.");
+  // Seansı başka bir güne kopyalar (Salı'daki interval'ı Perşembe'ye de koymak gibi).
+  function copySessionToDay(sessionIdx: number, dayOfWeek: number) {
+    const source = getValues(`sessions.${sessionIdx}`);
+    appendSession({ ...structuredClone(source), day_of_week: dayOfWeek });
+    setActiveSession(sessionFields.length);
+  }
+
+  // Zorunlu kalan tek alanlar başlık ve başlangıç tarihi (1. adım) — uyarı
+  // penceresi YOK, eksik alan 1. adımda kendi altında gösterilir.
+  async function goToSessions() {
+    if (await trigger(["title", "start_date"])) setStep(1);
+  }
+
+  function onInvalid() {
+    setStep(0);
   }
 
   async function hasAthleteDataForThisWeek(): Promise<boolean> {
@@ -538,7 +525,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
     save: async (opts) => {
       const valid = await trigger();
       if (!valid) {
-        return { ok: false, error: "Formda eksik veya hatalı alanlar var. Düzeltmeden bu haftadan ayrılamazsınız." };
+        return { ok: false, error: "Program başlığı ve başlangıç tarihi boş bırakılamaz." };
       }
       return performSave(getValues(), opts?.force ?? false);
     },
@@ -702,7 +689,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
               </div>
 
               <div className="flex justify-end pt-2">
-                <Button type="button" onClick={() => setStep(1)}>
+                <Button type="button" onClick={goToSessions}>
                   Devam
                   <ArrowRight className="h-4 w-4" />
                 </Button>
@@ -778,6 +765,11 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                           </p>
                         </div>
                       </button>
+                      <CopySessionToDay
+                        dayLabels={DAY_LABELS}
+                        currentDay={session?.day_of_week ?? 1}
+                        onCopy={(day) => copySessionToDay(sessionIdx, day)}
+                      />
                       <Button
                         type="button"
                         variant="ghost"
@@ -819,11 +811,17 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
 
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1.5">
-                          <Label>Tahmini Seans Süresi (dk)</Label>
+                          <Label>Seans Süresi (dk)</Label>
                           <Input
                             type="number"
-                            {...register(`sessions.${sessionIdx}.duration_min`, { valueAsNumber: true })}
-                            placeholder="60"
+                            {...register(`sessions.${sessionIdx}.duration_min`, {
+                              setValueAs: (v) => (v === "" ? undefined : Number(v)),
+                            })}
+                            placeholder={
+                              session?.endurance_modality
+                                ? `Otomatik: ${autoDurationMin(session) ?? "—"}`
+                                : "60"
+                            }
                           />
                         </div>
                         <div className="space-y-1.5">

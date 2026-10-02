@@ -6,17 +6,14 @@ import type { WodMovementFormValues } from "@/components/features/program-builde
 import {
   SEGMENT_TYPE_LABELS,
   enduranceSegmentToRow,
+  isEmptySegment,
   suggestedDurationMin,
   type EnduranceSegmentFormValues,
 } from "@athleteiq/validators/endurance";
 
-// new-program-client.tsx ve edit-program-client.tsx'in birebir aynı
-// sessionSchema'sından (z.infer) türeyen şekil — iki dosya da kendi zod
-// nesnesini tanımlıyor (nominal olarak farklı ama yapısal olarak özdeş),
-// bu yüzden burada ayrı bir zod şeması İCAT ETMİYORUZ, sadece o iki
-// şemanın da üreteceği yapıyı TypeScript seviyesinde tarif ediyoruz —
-// yapısal tipleme sayesinde her iki dosyanın da `data.sessions`'ı buraya
-// doğrudan geçilebiliyor.
+// lib/program-form-schema.ts'teki sessionFormSchema'nın (new-program-client.tsx
+// ve week-editor-form.tsx ortak kullanır) ürettiği şeklin TypeScript tarifi —
+// yapısal tipleme sayesinde formların `data.sessions`'ı buraya doğrudan geçer.
 export interface SessionFormValues {
   day_of_week: number;
   session_type?: "strength" | "conditioning" | "technical" | "recovery" | "competition";
@@ -40,15 +37,34 @@ export interface SessionFormValues {
   endurance_segments?: EnduranceSegmentFormValues[];
 }
 
+// --- Sayı temizliği ---------------------------------------------------------
+// Form şemaları bilinçli olarak gevşek (lib/program-form-schema.ts) — hiçbir
+// alan kaydı engellemez. Bu yüzden DB'ye gidecek her sayı burada temizlenir:
+// boş/NaN/≤0 değer null olur, isimsiz satırlar atlanır. Böylece yarım
+// doldurulmuş bir form da kaydedilir, DB check'leri de asla ihlal edilmez.
+function positiveNumber(n: number | undefined | null): number | null {
+  return n != null && Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function positiveInt(n: number | undefined | null): number | null {
+  const v = positiveNumber(n);
+  return v == null ? null : Math.max(1, Math.round(v));
+}
+
+function nonEmpty(text: string | undefined | null): string | null {
+  return text?.trim() ? text.trim() : null;
+}
+
 // Set bazlı yük tipini exercise_sets kolonlarına çevirir — yalnızca seçili
 // tipin kolonu dolar, diğerleri null (temiz veri, çakışma riski yok).
 export function setToInsertColumns(set: ExerciseSetFormValues) {
+  const rpe = positiveNumber(set.rpe);
   return {
-    load_kg: set.load_type === "kg" ? set.load_kg ?? null : null,
-    percent_1rm: set.load_type === "percent_1rm" ? set.percent_1rm ?? null : null,
+    load_kg: set.load_type === "kg" ? positiveNumber(set.load_kg) : null,
+    percent_1rm: set.load_type === "percent_1rm" ? positiveNumber(set.percent_1rm) : null,
     is_bodyweight: set.load_type === "bodyweight",
     band_resistance: set.load_type === "band" ? set.band_resistance ?? null : null,
-    rpe: set.rpe ?? null,
+    rpe: rpe != null && rpe <= 10 ? rpe : null,
   };
 }
 
@@ -62,14 +78,14 @@ export function setToInsertColumns(set: ExerciseSetFormValues) {
 // serbest metin movement_detail (bkz. wod-session-fields.tsx).
 function buildWodMovementExercise(movement: WodMovementFormValues, exIdx: number) {
   return {
-    name: movement.name,
+    name: movement.name.trim(),
     category: null,
     rest_sec: null,
-    notes: movement.notes ?? null,
+    notes: nonEmpty(movement.notes),
     order_index: exIdx,
     superset_group: null,
     superset_order: 0,
-    movement_detail: movement.movement_detail ?? null,
+    movement_detail: nonEmpty(movement.movement_detail),
     sets: [],
   };
 }
@@ -83,7 +99,7 @@ function buildEnduranceSegmentExercise(segment: EnduranceSegmentFormValues, exId
     name: segment.name?.trim() || SEGMENT_TYPE_LABELS[segment.segment_type] || "Bölüm",
     category: null,
     rest_sec: row.rest_sec,
-    notes: segment.notes?.trim() || null,
+    notes: nonEmpty(segment.notes),
     order_index: exIdx,
     superset_group: null,
     superset_order: 0,
@@ -100,22 +116,24 @@ function buildEnduranceSegmentExercise(segment: EnduranceSegmentFormValues, exId
 }
 
 function buildStandardExercises(session: SessionFormValues) {
-  return session.exercises.map((ex, exIdx) => ({
-    name: ex.name,
-    category: ex.category ?? null,
-    rest_sec: ex.rest_sec ?? null,
-    notes: ex.notes ?? null,
-    order_index: exIdx,
-    superset_group: ex.superset_group ?? null,
-    superset_order: ex.superset_order ?? 0,
-    sets: ex.exercise_sets.map((set, setIdx) => ({
-      set_number: setIdx + 1,
-      reps: ex.is_duration_based ? null : set.reps ?? null,
-      duration_sec: ex.is_duration_based ? set.duration_sec ?? null : null,
-      notes: set.notes ?? null,
-      ...setToInsertColumns(set),
-    })),
-  }));
+  return session.exercises
+    .filter((ex) => ex.name?.trim())
+    .map((ex, exIdx) => ({
+      name: ex.name.trim(),
+      category: ex.category ?? null,
+      rest_sec: positiveInt(ex.rest_sec),
+      notes: nonEmpty(ex.notes),
+      order_index: exIdx,
+      superset_group: ex.superset_group ?? null,
+      superset_order: ex.superset_order ?? 0,
+      sets: ex.exercise_sets.map((set, setIdx) => ({
+        set_number: setIdx + 1,
+        reps: ex.is_duration_based ? null : positiveInt(set.reps),
+        duration_sec: ex.is_duration_based ? positiveInt(set.duration_sec) : null,
+        notes: nonEmpty(set.notes),
+        ...setToInsertColumns(set),
+      })),
+    }));
 }
 
 export function buildSessionsPayload(sessions: SessionFormValues[]) {
@@ -124,31 +142,33 @@ export function buildSessionsPayload(sessions: SessionFormValues[]) {
     // kalan diğer yapının verisi (eski hareketler/bölümler) GÖNDERİLMEZ.
     const isEndurance = !!session.endurance_modality;
     const isWod = !isEndurance && !!session.workout_format;
-    const segments = isEndurance ? (session.endurance_segments ?? []) : [];
-    const durationMin =
-      session.duration_min != null && Number.isFinite(session.duration_min)
-        ? session.duration_min
-        : null;
+    const segments = isEndurance
+      ? (session.endurance_segments ?? []).filter((s) => !isEmptySegment(s))
+      : [];
+    const timeCapMin = positiveNumber(session.time_cap_min);
 
     return {
       day_of_week: session.day_of_week,
       session_type: session.session_type ?? null,
-      title: session.title ?? null,
+      title: nonEmpty(session.title),
       // Dayanıklılık seansında süre boş bırakıldıysa bölümlerden hesaplanan
       // süre yazılır — sporcunun geri bildirim formu planlanan süreyi buradan alır.
       duration_min:
-        durationMin ?? (isEndurance ? suggestedDurationMin(segments.map(enduranceSegmentToRow)) : null),
+        positiveInt(session.duration_min) ??
+        (isEndurance ? suggestedDurationMin(segments.map(enduranceSegmentToRow)) : null),
       order_index: sessionIdx,
       workout_format: isWod ? session.workout_format : null,
-      time_cap_sec: isWod && session.time_cap_min != null ? session.time_cap_min * 60 : null,
-      rounds: isWod ? session.rounds ?? null : null,
-      work_sec: isWod ? session.work_sec ?? null : null,
-      interval_rest_sec: isWod ? session.interval_rest_sec ?? null : null,
+      time_cap_sec: isWod && timeCapMin != null ? Math.round(timeCapMin * 60) : null,
+      rounds: isWod ? positiveInt(session.rounds) : null,
+      work_sec: isWod ? positiveInt(session.work_sec) : null,
+      interval_rest_sec: isWod ? positiveInt(session.interval_rest_sec) : null,
       endurance_modality: isEndurance ? session.endurance_modality : null,
       exercises: isEndurance
         ? segments.map((seg, exIdx) => buildEnduranceSegmentExercise(seg, exIdx))
         : isWod
-          ? (session.wod_movements ?? []).map((m, exIdx) => buildWodMovementExercise(m, exIdx))
+          ? (session.wod_movements ?? [])
+              .filter((m) => m.name?.trim())
+              .map((m, exIdx) => buildWodMovementExercise(m, exIdx))
           : buildStandardExercises(session),
     };
   });
