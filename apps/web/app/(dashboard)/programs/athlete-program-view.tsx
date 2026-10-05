@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Clock, MessageSquare } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock, MessageSquare, PlayCircle } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
@@ -25,6 +25,7 @@ import { getTodayDayOfWeek, toLocalDateString } from "@/lib/date";
 import { AthleteFeedbackCard } from "@/components/features/session-feedback/athlete-feedback-card";
 import { EnduranceSessionCard } from "@/components/features/program-builder/endurance-session-card";
 import { resolveSessionDate } from "@athleteiq/validators/session-feedback";
+import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 
 type ExerciseWithSets = Tables<"exercises"> & {
   exercise_sets: Tables<"exercise_sets">[];
@@ -55,6 +56,24 @@ interface Props {
   athleteId?: string | null;
   /** Son 60 günde girdiği geri bildirimler (koç yanıtları dahil). */
   feedback?: FeedbackRow[];
+  /** normalize egzersiz adı → kütüphanedeki demo video linki (bkz. getExerciseDemoLinks). */
+  demoLinks?: Record<string, string>;
+}
+
+function DemoLink({ url }: { url: string | undefined }) {
+  if (!url) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="inline-flex shrink-0 items-center gap-1 rounded-md border border-primary/30 px-2 py-0.5 text-xs font-medium text-primary hover:bg-primary/10"
+      title="Egzersizin videosunu yeni sekmede aç"
+    >
+      <PlayCircle className="h-3.5 w-3.5" />
+      Video
+    </a>
+  );
 }
 
 function ExerciseDetailCard({
@@ -62,11 +81,13 @@ function ExerciseDetailCard({
   index,
   maxHistoryLookup,
   programStartDate,
+  demoUrl,
 }: {
   exercise: ExerciseWithSets;
   index: number;
   maxHistoryLookup: Map<string, Athlete1RMRecord[]>;
   programStartDate: string | null;
+  demoUrl?: string;
 }) {
   const sets = (exercise.exercise_sets ?? []).slice().sort((a, b) => a.set_number - b.set_number);
 
@@ -80,6 +101,7 @@ function ExerciseDetailCard({
           <p className="font-medium text-sm">{exercise.name}</p>
           {exercise.notes && <p className="text-xs text-muted-foreground mt-0.5">{exercise.notes}</p>}
         </div>
+        <DemoLink url={demoUrl} />
         {exercise.rest_sec ? (
           <span className="shrink-0 text-xs text-muted-foreground">Dinlenme {exercise.rest_sec}sn</span>
         ) : null}
@@ -117,7 +139,13 @@ function ExerciseDetailCard({
 
 // CrossFit tarzı (WOD) seans kartı — bkz. program-detail-client.tsx'teki
 // eşdeğeri (aynı format özeti + düz hareket listesi, set/yük/tonaj YOK).
-function WodSessionCard({ session }: { session: Program["training_sessions"][number] }) {
+function WodSessionCard({
+  session,
+  demoLinks,
+}: {
+  session: Program["training_sessions"][number];
+  demoLinks: Record<string, string>;
+}) {
   const movements = session.exercises
     .slice()
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
@@ -142,6 +170,9 @@ function WodSessionCard({ session }: { session: Program["training_sessions"][num
                   <span className="text-muted-foreground"> — {m.movement_detail}</span>
                 )}
               </span>
+              <span className="ml-auto">
+                <DemoLink url={demoLinks[normalizeExerciseName(m.name)]} />
+              </span>
             </li>
           ))}
         </ol>
@@ -164,6 +195,7 @@ export function AthleteProgramView({
   ratios = [],
   athleteId = null,
   feedback = [],
+  demoLinks = {},
 }: Props) {
   // session_id -> geri bildirim. Kayıt sonrası sunucuya gitmeden yerelde güncellenir.
   const [feedbackMap, setFeedbackMap] = useState<Record<string, FeedbackRow>>(() =>
@@ -331,7 +363,7 @@ export function AthleteProgramView({
                       {session.endurance_modality ? (
                         <EnduranceSessionCard session={session} />
                       ) : session.workout_format ? (
-                        <WodSessionCard session={session} />
+                        <WodSessionCard session={session} demoLinks={demoLinks} />
                       ) : (
                         <div className="space-y-2">
                           {groupExercisesForRender(
@@ -347,6 +379,7 @@ export function AthleteProgramView({
                                   index={unitIndex}
                                   maxHistoryLookup={maxHistoryLookup}
                                   programStartDate={currentProgram.start_date}
+                                  demoUrl={demoLinks[normalizeExerciseName(unit.exercise.name)]}
                                 />
                               );
                             }
@@ -364,6 +397,7 @@ export function AthleteProgramView({
                                       index={i}
                                       maxHistoryLookup={maxHistoryLookup}
                                       programStartDate={currentProgram.start_date}
+                                      demoUrl={demoLinks[normalizeExerciseName(member.name)]}
                                     />
                                     {i < unit.members.length - 1 && (
                                       <div className="flex items-center justify-center -my-1.5 relative z-10">

@@ -9,3 +9,17 @@ export function normalizeExerciseName(name: string): string {
   const mapped = name.replace(/[İIıÇçĞğÖöŞşÜü]/g, (ch) => TR_CHAR_MAP[ch] ?? ch);
   return mapped.toLowerCase().trim().replace(/\s+/g, " ");
 }
+
+// Egzersiz kütüphanesindeki demo_url serbest metindir (koç/admin yazar) —
+// sporcuya tıklanabilir link olarak gösterilmeden önce yalnızca http(s)
+// adreslerine izin verilir (javascript: vb. şemalar elenir).
+export function toSafeHttpUrl(url: string | null | undefined): string | null {
+  const trimmed = url?.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.href : null;
+  } catch {
+    return null;
+  }
+}

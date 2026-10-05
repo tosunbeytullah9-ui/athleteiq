@@ -22,6 +22,8 @@ import {
 } from "@athleteiq/db/queries/wellness";
 import { getAthleteCompetitionEntries } from "@athleteiq/db/queries/competitions";
 import { getWearableConnection, getWearableMetrics } from "@athleteiq/db/queries/wearables";
+import { getAthleteCoachReplies } from "@athleteiq/db/queries/session-feedback";
+import { getExerciseDemoLinks } from "@athleteiq/db/queries/exercises";
 import { getLocalDateString, computeCheckinStreak } from "@athleteiq/validators/wellness";
 import { getTodayDayOfWeek, getWeekRange } from "@/lib/date";
 import { AthleteDashboardClient } from "./athlete-dashboard-client";
@@ -202,10 +204,10 @@ async function AthleteDashboardSection() {
 
   const { data: athlete } = (await supabase
     .from("athletes")
-    .select("id, full_name, team_id")
+    .select("id, org_id, full_name, team_id")
     .eq("user_id", user.id)
     .maybeSingle()) as {
-    data: { id: string; full_name: string; team_id: string | null } | null;
+    data: { id: string; org_id: string; full_name: string; team_id: string | null } | null;
   };
 
   if (!athlete) {
@@ -238,6 +240,8 @@ async function AthleteDashboardSection() {
     competitionEntries,
     whoopConnection,
     polarConnection,
+    coachReplies,
+    demoLinks,
   ] = await Promise.all([
     activeProgramId
       ? getDaySessions(supabase, activeProgramId, todayDow)
@@ -248,6 +252,13 @@ async function AthleteDashboardSection() {
     getAthleteCompetitionEntries(supabase, athlete.id),
     getWearableConnection(supabase, athlete.id, "whoop"),
     getWearableConnection(supabase, athlete.id, "polar"),
+    // Son 30 günde yazılan koç yanıtları (seans tarihinden bağımsız).
+    getAthleteCoachReplies(
+      supabase,
+      athlete.id,
+      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
+    ).catch(() => []),
+    getExerciseDemoLinks(supabase, athlete.org_id).catch(() => ({})),
   ]);
 
   const wearableConnection = whoopConnection ?? polarConnection ?? null;
@@ -291,6 +302,8 @@ async function AthleteDashboardSection() {
       nextCompetitionEntry={upcomingEntries[0] ?? null}
       wearableProvider={wearableConnection?.provider as "whoop" | "polar" | undefined}
       wearableMetrics={wearableMetrics[0] ?? null}
+      coachReplies={coachReplies}
+      demoLinks={demoLinks}
     />
   );
 }

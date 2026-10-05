@@ -1,7 +1,11 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getPrograms, getProgramBlocks } from "@athleteiq/db/queries/programs";
-import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
+import {
+  getAthleteMaxHistory,
+  getExercise1RMRatios,
+  getExerciseDemoLinks,
+} from "@athleteiq/db/queries/exercises";
 import { getAthleteFeedbackHistory } from "@athleteiq/db/queries/session-feedback";
 import { getLocalDateString } from "@athleteiq/validators/wellness";
 import type { Tables } from "@athleteiq/db/types";
@@ -41,6 +45,7 @@ export default async function ProgramsPage() {
   let ratios: Awaited<ReturnType<typeof getExercise1RMRatios>> = [];
   let athleteId: string | null = null;
   let feedback: Tables<"session_feedback">[] = [];
+  let demoLinks: Record<string, string> = {};
   if (role === "athlete") {
     const {
       data: { user },
@@ -59,7 +64,7 @@ export default async function ProgramsPage() {
       const to = getLocalDateString();
       const fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - 60);
-      [athleteMaxHistory, ratios, feedback] = await Promise.all([
+      [athleteMaxHistory, ratios, feedback, demoLinks] = await Promise.all([
         getAthleteMaxHistory(supabase, athlete.id),
         getExercise1RMRatios(supabase),
         getAthleteFeedbackHistory(
@@ -68,6 +73,9 @@ export default async function ProgramsPage() {
           getLocalDateString(fromDate),
           to
         ) as Promise<Tables<"session_feedback">[]>,
+        // Egzersiz demo linkleri — kütüphaneden isimle çözülür (bkz. getExerciseDemoLinks).
+        // Link yüklenemezse program görünümü bozulmasın, linksiz devam eder.
+        getExerciseDemoLinks(supabase, orgId).catch(() => ({})),
       ]);
     }
   }
@@ -82,6 +90,7 @@ export default async function ProgramsPage() {
       ratios={ratios}
       athleteId={athleteId}
       feedback={feedback}
+      demoLinks={demoLinks}
     />
   );
 }

@@ -261,3 +261,67 @@ export async function replyToSessionFeedback(
   });
   if (error) throw error;
 }
+
+export interface CoachReplyRow {
+  id: string;
+  session_date: string;
+  session_title: string | null;
+  session_type: string | null;
+  status: string;
+  rpe: number | null;
+  has_pain: boolean;
+  note: string | null;
+  coach_reply: string;
+  coach_replied_at: string;
+}
+
+/**
+ * Sporcunun geri bildirimlerine koçun yazdığı yanıtlar, en yenisi önce — sporcu
+ * Ana Sayfa'daki "Koçundan Yanıtlar" kartı için.
+ *
+ * Yanıt zaten seansın altında (AthleteFeedbackCard) görünüyordu ama yalnızca
+ * sporcu o seansın haftasını VE gününü açarsa — geçmiş bir haftaya yazılan yanıt
+ * pratikte hiç görülmüyordu. Filtre seans tarihine değil YANIT tarihine göredir:
+ * 3 hafta önceki bir seansa dün yazılan yanıt da listede çıkar.
+ *
+ * training_sessions bilinçli olarak LEFT join: program sonradan yayından
+ * kaldırılsa bile (sessions_select sporcuya kapanır) yanıt kaybolmasın.
+ */
+export async function getAthleteCoachReplies(
+  client: DbClient,
+  athleteId: string,
+  sinceIso: string,
+  limit = 5
+): Promise<CoachReplyRow[]> {
+  const { data, error } = await client
+    .from("session_feedback")
+    .select(
+      "id, session_date, status, rpe, has_pain, note, coach_reply, coach_replied_at, " +
+        "training_sessions(title, session_type)"
+    )
+    .eq("athlete_id", athleteId)
+    .not("coach_reply", "is", null)
+    .gte("coach_replied_at", sinceIso)
+    .order("coach_replied_at", { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return (data ?? []).map((r: Record<string, unknown>) => {
+    const session = r.training_sessions as
+      | { title?: string | null; session_type?: string | null }
+      | null;
+    return {
+      id: r.id as string,
+      session_date: r.session_date as string,
+      session_title: session?.title ?? null,
+      session_type: session?.session_type ?? null,
+      status: r.status as string,
+      rpe: (r.rpe as number | null) ?? null,
+      has_pain: Boolean(r.has_pain),
+      note: (r.note as string | null) ?? null,
+      coach_reply: r.coach_reply as string,
+      coach_replied_at: r.coach_replied_at as string,
+    };
+  });
+}

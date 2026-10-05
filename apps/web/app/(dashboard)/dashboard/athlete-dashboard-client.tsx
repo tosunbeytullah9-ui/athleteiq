@@ -16,7 +16,9 @@ import {
   ArrowRight,
   Flame,
   MapPin,
+  MessageSquare,
   Moon,
+  PlayCircle,
   Trophy,
   Watch,
   Zap,
@@ -30,6 +32,8 @@ import { upsertWellnessCheckin } from "@athleteiq/db/queries/wellness";
 import { wellnessCheckinSchema } from "@athleteiq/validators/wellness";
 import { getTimeGreeting } from "@athleteiq/validators/greeting";
 import type { getAthleteCompetitionEntries } from "@athleteiq/db/queries/competitions";
+import type { CoachReplyRow } from "@athleteiq/db/queries/session-feedback";
+import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import type { Tables } from "@athleteiq/db/types";
 import { getAcwrBadgeVariant, getAcwrLabel } from "@/lib/acwr";
 import { formatSetLoad, formatSetReps, SESSION_TYPE_LABELS } from "@/lib/exercise-format";
@@ -70,6 +74,10 @@ interface Props {
   nextCompetitionEntry: CompetitionEntry | null;
   wearableProvider?: "whoop" | "polar";
   wearableMetrics: WearableMetric | null;
+  /** Son 30 günde koçun geri bildirimlere yazdığı yanıtlar, en yenisi önce. */
+  coachReplies?: CoachReplyRow[];
+  /** normalize egzersiz adı → kütüphanedeki demo video linki. */
+  demoLinks?: Record<string, string>;
 }
 
 function computeReadiness(
@@ -107,6 +115,8 @@ export function AthleteDashboardClient({
   nextCompetitionEntry,
   wearableProvider,
   wearableMetrics,
+  coachReplies = [],
+  demoLinks = {},
 }: Props) {
   const router = useRouter();
   const firstName = fullName.split(" ")[0] ?? fullName;
@@ -285,6 +295,17 @@ export function AthleteDashboardClient({
                           {i + 1}
                         </span>
                         <span className="font-medium">{ex.name}</span>
+                        {demoLinks[normalizeExerciseName(ex.name)] && (
+                          <a
+                            href={demoLinks[normalizeExerciseName(ex.name)]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-primary hover:text-primary/80"
+                            title="Egzersizin videosunu yeni sekmede aç"
+                          >
+                            <PlayCircle className="h-4 w-4" />
+                          </a>
+                        )}
                         {firstSet && (
                           <span className="ml-auto text-xs text-muted-foreground">
                             {ex.exercise_sets.length} set · {formatSetReps(firstSet)}
@@ -299,6 +320,44 @@ export function AthleteDashboardClient({
               )}
             </CardContent>
           </Card>
+
+          {/* Koçundan Yanıtlar — geri bildirime yazılan yanıtlar, hangi haftaya ait olursa olsun */}
+          {coachReplies.length > 0 && (
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4" />
+                  Koçundan Yanıtlar
+                </CardTitle>
+                <Link href="/programs" className="text-xs font-medium text-primary flex items-center gap-1">
+                  Programa git <ArrowRight className="h-3 w-3" />
+                </Link>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {coachReplies.map((r) => (
+                  <div key={r.id} className="rounded-md border border-blue-200 bg-blue-50 p-3">
+                    <p className="text-xs text-blue-700">
+                      {new Date(r.session_date + "T00:00:00").toLocaleDateString("tr-TR", {
+                        day: "numeric",
+                        month: "long",
+                        weekday: "long",
+                      })}
+                      {" — "}
+                      {r.session_title ||
+                        SESSION_TYPE_LABELS[r.session_type ?? ""] ||
+                        "Antrenman"}
+                    </p>
+                    {r.note && (
+                      <p className="mt-1 text-xs text-muted-foreground line-clamp-2">
+                        Senin notun: {r.note}
+                      </p>
+                    )}
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm text-blue-900">{r.coach_reply}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Haftalık Yük */}
           <Card>

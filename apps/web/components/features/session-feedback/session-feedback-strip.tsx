@@ -25,7 +25,10 @@ export function SessionFeedbackStrip({ rows }: { rows: FeedbackInboxRow[] }) {
   if (rows.length === 0) return null;
 
   const unread = rows.filter((r) => !r.coach_read_at).length;
-  const painCount = rows.filter((r) => r.has_pain).length;
+  // Özet rozeti yalnızca OKUNMAMIŞ ağrıyı sayar — koç okuduktan sonra kırmızı
+  // uyarı kalkar (PainAlertBanner/sidebar rozetiyle aynı kural). Okunmuş ağrı
+  // satır bazında aşağıda hâlâ görünür, geçmiş kaybolmaz.
+  const painCount = rows.filter((r) => r.has_pain && !r.coach_read_at).length;
 
   return (
     <div className="border-t bg-muted/20 px-6 py-3">
@@ -42,7 +45,7 @@ export function SessionFeedbackStrip({ rows }: { rows: FeedbackInboxRow[] }) {
         {painCount > 0 && (
           <span className="flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-semibold text-red-700">
             <AlertTriangle className="h-3 w-3" />
-            {painCount} ağrı
+            {painCount} okunmamış ağrı
           </span>
         )}
         <Link

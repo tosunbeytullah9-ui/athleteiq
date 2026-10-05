@@ -51,6 +51,8 @@ interface Props {
   /** Yalnızca athlete rolünde dolu — AthleteProgramView'daki geri bildirim kartı için. */
   athleteId?: string | null;
   feedback?: Tables<"session_feedback">[];
+  /** Yalnızca athlete rolünde dolu — normalize egzersiz adı → demo video linki. */
+  demoLinks?: Record<string, string>;
 }
 
 const PHASE_LABELS: Record<string, string> = {
@@ -76,6 +78,7 @@ export function ProgramsClient({
   ratios = [],
   athleteId = null,
   feedback = [],
+  demoLinks = {},
 }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
@@ -176,6 +179,7 @@ export function ProgramsClient({
         ratios={ratios}
         athleteId={athleteId}
         feedback={feedback}
+        demoLinks={demoLinks}
       />
     );
   }

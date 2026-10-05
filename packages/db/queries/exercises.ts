@@ -1,4 +1,4 @@
-import { normalizeExerciseName } from "@athleteiq/validators/exercise";
+import { normalizeExerciseName, toSafeHttpUrl } from "@athleteiq/validators/exercise";
 import type { DbClient } from "./_client";
 
 export type PlatformExercise = {
@@ -666,4 +666,49 @@ export function resolveOneRepMaxKgForDate(
     chosen = priorOrEqual ?? records[records.length - 1]!;
   }
   return roundToPlateKg((percent1rm / 100) * chosen.weight_kg);
+}
+
+/**
+ * Program egzersizi → kütüphane demo linki (normalizeExerciseName anahtarlı).
+ *
+ * `exercises` satırı kütüphaneye FK ile değil yalnızca ADIYLA bağlıdır (1RM
+ * eşleşmesindeki buildMaxLookup ile aynı model) — bu yüzden link de isimden
+ * çözülür. Aynı ad hem org hem platform kütüphanesindeyse org kazanır
+ * (fork'lanmış/özelleştirilmiş sürüm, one-rm-import ile aynı kural). Türkçe ad
+ * (name_tr) da anahtar olarak eklenir. Yalnızca http(s) linkler döner.
+ * Düz nesne döner ki server → client prop olarak serileştirilebilsin.
+ */
+export async function getExerciseDemoLinks(
+  client: DbClient,
+  orgId: string
+): Promise<Record<string, string>> {
+  const [platformRes, orgRes] = await Promise.all([
+    client
+      .from("platform_exercises")
+      .select("name, name_tr, demo_url")
+      .not("demo_url", "is", null),
+    client
+      .from("org_exercises")
+      .select("name, name_tr, demo_url")
+      .eq("org_id", orgId)
+      .not("demo_url", "is", null),
+  ]);
+  if (platformRes.error) throw platformRes.error;
+  if (orgRes.error) throw orgRes.error;
+
+  const links: Record<string, string> = {};
+  type Row = { name: string; name_tr: string | null; demo_url: string | null };
+  const add = (rows: Row[]) => {
+    for (const r of rows) {
+      const url = toSafeHttpUrl(r.demo_url);
+      if (!url) continue;
+      for (const n of [r.name, r.name_tr]) {
+        if (n) links[normalizeExerciseName(n)] = url;
+      }
+    }
+  };
+  // Platform önce, org sonra yazılır — çakışmada org'un linki kalır.
+  add((platformRes.data ?? []) as Row[]);
+  add((orgRes.data ?? []) as Row[]);
+  return links;
 }
