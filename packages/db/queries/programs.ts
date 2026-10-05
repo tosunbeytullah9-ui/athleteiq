@@ -206,22 +206,33 @@ export interface TodaySessionRow {
   athlete_name: string | null;
 }
 
-/** Org genelinde, bugün (dayOfWeek) yayınlanmış programlara düşen tüm seanslar
+/** Org genelinde, bugün (dayOfWeek) yayınlanmış ve arşivlenmemiş programlara düşen tüm seanslar
  * — Dashboard "Bugünün Programı" widget'ı için. RLS coach'u kendi takımına
- * daraltır (training_programs_write ALL politikası zaten team/org kapsamlı). */
+ * daraltır (training_programs_write ALL politikası zaten team/org kapsamlı).
+ * Her training_programs satırı bir hafta olduğundan yalnızca tarih aralığı
+ * todayISODate'i kapsayan haftalar alınır (isDateActive ile aynı kural) —
+ * aksi halde geçmiş/gelecek haftaların aynı gündeki seansları da düşerdi. */
 export async function getTodaySessions(
   client: DbClient,
   orgId: string,
-  dayOfWeek: number
+  dayOfWeek: number,
+  todayISODate: string
 ): Promise<TodaySessionRow[]> {
   const { data, error } = await client
     .from("training_sessions")
     .select(
       `id, title, session_type, duration_min, order_index,
-       training_programs!inner(org_id, is_published, teams(name), athletes(full_name))`
+       training_programs!inner(org_id, is_published, is_archived, teams(name), athletes(full_name))`
     )
     .eq("training_programs.org_id", orgId)
     .eq("training_programs.is_published", true)
+    .eq("training_programs.is_archived", false)
+    .or(`start_date.is.null,start_date.lte.${todayISODate}`, {
+      referencedTable: "training_programs",
+    })
+    .or(`end_date.is.null,end_date.gte.${todayISODate}`, {
+      referencedTable: "training_programs",
+    })
     .eq("day_of_week", dayOfWeek)
     .order("order_index", { ascending: true });
 

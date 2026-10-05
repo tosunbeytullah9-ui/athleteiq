@@ -71,7 +71,7 @@ export default async function DashboardPage() {
       .from("competitions")
       .select("id", { count: "exact", head: true })
       .eq("org_id", orgId),
-    getTodaySessions(supabase, orgId, getTodayDayOfWeek()),
+    getTodaySessions(supabase, orgId, getTodayDayOfWeek(), today),
     supabase
       .from("competitions")
       .select("id, name, competition_date, location")
