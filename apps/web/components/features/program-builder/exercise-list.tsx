@@ -24,6 +24,9 @@ import type {
   Athlete1RMRecord,
 } from "@athleteiq/db/queries/exercises";
 import { SUPERSET_GROUPS, SUPERSET_COLORS } from "@/lib/supersetGroups";
+import { findDrill, type DrillDiagramRecord } from "@athleteiq/db/queries/drills";
+import { useDrillLookup } from "@/lib/hooks/use-drill-lookup";
+import { DrillPreviewButton } from "@/components/features/drills/drill-card";
 
 export { SUPERSET_GROUPS, SUPERSET_COLORS };
 
@@ -118,6 +121,8 @@ interface ExerciseRowProps<TFieldValues extends ProgramFormShape> {
   borderColor: string;
   onGroupChange: (group: string) => void;
   onRemoveExercise: () => void;
+  /** Egzersiz adı kütüphanedeki bir drill diyagramıyla eşleşiyorsa (yalnızca koç/admin). */
+  drill: DrillDiagramRecord | null;
 }
 
 function ExerciseRow<TFieldValues extends ProgramFormShape>({
@@ -133,6 +138,7 @@ function ExerciseRow<TFieldValues extends ProgramFormShape>({
   borderColor,
   onGroupChange,
   onRemoveExercise,
+  drill,
 }: ExerciseRowProps<TFieldValues>) {
   const base = `sessions.${sessionIdx}.exercises.${exIdx}`;
   const setsPath = `${base}.exercise_sets` as ArrayPath<TFieldValues>;
@@ -174,6 +180,7 @@ function ExerciseRow<TFieldValues extends ProgramFormShape>({
               data-testid={`exercise-name-${exIdx}`}
             />
           </div>
+          {drill && <DrillPreviewButton record={drill} />}
           <select
             value={group}
             onChange={(e) => onGroupChange(e.target.value)}
@@ -414,6 +421,7 @@ export function ExerciseList<TFieldValues extends ProgramFormShape>({
   });
 
   const [pickerOpen, setPickerOpen] = useState(false);
+  const drillLookup = useDrillLookup();
 
   const exercises =
     (watch(`sessions.${sessionIdx}.exercises` as Path<TFieldValues>) as
@@ -515,6 +523,7 @@ export function ExerciseList<TFieldValues extends ProgramFormShape>({
                 borderColor={borderColor}
                 onGroupChange={(g) => handleGroupChange(exIdx, g)}
                 onRemoveExercise={() => remove(exIdx)}
+                drill={findDrill(drillLookup, ex?.name)}
               />
             );
           })}

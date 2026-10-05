@@ -54,6 +54,8 @@ import {
   summarizeEnduranceSegments,
 } from "@athleteiq/validators/endurance";
 import type { FeedbackInboxRow } from "@athleteiq/db/queries/session-feedback";
+import { findDrill, type DrillDiagramRecord } from "@athleteiq/db/queries/drills";
+import { DrillInlineToggle } from "@/components/features/drills/drill-card";
 import {
   formatSetReps,
   formatSetLoad,
@@ -97,6 +99,8 @@ interface Props {
   ratios: Exercise1RMRatio[];
   /** Bu programın seanslarına gelen sporcu geri bildirimleri (koç/admin görünümü). */
   feedback?: FeedbackInboxRow[];
+  /** Egzersiz adı → drill diyagramı (normalize anahtarlı); yalnızca koç/admin için dolu. */
+  drills?: Record<string, DrillDiagramRecord>;
 }
 
 type ExerciseWithSets = Tables<"exercises"> & {
@@ -107,10 +111,12 @@ function ExerciseCard({
   exercise,
   maxHistoryLookup,
   programStartDate,
+  drill,
 }: {
   exercise: ExerciseWithSets;
   maxHistoryLookup: Map<string, Athlete1RMRecord[]>;
   programStartDate: string | null;
+  drill: DrillDiagramRecord | null;
 }) {
   const sets = (exercise.exercise_sets ?? [])
     .slice()
@@ -173,6 +179,7 @@ function ExerciseCard({
       ) : (
         <p className="text-xs text-muted-foreground">Set bilgisi yok.</p>
       )}
+      {drill && <DrillInlineToggle record={drill} />}
     </div>
   );
 }
@@ -180,7 +187,13 @@ function ExerciseCard({
 // CrossFit tarzı (WOD) seans kartı — set/yük/tonaj YOK, yalnızca format
 // rozeti + düz, sıralı hareket listesi (isim + movement_detail). Bkz. plan
 // "expressive-weaving-candy".
-function WodSessionCard({ session }: { session: Program["training_sessions"][number] }) {
+function WodSessionCard({
+  session,
+  drills,
+}: {
+  session: Program["training_sessions"][number];
+  drills: Record<string, DrillDiagramRecord>;
+}) {
   const movements = session.exercises
     .slice()
     .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
@@ -199,11 +212,15 @@ function WodSessionCard({ session }: { session: Program["training_sessions"][num
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
                 {i + 1}
               </span>
-              <span className="pt-0.5">
+              <span className="min-w-0 flex-1 pt-0.5">
                 <span className="font-medium">{m.name}</span>
                 {m.movement_detail && (
                   <span className="text-muted-foreground"> — {m.movement_detail}</span>
                 )}
+                {(() => {
+                  const drill = findDrill(drills, m.name);
+                  return drill ? <DrillInlineToggle record={drill} /> : null;
+                })()}
               </span>
             </li>
           ))}
@@ -227,6 +244,7 @@ export function ProgramDetailClient({
   athleteMaxHistory,
   ratios,
   feedback = [],
+  drills = {},
 }: Props) {
   const router = useRouter();
   const { role } = useUserContext();
@@ -714,7 +732,7 @@ export function ProgramDetailClient({
                         </CardContent>
                       ) : session.workout_format ? (
                         <CardContent>
-                          <WodSessionCard session={session} />
+                          <WodSessionCard session={session} drills={drills} />
                         </CardContent>
                       ) : (
                         session.exercises.length > 0 && (
@@ -734,6 +752,7 @@ export function ProgramDetailClient({
                                     exercise={unit.exercise}
                                     maxHistoryLookup={maxHistoryLookup}
                                     programStartDate={program.start_date}
+                                    drill={findDrill(drills, unit.exercise.name)}
                                   />
                                 );
                               }
@@ -754,6 +773,7 @@ export function ProgramDetailClient({
                                         exercise={exercise}
                                         maxHistoryLookup={maxHistoryLookup}
                                         programStartDate={program.start_date}
+                                        drill={findDrill(drills, exercise.name)}
                                       />
                                       {i < unit.members.length - 1 && (
                                         <div className="flex items-center justify-center -my-1.5 relative z-10">

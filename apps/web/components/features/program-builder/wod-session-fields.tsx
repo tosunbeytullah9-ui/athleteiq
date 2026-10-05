@@ -14,6 +14,9 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
+import { findDrill, type DrillDiagramRecord } from "@athleteiq/db/queries/drills";
+import { useDrillLookup } from "@/lib/hooks/use-drill-lookup";
+import { DrillPreviewButton } from "@/components/features/drills/drill-card";
 
 // CrossFit tarzı (WOD) seans desteği — bkz. plan "expressive-weaving-candy".
 // Kapsam BİLEREK dar: set/yük/skorlama YOK, yalnızca yapı (format + zamanlama
@@ -163,6 +166,12 @@ interface WodMovementListProps<TFieldValues extends WodProgramFormShape> {
 // Süperset/circuit gruplama YOK (bilinçli kapsam dışı) — düz, sıralı bir
 // hareket listesi. Her satır: isim + "ne kadar" (serbest metin: "15 tekrar",
 // "20 cal Row", "400m", "21-15-9" gibi) + opsiyonel not.
+// Drill diyagramı düğmesi (koni çizimi) — yalnızca koç/admin için dolu lookup.
+function WodDrillButton({ lookup, name }: { lookup: Record<string, DrillDiagramRecord>; name: string | undefined }) {
+  const drill = findDrill(lookup, name);
+  return drill ? <DrillPreviewButton record={drill} /> : null;
+}
+
 export function WodMovementList<TFieldValues extends WodProgramFormShape>({
   sessionIdx,
   register,
@@ -178,6 +187,7 @@ export function WodMovementList<TFieldValues extends WodProgramFormShape>({
     (watch(`sessions.${sessionIdx}.wod_movements` as Path<TFieldValues>) as
       | WodMovementFormValues[]
       | undefined) ?? [];
+  const drillLookup = useDrillLookup();
 
   return (
     <div>
@@ -221,6 +231,7 @@ export function WodMovementList<TFieldValues extends WodProgramFormShape>({
                     className="text-sm h-8"
                   />
                 </div>
+                <WodDrillButton lookup={drillLookup} name={movements[idx]?.name} />
                 <Button
                   type="button"
                   variant="ghost"

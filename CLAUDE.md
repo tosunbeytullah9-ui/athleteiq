@@ -201,10 +201,14 @@ AthleteIQ/
 │       ├── auth.ts
 │       ├── csv.test.ts
 │       ├── csv.ts
+│       ├── drill.test.ts
+│       ├── drill.ts
 │       ├── endurance.test.ts
 │       ├── endurance.ts
 │       ├── exercise.test.ts
 │       ├── exercise.ts
+│       ├── greeting.test.ts
+│       ├── greeting.ts
 │       ├── index.ts
 │       ├── one-rm-import.test.ts
 │       ├── one-rm-import.ts
@@ -310,7 +314,8 @@ AthleteIQ/
 │   │   ├── 20260922084343_position_vs_training_group_move_mevki.sql
 │   │   ├── 20261002113316_endurance_sessions_and_block_copy.sql
 │   │   ├── 20261002113426_endurance_recovery_target.sql
-│   │   └── 20261002113543_week_number_allow_53.sql
+│   │   ├── 20261002113543_week_number_allow_53.sql
+│   │   └── 20261005122102_drill_diagrams.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -357,6 +362,7 @@ AthleteIQ/
 - **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql).
 - **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
 - **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
+- **drill_diagrams** — Hız/hızlanma/çeviklik drill'i için koni yerleşimi + rota diyagramı (koniler, hareket tipine göre çizilen rota bölümleri — sprint/geri koşu/shuffle/carioca/çapraz adım/hafif koşu —, koni etrafı dönüşler, etiketler); birim drill bazında (m/yd). Bir org egzersizine 1:1 bağlıdır, programda egzersiz ADINDAN çözülür (demo linki ile aynı model). Yalnızca koç/admin okur/yazar — sporcu görünürlüğü YOK; jsonb şekli packages/validators/drill.ts'te doğrulanır (20261005122102_drill_diagrams.sql).
 - **exercise_1rm_ratios** — Egzersizler arası bilinen 1RM oran ilişkisi (örn. Front Squat = Back Squat * 0.85); platform geneli, super admin panelinden yönetilir, sporcunun türetilen egzersizde doğrudan kaydı yoksa %1RM çözümlemesinde sessiz fallback olarak kullanılır (20260914075144_exercise_1rm_ratios.sql).
 - **exercise_sets** — Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).
 - **exercises** — Bir seansa ait tekil egzersiz kaydı (sets/reps/load) — set bazlı detay için bkz. exercise_sets (001_schema.sql). Dayanıklılık seansında (training_sessions.endurance_modality dolu) her satır bir BÖLÜMDÜR: segment_type (warmup/steady/interval/recovery/cooldown), segment_repeats, TEK tekrarın segment_distance_m/segment_duration_sec'i, intensity_zone (1-5), intensity_target ve interval toparlanması (rest_sec + segment_recovery_target) — exercise_sets oluşturulmaz (20261002113316, 20261002113426).
@@ -387,7 +393,7 @@ AthleteIQ/
 
 ## 4. ROW LEVEL SECURITY (ÇEKİRDEK TABLOLAR)
 
-> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) ve `competition_entries` (20260909070021) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
+> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) `competition_entries` (20260909070021) ve `drill_diagrams` (20261005122102 — sporcu dalı YOK) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
 
 ```sql
 -- =============================================
@@ -1177,6 +1183,34 @@ planlanan-gerçekleşen karşılaştırması, bölgelerin sporcuya özel nabız/
 blok gruplama ("3 × [1 km + 400 m]"), mevcut WOD'a sıkıştırılmış dayanıklılık seanslarının
 otomatik dönüştürülmesi.
 
+**Sonradan eklenen görevler (2026-10-05 — drill (koni) diyagramları, YALNIZCA koç/admin):**
+```
+[x] 20261005122102_drill_diagrams.sql → drill_diagrams (org_exercise_id UNIQUE → org_exercises, unit m|yd, diagram jsonb, setup_notes); RLS select = admin+coach (+süper admin), sporcu dalı YOK; insert/update/delete org_exercises kalıbında (admin hepsi, koç kendi oluşturduğu), insert'te created_by = auth.uid() ve egzersiz aynı org'da olmalı
+[x] packages/validators/drill.ts (+28 test) → drillDiagramSchema (saha 4–60 birim, ≤40 koni, ≤4 rota × ≤60 nokta, ≤20 etiket), mesafe (routeDistance/formatDrillDistance), buildDrillRender (platformdan bağımsız SVG path/polygon geometrisi — çakışan gidiş-dönüşleri şeritlere ayırır), 11 hazır şablon (Box, 360'lar, M, X, Pro Agility 5-10-5, 3 Koni/L-Drill, T-Test, Illinois, Zig-Zag, Uçan Sprint) — web + mobil TEK kaynak
+[x] packages/db/queries/drills.ts → getDrillDiagrams / buildDrillLookup / findDrill / saveDrillDiagram (upsert) / deleteDrillDiagram
+[x] apps/web/components/features/drills/ → drill-diagram-svg (salt çizim + lejant), drill-editor (Koni / Rota / Seç-Taşı / Etiket / Sil modları, 0,5 birim ızgara, koniye mıknatıs, son noktaya tekrar tık = koni etrafı dönüş, geri al, şablonlar, saha boyutu, birim), drill-editor-dialog (yeni drill / org egzersizi / platform egzersizi — platformdaki kayıtta fork'lanır), drill-card (kart, satır içi aç-kapa, önizleme penceresi)
+[x] /exercises → "Yeni Drill" butonu, "Drill Diyagramları" filtresi (/exercises?drills=1), kartlarda diyagram önizlemesi + koni ikonu ile diyagram ekleme
+[x] Program builder (exercise-list.tsx + wod-session-fields.tsx) → egzersiz adı bir drill'le eşleşince "Diyagram" düğmesi (önizleme); egzersiz seçicide koni ikonu + "Drill'ler" filtresi — lib/hooks/use-drill-lookup.ts (org başına tek istek, modül önbelleği)
+[x] /programs/[id] → koç/admin görünümünde standart egzersiz ve WOD hareketlerinin altında "Drill diyagramı" aç-kapa kartı (sporcu için istek hiç atılmaz)
+[x] apps/mobile/components/DrillDiagram.tsx (react-native-svg) → koçun my-athletes/[athleteId]/program/[day] ekranında aynı kart
+```
+**Neden ayrı tablo, org_exercises'a kolon DEĞİL:** görünürlük kullanıcı kararıyla "Koç ve Admin" —
+`org_exercises_select` sporcuya da açık olduğu için diyagram orada dursaydı gizlilik yalnızca UI'da
+kalırdı. Ayrı tabloda sporcu dalı RLS'te YOK (canlı DB'de 9 senaryoyla doğrulandı: sporcu 0 satır
+görür/0 satır günceller, başka org admini 0 görür ve yazamaz, koç başka koçun diyagramını
+güncelleyemez/silemez, başka org'un egzersizine bağlayamaz/yeniden yönlendiremez, created_by
+sahteleyemez, anon reddedilir).
+
+**Neden programa FK ile değil İSİMLE bağlı:** `exercises` satırları kütüphaneye zaten yalnızca adıyla
+bağlı (1RM ve demo linkiyle aynı model). Diyagram programa kopyalansaydı `update_program_week` /
+`copy_program_block` / `propagate_week_to_future` ağaçlarını yeniden yazdığı için id'ler değişip
+diyagram kaybolurdu; isimden çözümle bu RPC'lerin HİÇBİRİNE dokunulmadı ve kütüphanede yapılan
+düzeltme geçmiş programlara da yansır. Aynı ad hem org hem platformdaysa org kazanır (platform
+egzersizine diyagram eklemek onu org kütüphanesine fork'lar).
+
+**Kapsam dışı (bilinçli):** sporcu görünümü (kullanıcı kararı), rotayı oynatan animasyon, PDF/çıktı,
+programdaki tek bir egzersizde kütüphaneden bağımsız diyagram değişikliği, mobilde diyagram düzenleme.
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -1863,7 +1897,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-10-02
+Son otomatik senkron: 2026-10-05
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1938,6 +1972,7 @@ Son otomatik senkron: 2026-10-02
 - 20261002113316_endurance_sessions_and_block_copy.sql
 - 20261002113426_endurance_recovery_target.sql
 - 20261002113543_week_number_allow_53.sql
+- 20261005122102_drill_diagrams.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -2002,6 +2037,12 @@ Son otomatik senkron: 2026-10-02
   süre, tekrar, 5 bölgeli yoğunluk + serbest hedef "%80 tempo", interval toparlanması).
   Toplam mesafe/süre, bölge dağılımı ve türetilen tempo canlı hesaplanır; koç detayı, sporcu
   web görünümü ve mobil gün ekranları aynı kartı gösterir. Bkz. §6 Agent 3.
+- ✅ Drill (koni) diyagramları (2026-10-05) — `/exercises`'te "Yeni Drill": koni yerleşimi + rota
+  (sprint / geri koşu / shuffle / carioca / çapraz adım / hafif koşu çizgi stilleri, koni etrafı
+  dönüş, etiket), drill bazında metre/yarda, 11 hazır şablon (Pro Agility, 3 Koni, T-Test, Illinois,
+  Box, Uçan Sprint…). Programa aynı adla eklenen egzersizde diyagram otomatik görünür (program
+  oluşturucu, program detayı, mobil koç ekranı). **Yalnızca koç ve admin görür** — sporcuya RLS
+  düzeyinde kapalı. Bkz. §6 Agent 3.
 - ✅ Blok kopyalama (2026-10-02) — program detayında "Bloğu Kopyala": bir bloğun tüm haftaları
   (seans/egzersiz/set/WOD/dayanıklılık ağacıyla) yeni bir tarihe, aynı ya da başka takıma /
   sporcuya taslak olarak kopyalanır; hedefte çakışan program varsa uyarır. Bkz. §6 Agent 3.

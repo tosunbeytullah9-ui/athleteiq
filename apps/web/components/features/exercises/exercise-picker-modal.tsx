@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { X, Search } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { X, Search, TrafficCone } from "lucide-react";
 import { Input } from "@athleteiq/ui/components/input";
 import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import type { PlatformExercise, OrgExercise, OrgExerciseCategory, Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 import { MOVEMENT_PATTERNS } from "@/components/features/exercises/exercise-form-fields";
+import { findDrill } from "@athleteiq/db/queries/drills";
+import { useDrillLookup } from "@/lib/hooks/use-drill-lookup";
 
 const MOVEMENT_LABELS: Record<string, string> = Object.fromEntries(
   MOVEMENT_PATTERNS.map((p) => [p.value, p.label])
@@ -30,7 +32,7 @@ interface Props {
   onPick: (ex: PickedExercise) => void;
 }
 
-type FilterMode = "all" | "platform" | "org" | { pattern: string } | { category: string };
+type FilterMode = "all" | "platform" | "org" | "drills" | { pattern: string } | { category: string };
 
 export function ExercisePickerModal({
   platformExercises,
@@ -42,6 +44,13 @@ export function ExercisePickerModal({
 }: Props) {
   const [search, setSearch] = useState("");
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  // Drill diyagramı olan egzersizler (yalnızca koç/admin için dolu — RLS).
+  const drillLookup = useDrillLookup();
+  const hasDrill = useCallback(
+    (ex: { name: string; name_tr: string | null }) =>
+      !!findDrill(drillLookup, ex.name) || !!findDrill(drillLookup, ex.name_tr),
+    [drillLookup]
+  );
 
   const maxMap = useMemo(() => {
     const m: Record<string, number> = {};
@@ -69,6 +78,7 @@ export function ExercisePickerModal({
       }
       if (filterMode === "platform") return ex._source === "platform";
       if (filterMode === "org") return ex._source === "org";
+      if (filterMode === "drills") return hasDrill(ex);
       if (typeof filterMode === "object" && "pattern" in filterMode) {
         return ex.movement_pattern === filterMode.pattern;
       }
@@ -78,7 +88,7 @@ export function ExercisePickerModal({
       }
       return true;
     });
-  }, [combined, search, filterMode]);
+  }, [combined, search, filterMode, hasDrill]);
 
   const patterns = useMemo(() => {
     const set = new Set(combined.map((e) => e.movement_pattern).filter(Boolean));
@@ -119,6 +129,18 @@ export function ExercisePickerModal({
             >
               Tümü ({combined.length})
             </button>
+            {Object.keys(drillLookup).length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode("drills")}
+                className={`w-full text-left px-3 py-1.5 text-xs transition-colors flex items-center gap-1 ${
+                  filterMode === "drills" ? "text-primary bg-primary/10" : "text-muted-foreground hover:bg-accent"
+                }`}
+              >
+                <TrafficCone className="h-3 w-3" />
+                Drill&apos;ler
+              </button>
+            )}
             {orgExercises.length > 0 && (
               <button
                 type="button"
@@ -217,7 +239,12 @@ export function ExercisePickerModal({
                       className="w-full text-left px-4 py-2.5 border-b last:border-0 hover:bg-accent transition-colors flex items-center justify-between gap-3"
                     >
                       <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{ex.name}</p>
+                        <p className="text-sm font-medium truncate flex items-center gap-1.5">
+                          {hasDrill(ex) && (
+                            <TrafficCone className="h-3.5 w-3.5 shrink-0 text-orange-600" aria-label="Drill diyagramı var" />
+                          )}
+                          <span className="truncate">{ex.name}</span>
+                        </p>
                         {ex.name_tr && ex.name_tr !== ex.name && (
                           <p className="text-xs text-muted-foreground/60 truncate">({ex.name_tr})</p>
                         )}

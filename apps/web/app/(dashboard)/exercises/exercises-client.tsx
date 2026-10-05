@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Plus, Pencil, Trash2, GitFork, Layers } from "lucide-react";
+import { Search, Plus, Pencil, Trash2, GitFork, Layers, TrafficCone } from "lucide-react";
 import { Input } from "@athleteiq/ui/components/input";
 import { Button } from "@athleteiq/ui/components/button";
 import { Badge } from "@athleteiq/ui/components/badge";
@@ -14,6 +14,11 @@ import { ForkExerciseModal } from "@/components/features/exercises/fork-exercise
 import { DeleteConfirmDialog } from "@/components/features/exercises/delete-confirm-dialog";
 import { MOVEMENT_PATTERNS } from "@/components/features/exercises/exercise-form-fields";
 import { createClient } from "@/lib/supabase/client";
+import type { DrillDiagramRecord } from "@athleteiq/db/queries/drills";
+import { normalizeExerciseName } from "@athleteiq/validators/exercise";
+import { DrillDiagramSvg } from "@/components/features/drills/drill-diagram-svg";
+import { DrillEditorDialog, type DrillEditorTarget } from "@/components/features/drills/drill-editor-dialog";
+import { invalidateDrillLookup } from "@/lib/hooks/use-drill-lookup";
 import { toast } from "@/components/ui/use-toast";
 
 const DIFFICULTY_LABELS: Record<string, { label: string; color: string }> = {
@@ -29,10 +34,15 @@ interface Props {
   orgId: string;
   userId: string;
   userRole: string;
+  /** Org'un drill diyagramları — yalnızca koç/admin için dolu (RLS). */
+  drills: DrillDiagramRecord[];
+  /** /exercises?drills=1 — "Drill Diyagramları" filtresiyle aç. */
+  initialDrillFilter?: boolean;
 }
 
 type FilterSidebar =
   | { type: "all" }
+  | { type: "drills" }
   | { type: "pattern"; value: string }
   | { type: "category"; value: string };
 
@@ -43,6 +53,8 @@ export function ExercisesClient({
   orgId,
   userId,
   userRole,
+  drills: initialDrills,
+  initialDrillFilter = false,
 }: Props) {
   const router = useRouter();
 
@@ -51,7 +63,11 @@ export function ExercisesClient({
   const [categories, setCategories] = useState(initialCategories);
 
   const [search, setSearch] = useState("");
-  const [sidebarFilter, setSidebarFilter] = useState<FilterSidebar>({ type: "all" });
+  const [sidebarFilter, setSidebarFilter] = useState<FilterSidebar>(
+    initialDrillFilter ? { type: "drills" } : { type: "all" }
+  );
+  const [drills, setDrills] = useState(initialDrills);
+  const [drillTarget, setDrillTarget] = useState<DrillEditorTarget | null>(null);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editTarget, setEditTarget] = useState<OrgExercise | null>(null);
@@ -62,6 +78,28 @@ export function ExercisesClient({
   const [forkOpen, setForkOpen] = useState(false);
 
   const canWrite = userRole === "admin" || userRole === "coach";
+
+  const drillByExerciseId = useMemo(() => {
+    const map: Record<string, DrillDiagramRecord> = {};
+    for (const d of drills) map[d.org_exercise_id] = d;
+    return map;
+  }, [drills]);
+
+  function canEditDrill(record: DrillDiagramRecord | null): boolean {
+    return canWrite && (!record || userRole === "admin" || record.created_by === userId);
+  }
+
+  // Platform kartından diyagram: aynı adla zaten kütüphaneye eklenmiş (fork) bir
+  // org egzersizi varsa ona bağlanır, yoksa kayıtta kopyalanır.
+  function openDrillForPlatform(ex: PlatformExercise) {
+    const key = normalizeExerciseName(ex.name);
+    const existing = org.find((o) => o.is_active !== false && normalizeExerciseName(o.name) === key);
+    setDrillTarget(
+      existing
+        ? { kind: "org", exercise: existing, record: drillByExerciseId[existing.id] ?? null }
+        : { kind: "platform", exercise: ex }
+    );
+  }
 
   const filtered = useMemo(() => {
     const allPlatform = platform.map((e) => ({ ...e, _source: "platform" as const }));
@@ -75,6 +113,9 @@ export function ExercisesClient({
         if (!matchName) return false;
       }
 
+      if (sidebarFilter.type === "drills") {
+        return ex._source === "org" && !!drillByExerciseId[ex.id];
+      }
       if (sidebarFilter.type === "pattern") {
         return ex.movement_pattern === sidebarFilter.value;
       }
@@ -84,7 +125,7 @@ export function ExercisesClient({
       }
       return true;
     });
-  }, [platform, org, search, sidebarFilter]);
+  }, [platform, org, search, sidebarFilter, drillByExerciseId]);
 
   async function handleDeleteExercise(ex: OrgExercise) {
     const supabase = createClient();
@@ -156,6 +197,21 @@ export function ExercisesClient({
             Tüm Egzersizler
             <span className="ml-1 text-xs opacity-70">({platform.length + org.length})</span>
           </button>
+
+          {canWrite && (
+            <button
+              onClick={() => setSidebarFilter({ type: "drills" })}
+              className={`w-full text-left px-3 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5 ${
+                sidebarFilter.type === "drills"
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              }`}
+            >
+              <TrafficCone className="h-3.5 w-3.5" />
+              Drill Diyagramları
+              <span className="text-xs opacity-70">({drills.length})</span>
+            </button>
+          )}
 
           <div className="pt-3 pb-1">
             <p className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -265,6 +321,10 @@ export function ExercisesClient({
                 <GitFork className="h-4 w-4" />
                 Platform&apos;dan Ekle
               </Button>
+              <Button variant="outline" size="sm" onClick={() => setDrillTarget({ kind: "new" })}>
+                <TrafficCone className="h-4 w-4" />
+                Yeni Drill
+              </Button>
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
                 Yeni Egzersiz
@@ -287,7 +347,11 @@ export function ExercisesClient({
           <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
             <Layers className="h-12 w-12 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">
-              {search ? "Arama kriterlerine uyan egzersiz bulunamadı." : "Bu kategoride egzersiz yok."}
+              {search
+                ? "Arama kriterlerine uyan egzersiz bulunamadı."
+                : sidebarFilter.type === "drills"
+                  ? "Henüz drill diyagramı yok. \u201cYeni Drill\u201d ile koni yerleşimi ve rota çizebilirsiniz."
+                  : "Bu kategoride egzersiz yok."}
             </p>
           </div>
         ) : (
@@ -303,6 +367,7 @@ export function ExercisesClient({
               const cat = orgEx?.custom_category_id
                 ? categories.find((c) => c.id === orgEx.custom_category_id)
                 : null;
+              const drill = orgEx ? drillByExerciseId[orgEx.id] ?? null : null;
 
               return (
                 <div
@@ -317,6 +382,19 @@ export function ExercisesClient({
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
+                      {canWrite && !drill && (
+                        <button
+                          onClick={() =>
+                            orgEx
+                              ? setDrillTarget({ kind: "org", exercise: orgEx, record: null })
+                              : openDrillForPlatform(ex as PlatformExercise)
+                          }
+                          className="p-1 text-muted-foreground hover:text-orange-600 transition-colors"
+                          title="Drill diyagramı çiz"
+                        >
+                          <TrafficCone className="h-3.5 w-3.5" />
+                        </button>
+                      )}
                       {!isOrg && (
                         <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
                           P
@@ -366,6 +444,22 @@ export function ExercisesClient({
                       </Badge>
                     )}
                   </div>
+
+                  {drill && orgEx && (
+                    <button
+                      type="button"
+                      onClick={() => setDrillTarget({ kind: "org", exercise: orgEx, record: drill })}
+                      className="block w-full overflow-hidden rounded-md border transition-shadow hover:shadow-sm"
+                      title="Drill diyagramını aç"
+                    >
+                      <DrillDiagramSvg
+                        diagram={drill.diagram}
+                        unit={drill.unit}
+                        showGrid={false}
+                        className="block h-auto w-full max-h-40"
+                      />
+                    </button>
+                  )}
 
                   {(ex.primary_muscles?.length > 0 || ex.equipment?.length > 0) && (
                     <div className="text-xs text-muted-foreground space-y-0.5">
@@ -455,6 +549,29 @@ export function ExercisesClient({
           description={`"${deleteCategoryTarget.name_tr ?? deleteCategoryTarget.name}" kategorisini silmek istediğinize emin misiniz? Bu kategoriye atanmış egzersizler silinmez.`}
           onConfirm={() => handleDeleteCategory(deleteCategoryTarget)}
           onCancel={() => setDeleteCategoryTarget(null)}
+        />
+      )}
+
+      {drillTarget && (
+        <DrillEditorDialog
+          target={drillTarget}
+          orgId={orgId}
+          userId={userId}
+          canEdit={canEditDrill(drillTarget.kind === "org" ? drillTarget.record : null)}
+          onClose={() => setDrillTarget(null)}
+          onSaved={({ record, createdExercise }) => {
+            if (createdExercise) setOrg((prev) => [...prev, createdExercise]);
+            setDrills((prev) => [...prev.filter((d) => d.id !== record.id), record]);
+            invalidateDrillLookup(orgId);
+            setDrillTarget(null);
+            toast({ title: "Drill diyagramı kaydedildi" });
+          }}
+          onDeleted={(id) => {
+            setDrills((prev) => prev.filter((d) => d.id !== id));
+            invalidateDrillLookup(orgId);
+            setDrillTarget(null);
+            toast({ title: "Drill diyagramı silindi" });
+          }}
         />
       )}
 

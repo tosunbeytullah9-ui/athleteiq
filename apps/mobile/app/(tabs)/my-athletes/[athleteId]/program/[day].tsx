@@ -13,6 +13,13 @@ import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import { ExerciseCard } from "@/components/ExerciseCard";
 import { WodSessionCard } from "@/components/WodSessionCard";
 import { EnduranceSessionCard } from "@/components/EnduranceSessionCard";
+import { DrillDiagramToggle } from "@/components/DrillDiagram";
+import {
+  buildDrillLookup,
+  findDrill,
+  getDrillDiagrams,
+  type DrillDiagramRecord,
+} from "@athleteiq/db/queries/drills";
 import { getActiveProgramId, getDaySessions } from "@athleteiq/db/queries/programs";
 import {
   getAthleteMaxes,
@@ -48,6 +55,8 @@ export default function CoachProgramDayScreen() {
   const { athlete, loading: athleteLoading, notFound } = useCoachAthlete(athleteId);
   const [sessions, setSessions] = useState<SessionWithExercises[]>([]);
   const [maxLookup, setMaxLookup] = useState<Map<string, number>>(new Map());
+  // Drill (koni) diyagramları — yalnızca koç/admin (RLS); bu ekran zaten koç ekranı.
+  const [drills, setDrills] = useState<Record<string, DrillDiagramRecord>>({});
   const [loading, setLoading] = useState(true);
   const dayNum = parseInt(day ?? "1", 10);
 
@@ -64,11 +73,15 @@ export default function CoachProgramDayScreen() {
 
         if (!programId) return;
 
-        const [data, athleteMaxes, ratios] = await Promise.all([
+        const [data, athleteMaxes, ratios, drillRecords] = await Promise.all([
           getDaySessions(supabase, programId, dayNum),
           getAthleteMaxes(supabase, athlete!.id),
           getExercise1RMRatios(supabase),
+          athlete!.org_id
+            ? getDrillDiagrams(supabase, athlete!.org_id).catch(() => [])
+            : Promise.resolve([]),
         ]);
+        setDrills(buildDrillLookup(drillRecords));
 
         const withSortedExercises = (data as SessionWithExercises[]).map((s) => ({
           ...s,
@@ -202,20 +215,29 @@ export default function CoachProgramDayScreen() {
               {session.endurance_modality ? (
                 <EnduranceSessionCard session={session} />
               ) : session.workout_format ? (
-                <WodSessionCard session={session} />
+                <>
+                  <WodSessionCard session={session} />
+                  <View className="mt-2">
+                    {session.exercises.map((m) => {
+                      const drill = findDrill(drills, m.name);
+                      return drill ? <DrillDiagramToggle key={m.id} record={drill} /> : null;
+                    })}
+                  </View>
+                </>
               ) : session.exercises.length === 0 ? (
                 <Text className="text-gray-400 text-sm italic">
                   Egzersiz eklenmemiş.
                 </Text>
               ) : (
-                session.exercises.map((exercise, idx) => (
-                  <ExerciseCard
-                    key={exercise.id}
-                    exercise={exercise}
-                    index={idx}
-                    maxLookup={maxLookup}
-                  />
-                ))
+                session.exercises.map((exercise, idx) => {
+                  const drill = findDrill(drills, exercise.name);
+                  return (
+                    <View key={exercise.id}>
+                      <ExerciseCard exercise={exercise} index={idx} maxLookup={maxLookup} />
+                      {drill && <DrillDiagramToggle record={drill} />}
+                    </View>
+                  );
+                })
               )}
             </View>
           ))}

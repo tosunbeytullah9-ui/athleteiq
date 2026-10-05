@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getProgramById } from "@athleteiq/db/queries/programs";
 import { getAthleteMaxHistory, getExercise1RMRatios } from "@athleteiq/db/queries/exercises";
 import { getProgramSessionFeedback } from "@athleteiq/db/queries/session-feedback";
+import { buildDrillLookup, getDrillDiagrams } from "@athleteiq/db/queries/drills";
 import { ProgramDetailClient } from "./program-detail-client";
 
 interface Props {
@@ -16,6 +18,11 @@ export default async function ProgramDetailPage({ params }: Props) {
   const program = await getProgramById(supabase, id).catch(() => null);
   if (!program) notFound();
 
+  // Drill diyagramları yalnızca koç/admin'e (RLS de sporcuya boş döner —
+  // burada sporcu için istek hiç atılmıyor).
+  const role = (await cookies()).get("aiq_role")?.value;
+  const canSeeDrills = role === "admin" || role === "coach";
+
   // Program bireyselse (athlete_id dolu) tonaj hesabı o sporcunun 1RM'lerini kullanır.
   // Takım programında tek bir "sahip" sporcu yok (2.2.E'deki "Son max" rozeti kararıyla
   // aynı gerekçe) — %1RM setleri bu durumda hep "dahil edilmedi" sayılır.
@@ -23,7 +30,7 @@ export default async function ProgramDetailPage({ params }: Props) {
   // coach'u kendi takımına daraltır — sporcu bu sayfada yalnızca kendi
   // bildirimini görür, o da AthleteFeedbackCard'da zaten var, bu yüzden strip
   // sporcu için boş kalır (zararsız).
-  const [athleteResult, teamResult, athleteMaxHistory, ratios, feedback] = await Promise.all([
+  const [athleteResult, teamResult, athleteMaxHistory, ratios, feedback, drills] = await Promise.all([
     program.athlete_id
       ? supabase.from("athletes").select("id, full_name, weight_kg").eq("id", program.athlete_id).single()
       : Promise.resolve({ data: null }),
@@ -33,6 +40,9 @@ export default async function ProgramDetailPage({ params }: Props) {
     program.athlete_id ? getAthleteMaxHistory(supabase, program.athlete_id) : Promise.resolve([]),
     getExercise1RMRatios(supabase),
     getProgramSessionFeedback(supabase, id).catch(() => []),
+    canSeeDrills && program.org_id
+      ? getDrillDiagrams(supabase, program.org_id).catch(() => [])
+      : Promise.resolve([]),
   ]);
 
   return (
@@ -43,6 +53,7 @@ export default async function ProgramDetailPage({ params }: Props) {
       athleteMaxHistory={athleteMaxHistory}
       ratios={ratios}
       feedback={feedback}
+      drills={buildDrillLookup(drills)}
     />
   );
 }

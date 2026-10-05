@@ -679,6 +679,60 @@ export type Database = {
           },
         ]
       }
+      drill_diagrams: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          diagram: Json
+          id: string
+          org_exercise_id: string
+          org_id: string
+          setup_notes: string | null
+          unit: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          diagram: Json
+          id?: string
+          org_exercise_id: string
+          org_id: string
+          setup_notes?: string | null
+          unit?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          diagram?: Json
+          id?: string
+          org_exercise_id?: string
+          org_id?: string
+          setup_notes?: string | null
+          unit?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drill_diagrams_org_exercise_id_fkey"
+            columns: ["org_exercise_id"]
+            isOneToOne: true
+            referencedRelation: "org_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drill_diagrams_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       exercise_1rm_ratios: {
         Row: {
           base_exercise_name: string

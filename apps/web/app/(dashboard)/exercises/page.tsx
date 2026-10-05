@@ -2,9 +2,15 @@ import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { getPlatformExercises } from "@athleteiq/db/queries/exercises";
+import { getDrillDiagrams } from "@athleteiq/db/queries/drills";
 import { ExercisesClient } from "./exercises-client";
 
-export default async function ExercisesPage() {
+export default async function ExercisesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ drills?: string }>;
+}) {
+  const { drills: drillsParam } = await searchParams;
   const supabase = await createClient();
   const cookieStore = await cookies();
   const orgId = cookieStore.get("aiq_org_id")?.value;
@@ -33,10 +39,14 @@ export default async function ExercisesPage() {
     { auth: { persistSession: false } }
   );
 
-  const [platformExercises, orgExercises, categories] = await Promise.all([
+  // Drill diyagramları kullanıcının KENDİ oturumuyla çekilir (service role DEĞİL) —
+  // RLS yalnızca koç/admin'e açar, sporcu bu sayfaya zaten giremez.
+  const canSeeDrills = userRole === "admin" || userRole === "coach";
+  const [platformExercises, orgExercises, categories, drills] = await Promise.all([
     getPlatformExercises(supabase),
     admin.from("org_exercises").select("*").eq("org_id", orgId).order("name"),
     admin.from("org_exercise_categories").select("*").eq("org_id", orgId).order("name"),
+    canSeeDrills ? getDrillDiagrams(supabase, orgId).catch(() => []) : Promise.resolve([]),
   ]);
 
   return (
@@ -47,6 +57,8 @@ export default async function ExercisesPage() {
       orgId={orgId}
       userId={user.id}
       userRole={userRole}
+      drills={drills}
+      initialDrillFilter={drillsParam === "1"}
     />
   );
 }

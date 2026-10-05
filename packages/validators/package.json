@@ -22,7 +22,8 @@
     "./one-rm-import": "./one-rm-import.ts",
     "./endurance": "./endurance.ts",
     "./program-copy": "./program-copy.ts",
-    "./greeting": "./greeting.ts"
+    "./greeting": "./greeting.ts",
+    "./drill": "./drill.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",
