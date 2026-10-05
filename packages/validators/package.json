@@ -21,7 +21,8 @@
     "./program-import": "./program-import.ts",
     "./one-rm-import": "./one-rm-import.ts",
     "./endurance": "./endurance.ts",
-    "./program-copy": "./program-copy.ts"
+    "./program-copy": "./program-copy.ts",
+    "./greeting": "./greeting.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

@@ -28,6 +28,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
 import { upsertWellnessCheckin } from "@athleteiq/db/queries/wellness";
 import { wellnessCheckinSchema } from "@athleteiq/validators/wellness";
+import { getTimeGreeting } from "@athleteiq/validators/greeting";
 import type { getAthleteCompetitionEntries } from "@athleteiq/db/queries/competitions";
 import type { Tables } from "@athleteiq/db/types";
 import { getAcwrBadgeVariant, getAcwrLabel } from "@/lib/acwr";
@@ -187,7 +188,9 @@ export function AthleteDashboardClient({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Günaydın, {firstName} 👋</h1>
+          <h1 className="text-2xl font-bold">
+            {getTimeGreeting(new Date(), "Europe/Istanbul")}, {firstName} 👋
+          </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {new Date(today + "T00:00:00").toLocaleDateString("tr-TR", {
               weekday: "long",

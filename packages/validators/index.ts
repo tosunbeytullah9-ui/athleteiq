@@ -16,3 +16,4 @@ export * from "./program-import";
 export * from "./one-rm-import";
 export * from "./endurance";
 export * from "./program-copy";
+export * from "./greeting";

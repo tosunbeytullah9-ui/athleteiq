@@ -18,6 +18,7 @@ import {
 } from "@athleteiq/db/queries/programs";
 import { getWellnessCheckin } from "@athleteiq/db/queries/wellness";
 import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { getTimeGreeting } from "@athleteiq/validators/greeting";
 import { ProgramTabStrip } from "@/components/ProgramTabStrip";
 import type { Tables } from "@athleteiq/db/types";
 
@@ -177,7 +178,7 @@ export default function ProgramScreen() {
       <View className="bg-blue-700 px-5 pt-14 pb-6">
         <View className="flex-row items-center justify-between">
           <View>
-            <Text className="text-blue-200 text-sm">Merhaba,</Text>
+            <Text className="text-blue-200 text-sm">{getTimeGreeting()},</Text>
             <Text className="text-white text-2xl font-bold">
               {athlete.full_name.split(" ")[0]}
             </Text>
