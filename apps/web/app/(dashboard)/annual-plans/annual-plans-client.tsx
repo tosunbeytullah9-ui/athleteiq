@@ -394,7 +394,7 @@ export function AnnualPlansClient({ orgId, plans, teams, athletes, coachTeamId }
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="ap-start">1. Hafta Başlangıcı</Label>
                 <Input

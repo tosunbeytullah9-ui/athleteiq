@@ -106,8 +106,8 @@ export function EditAthleteModal({ athlete, teams, onSuccess }: Props) {
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-card p-6 shadow-xl max-h-[90vh] overflow-y-auto">
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-card p-4 shadow-2xl sm:p-6">
           <div className="flex items-center justify-between mb-5">
             <Dialog.Title className="text-lg font-semibold">Sporcuyu Düzenle</Dialog.Title>
             <Dialog.Close asChild>
@@ -145,7 +145,7 @@ export function EditAthleteModal({ athlete, teams, onSuccess }: Props) {
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-athlete-birth-date">Doğum Tarihi</Label>
                 <Input id="edit-athlete-birth-date" type="date" {...register("birth_date")} />
@@ -165,7 +165,7 @@ export function EditAthleteModal({ athlete, teams, onSuccess }: Props) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-athlete-height">Boy (cm)</Label>
                 <Input

@@ -1211,6 +1211,18 @@ egzersizine diyagram eklemek onu org kütüphanesine fork'lar).
 **Kapsam dışı (bilinçli):** sporcu görünümü (kullanıcı kararı), rotayı oynatan animasyon, PDF/çıktı,
 programdaki tek bir egzersizde kütüphaneden bağımsız diyagram değişikliği, mobilde diyagram düzenleme.
 
+**Sonradan eklenen görevler (2026-10-23 — dinamik sidebar + mobil yerleşim):**
+```
+[x] apps/web/components/shared/nav-config.ts → YENİ, menünün TEK kaynağı: rol bazlı bölümler (Genel / Antrenman / İzleme / Yönetim; sporcu: Genel / Hesap), mobil alt çubuğun 4 birincil hedefi, findActiveHref (en uzun önek — /settings/users'ta "Ayarlar" artık aktif görünmüyor)
+[x] sidebar.tsx → gruplu bölümler, aktif öğede sol vurgu çubuğu, masaüstünde ikonlara daraltma (tercih localStorage "aiq_sidebar_collapsed" — yalnızca kolaylık), daraltılmışken üzerine gelince ad etiketi, altta kullanıcı kartı + çıkış; mobil çekmece: bulanık arka plan, Esc ile kapanır, açıkken sayfa kaymaz
+[x] mobile-tab-bar.tsx → YENİ, telefonda alta sabit sekme çubuğu (koç: Panel/Sporcular/Programlar/Bildirim, sporcu: Ana Sayfa/Program/Wellness/Yarışma + "Menü"), ağrı sayacı rozeti; md ve üstünde gizli
+[x] header.tsx → bulunulan bölümün adı, telefonda uzun sentetik e-posta yerine baş harf avatarı (adı/rolü yalnızca lg+), ikon-only çıkış
+[x] dashboard-shell.tsx → main dolgusu px-4 → sm:px-6 → lg:p-8, telefonda alt çubuğa yer bırakan alt boşluk (safe-area dahil), h-dvh
+[x] Card bileşenleri (components/ui + packages/ui) iç boşluğu --card-pad değişkeninden (telefonda 16px, sm+ 24px — tailwind-merge ile çağıranın pt-6/p-0 override'ları bozulmasın diye değişken)
+[x] Dialog/modal'lar telefonda kenarlardan boşluklu, max-h-[calc(100dvh-2rem)] + kaydırılabilir; sayfa başlıkları (h1 + butonlar) telefonda alt alta; form ızgaraları telefonda tek sütun; 7 günlük şeritlerde taşan etiketler; sporcular tablosu yatay kaydırma; egzersiz kütüphanesinin sol filtre paneli telefonda üstte
+[x] globals.css → başlıklarda text-wrap: balance, telefonda input/select/textarea 16px (iOS odaklanma yakınlaştırmasını önler)
+```
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]

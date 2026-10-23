@@ -463,7 +463,7 @@ export function NewProgramClient({
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="phase">Dönem</Label>
                   <select
@@ -550,7 +550,7 @@ export function NewProgramClient({
                 <CardTitle>Haftalık Seanslar</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-7 gap-2 mb-4">
+                <div className="mb-4 grid grid-cols-7 gap-1 sm:gap-2">
                   {DAY_LABELS.map((day, i) => {
                     const dayNum = i + 1;
                     const hasSessions = sessionFields.some(
@@ -561,7 +561,7 @@ export function NewProgramClient({
                         key={day}
                         type="button"
                         onClick={() => addSession(dayNum)}
-                        className={`rounded-lg border px-2 py-3 text-center text-sm font-medium transition-colors hover:bg-accent ${
+                        className={`min-w-0 rounded-lg border px-0.5 py-3 text-center text-sm font-medium transition-colors hover:bg-accent sm:px-2 ${
                           hasSessions ? "border-primary bg-primary/5" : "border-border"
                         }`}
                       >
@@ -637,7 +637,7 @@ export function NewProgramClient({
 
                   {isOpen && (
                     <CardContent className="space-y-4 border-t pt-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
                           <Label>Seans Türü</Label>
                           <select
@@ -660,7 +660,7 @@ export function NewProgramClient({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
                           <Label>Seans Süresi (dk)</Label>
                           <Input

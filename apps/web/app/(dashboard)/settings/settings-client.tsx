@@ -122,7 +122,7 @@ function OrganizationCard({ orgId, org, orgUserCount }: { orgId: string; org: Or
           <p className="text-sm text-muted-foreground">Organizasyon bilgisi yüklenemedi.</p>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="org-name">Organizasyon Adı *</Label>
                 <Input

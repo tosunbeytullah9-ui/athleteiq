@@ -100,14 +100,14 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Sporcular</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {initialAthletes.length} sporcu kayıtlı
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <Button variant="outline" asChild>
             <Link href="/athletes/import">
               <Upload className="h-4 w-4" />
@@ -123,8 +123,8 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
         </div>
       </div>
 
-      <div className="flex gap-3">
-        <div className="relative flex-1 max-w-sm">
+      <div className="flex flex-wrap gap-3">
+        <div className="relative min-w-[12rem] flex-1 sm:max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
@@ -166,8 +166,8 @@ export function AthletesClient({ athletes: initialAthletes, teams, orgId, latest
           </p>
         </div>
       ) : (
-        <div className="rounded-lg border overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full min-w-[60rem] text-sm">
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="text-left px-4 py-3 font-medium text-muted-foreground">Ad Soyad</th>

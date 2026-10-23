@@ -21,12 +21,12 @@ export function PainAlertBanner() {
   const rest = names.length > 3 ? ` +${names.length - 3}` : "";
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-red-300 bg-red-50 px-8 py-2.5 text-sm text-red-800">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-red-300 bg-red-50 px-4 py-2.5 text-sm text-red-800 sm:px-6 lg:px-8 dark:border-red-900 dark:bg-red-950/60 dark:text-red-200">
       <AlertTriangle className="h-4 w-4 shrink-0" />
       <span className="font-semibold">
         {alerts.length} okunmamış ağrı bildirimi
       </span>
-      <span className="text-red-700">
+      <span className="min-w-0 truncate text-red-700 dark:text-red-300">
         {shown}
         {rest}
       </span>

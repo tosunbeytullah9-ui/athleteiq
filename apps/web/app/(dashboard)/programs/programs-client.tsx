@@ -210,7 +210,7 @@ export function ProgramsClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Antrenman Programları</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -220,7 +220,7 @@ export function ProgramsClient({
           </p>
         </div>
         {!isAthlete && (
-          <div className="flex flex-wrap items-center justify-end gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end sm:gap-3">
             <Button variant="outline" asChild>
               <Link href="/programs/import">
                 <Upload className="h-4 w-4" />
@@ -243,7 +243,7 @@ export function ProgramsClient({
         )}
       </div>
 
-      <div className={`flex items-center justify-between gap-2 ${isAthlete ? "hidden" : ""}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${isAthlete ? "hidden" : ""}`}>
         <div className="flex gap-2">
           {(["all", "published", "draft"] as const).map((f) => (
             <button

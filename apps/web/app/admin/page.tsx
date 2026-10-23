@@ -52,7 +52,7 @@ export default async function SuperAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
             Platform Yönetimi
@@ -61,7 +61,7 @@ export default async function SuperAdminPage() {
             Tüm organizasyonlar ve kullanım özetleri
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" asChild>
             <Link href="/admin/exercises">Egzersiz Kütüphanesi</Link>
           </Button>
