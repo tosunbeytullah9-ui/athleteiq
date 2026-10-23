@@ -2,7 +2,9 @@ import { createServerClient } from "@supabase/ssr";
 import type { CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm", "/privacy"];
+// "/landing-studio" landing videolarını kaydetmek için replika sahneleri
+// barındırır; LANDING_STUDIO=1 değilse sayfa notFound() döner.
+const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm", "/privacy", "/landing-studio"];
 const AUTH_ROUTES = ["/login"];
 
 export async function middleware(request: NextRequest) {
@@ -219,6 +221,8 @@ function getRoleDestination(
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Statik medya (landing görselleri/videoları) oturum kontrolünden muaf —
+    // aksi halde oturumsuz ziyaretçinin video isteği /login'e yönlenirdi.
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|mp4|webm|woff2)$).*)",
   ],
 };

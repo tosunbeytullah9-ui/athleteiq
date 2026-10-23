@@ -1223,6 +1223,18 @@ programdaki tek bir egzersizde kütüphaneden bağımsız diyagram değişikliğ
 [x] globals.css → başlıklarda text-wrap: balance, telefonda input/select/textarea 16px (iOS odaklanma yakınlaştırmasını önler)
 ```
 
+**Sonradan eklenen görevler (2026-10-23 — landing page + gömülü giriş):**
+```
+[x] apps/web/components/landing/ → landing-page (server, her zaman koyu tema: kapsayıcıda .dark), site-nav, coach-tour (4 adımlı koç turu: video/görsel), device-frames (tarayıcı + telefon çerçevesi), feature-video (yalnızca ekrandayken oynar, reduced-motion'da kontrol çubuğu), section-bg (gri tonlu spor alanı fotoğrafı + saha çizgisi dokusu), landing-effects (paralaks + reveal), assets.ts (medya yolları + CONTACT_EMAIL)
+[x] app/page.tsx → oturumsuz ziyaretçiye redirect("/login") yerine <LandingPage />; app/(auth)/login/page.tsx de AYNI sayfayı render eder (giriş formu #giris) — middleware'in /login?next=... yönlendirmeleri değişmeden çalışır
+[x] login-form.tsx → yalnızca yerleşim değişti (iki sütunlu marka paneli kalktı, form kart oldu); giriş mantığı (resolveLoginIdentifier, signInWithPassword, next, no_membership) AYNEN
+[x] middleware.ts → matcher'a mp4|webm|avif|woff2 eklendi (aksi halde oturumsuz ziyaretçinin video isteği /login'e yönleniyordu); PUBLIC_ROUTES'a /landing-studio
+[x] app/landing-studio/[scene] + components/landing/replicas/ → landing görselleri için panel/mobil ekranların hayali verili replikaları; LANDING_STUDIO=1 değilse 404
+[x] scripts/landing/ → record-replicas.mjs (replikalardan görsel + imleçli video), demo-seed.mjs ("Demo Kulübü" org'u, slug demo, hayali veri), capture.mjs (aynı dosyaları gerçek uygulamadan demo koç hesabıyla çeker), fetch-backgrounds.mjs + backgrounds.json (bölüm fotoğrafları → public/landing/bg), lib/director.mjs (görünür imleç, insan hızında fare/klavye, ffmpeg ile webp/mp4/webm)
+```
+**Gizlilik kuralı:** landing'deki her görsel/video YALNIZCA hayali "Demo Kulübü" verisinden üretilir — gerçek sporcu adı ve sağlık verisi herkese açık sayfaya girmez (KVKK). `capture.mjs` çekimden önce /athletes listesini demo ad listesiyle karşılaştırır, tek bir yabancı ad görürse durur. Telefon görselleri Expo uygulamasına ait olduğu için tarayıcıdan çekilemez, replika olarak kalır; program oluşturma videosu da replikadan gelir.
+**Medya dosya adları sabittir** (`components/landing/assets.ts`) — replika ve gerçek çekim aynı dosyaların üzerine yazar, kod değişmez.
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]

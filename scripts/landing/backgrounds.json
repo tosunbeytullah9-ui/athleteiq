@@ -1,0 +1,9 @@
+{
+  "_doc": "Her slot bir landing bölümünün arka planı. source: Unsplash fotoğraf sayfası adresi veya repo köküne göre yerel dosya yolu. Görseller sayfada gri tonlu ve %16 opaklıkta, kenarları eriyerek görünür — kompozisyonu sakin, ortası boş, insan yüzü tanınmayan kareler seçin.",
+  "slots": {
+    "gym": { "source": "", "credit": "", "hint": "Hero — artistik cimnastik salonu (halka/barfiks, minder, tebeşir), geniş açı" },
+    "track": { "source": "", "credit": "", "hint": "Sporcu bölümü — atletizm pisti, kulvar çizgileri, alçak açı" },
+    "weights": { "source": "", "credit": "", "hint": "Nasıl çalışır — kuvvet salonu, platform ve plakalar" },
+    "arena": { "source": "", "credit": "", "hint": "Kapanış — boş tribün / salon ışıkları" }
+  }
+}

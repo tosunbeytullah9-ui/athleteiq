@@ -52,3 +52,4 @@ test-results/
 
 # Stray nested React Navigation template scaffold (not part of monorepo)
 /AthleteIQ/
+apps/web/public/landing/.tmp-video/

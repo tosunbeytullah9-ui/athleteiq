@@ -121,3 +121,52 @@
     }
   }
 }
+
+/* ── Landing ────────────────────────────────────────────────────────────
+   Yalnızca .landing kapsayıcısı ve replika sahneleri kullanır; panel
+   bileşenlerine etkisi yok. */
+@keyframes aiq-toast-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes aiq-sheet-in {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.aiq-toast-in { animation: aiq-toast-in 260ms ease-out both; }
+.aiq-sheet-in { animation: aiq-sheet-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+.landing {
+  font-family: var(--font-landing-body), ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "ss01", "cv11";
+}
+.landing .font-display {
+  font-family: var(--font-landing-display), var(--font-landing-body), ui-sans-serif, sans-serif;
+  letter-spacing: -0.025em;
+}
+
+/* Saha çizgisi dokusu — fotoğraf yüklenmezse ya da yüklenene kadar görünen
+   zemin. Fotoğrafın altında da durur, birlikte "salon/pist" hissi verir. */
+.landing-court {
+  background-image:
+    linear-gradient(to right, hsl(217 33% 50% / 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(217 33% 50% / 0.07) 1px, transparent 1px);
+  background-size: 96px 96px;
+  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+}
+
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 700ms ease-out, transform 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.landing-reveal[data-visible="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-reveal { opacity: 1; transform: none; transition: none; }
+  .aiq-toast-in, .aiq-sheet-in { animation: none; }
+  .landing [data-parallax] { transform: none !important; }
+}
