@@ -70,7 +70,7 @@ interface Props {
 export function ExerciseFormFields({ data, onChange, categories, scope = "org" }: Props) {
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Egzersiz Adı (EN) *</Label>
           <Input
@@ -89,7 +89,7 @@ export function ExerciseFormFields({ data, onChange, categories, scope = "org" }
         </div>
       </div>
 
-      <div className={scope === "platform" ? "grid grid-cols-1" : "grid grid-cols-2 gap-3"}>
+      <div className={scope === "platform" ? "grid grid-cols-1" : "grid grid-cols-1 gap-3 sm:grid-cols-2"}>
         <div className="space-y-1.5">
           <Label>Hareket Paterni{scope === "platform" ? " *" : ""}</Label>
           <select
@@ -120,7 +120,7 @@ export function ExerciseFormFields({ data, onChange, categories, scope = "org" }
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Yük Tipi</Label>
           <select
@@ -165,7 +165,7 @@ export function ExerciseFormFields({ data, onChange, categories, scope = "org" }
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label>Ekipman (virgülle ayırın)</Label>
           <Input

@@ -165,8 +165,8 @@ export function AddAthleteModal({ teams, orgId, existingAthletes = [], onSuccess
       </Dialog.Trigger>
 
       <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-black/50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-lg bg-card p-6 shadow-xl">
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <Dialog.Content className="fixed left-1/2 top-1/2 z-50 max-h-[calc(100dvh-2rem)] w-[calc(100%-1.5rem)] max-w-md -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-xl bg-card p-4 shadow-2xl sm:p-6">
           <div className="flex items-center justify-between mb-5">
             <Dialog.Title className="text-lg font-semibold">
               Yeni Sporcu Ekle
@@ -206,7 +206,7 @@ export function AddAthleteModal({ teams, orgId, existingAthletes = [], onSuccess
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="birth_date">Doğum Tarihi</Label>
                 <Input id="birth_date" type="date" {...register("birth_date")} />
@@ -226,7 +226,7 @@ export function AddAthleteModal({ teams, orgId, existingAthletes = [], onSuccess
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="height_cm">Boy (cm)</Label>
                 <Input

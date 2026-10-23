@@ -125,8 +125,8 @@ function ExerciseCard({
   return (
     <div className="rounded-md border p-3">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div>
-          <p className="font-medium text-sm">{exercise.name}</p>
+        <div className="min-w-0">
+          <p className="break-words font-medium text-sm">{exercise.name}</p>
           {exercise.notes && (
             <p className="text-xs text-muted-foreground">{exercise.notes}</p>
           )}
@@ -527,10 +527,10 @@ export function ProgramDetailClient({
       {/* Başlık kartı */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-2xl font-bold">{program.title}</h1>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="break-words text-xl font-bold sm:text-2xl">{program.title}</h1>
                 <Badge variant={isPublished ? "default" : "secondary"}>
                   {isPublished ? "Yayında" : "Taslak"}
                 </Badge>
@@ -641,7 +641,7 @@ export function ProgramDetailClient({
           </div>
 
           {program.block_id && !isAthlete && blockPublishInfo && (
-            <div className="mt-4 flex items-center justify-between gap-4 border-t pt-4">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-4">
               <p className="text-sm text-muted-foreground">
                 Blok: {blockPublishInfo.publishedCount}/
                 {blockPublishInfo.totalCount} hafta yayında
@@ -688,7 +688,7 @@ export function ProgramDetailClient({
                   return (
                     <Card key={session.id}>
                       <CardHeader className="pb-3">
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
                           {session.session_type && (
                             <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
                               {SESSION_TYPE_LABELS[session.session_type] ??

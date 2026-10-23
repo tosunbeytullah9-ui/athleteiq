@@ -76,3 +76,48 @@
   --color-critical: hsl(0 91% 65%);
   --color-violet: hsl(248 87% 74%);
 }
+
+/* Mobil tipografi ve dokunmatik deneyim
+   - Başlıklar dengeli kırılsın, paragraflarda tek kelimelik "dul" satır kalmasın.
+   - Uzun kelimeler/kullanıcı adları kutudan taşmasın.
+   - iOS Safari 16px altındaki input'lara odaklanınca sayfayı yakınlaştırıyor;
+     telefonda form alanlarını 16px'e sabitle. */
+@layer base {
+  /* Kart iç boşluğu: telefonda 16px, sm ve üstünde 24px (Card bileşenleri). */
+  :root {
+    --card-pad: 1rem;
+  }
+  @media (min-width: 640px) {
+    :root {
+      --card-pad: 1.5rem;
+    }
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    overflow-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  @media (max-width: 639px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
+}

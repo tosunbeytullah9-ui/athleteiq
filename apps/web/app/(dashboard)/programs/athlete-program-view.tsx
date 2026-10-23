@@ -97,8 +97,8 @@ function ExerciseDetailCard({
         <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-semibold text-muted-foreground">
           {index + 1}
         </span>
-        <div className="flex-1">
-          <p className="font-medium text-sm">{exercise.name}</p>
+        <div className="min-w-0 flex-1">
+          <p className="break-words font-medium text-sm">{exercise.name}</p>
           {exercise.notes && <p className="text-xs text-muted-foreground mt-0.5">{exercise.notes}</p>}
         </div>
         <DemoLink url={demoUrl} />
@@ -291,7 +291,7 @@ export function AthleteProgramView({
         <div className="space-y-6">
           {/* Gün şeridi */}
           <Card>
-            <CardContent className="grid grid-cols-7 gap-2 pt-5">
+            <CardContent className="grid grid-cols-7 gap-1 px-3 pt-4 sm:gap-2 sm:px-6 sm:pt-5">
               {Array.from({ length: 7 }, (_, i) => i + 1).map((dow) => {
                 const sessions = currentProgram.training_sessions.filter(
                   (s) => s.day_of_week === dow
@@ -306,7 +306,7 @@ export function AthleteProgramView({
                   <button
                     key={dow}
                     onClick={() => setSelectedDay(dow)}
-                    className={`rounded-lg border p-2 text-center transition-colors ${
+                    className={`min-w-0 rounded-lg border px-0.5 py-2 text-center transition-colors sm:p-2 ${
                       isSelected
                         ? "border-primary bg-primary/10"
                         : isToday
@@ -323,7 +323,7 @@ export function AthleteProgramView({
                         dominant ? SESSION_TYPE_COLORS[dominant] ?? "bg-muted-foreground" : "bg-border"
                       }`}
                     />
-                    <p className="mt-1 text-[9px] text-muted-foreground leading-tight">
+                    <p className="mt-1 hidden truncate text-[9px] leading-tight text-muted-foreground sm:block">
                       {sessions.length > 0
                         ? SESSION_TYPE_LABELS[dominant ?? ""] ?? "Antrenman"
                         : "Dinlenme"}

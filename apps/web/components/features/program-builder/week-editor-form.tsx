@@ -602,7 +602,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="phase">Dönem</Label>
                   <select
@@ -706,7 +706,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                 <CardTitle>Haftalık Seanslar</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-7 gap-2 mb-4">
+                <div className="mb-4 grid grid-cols-7 gap-1 sm:gap-2">
                   {DAY_LABELS.map((day, i) => {
                     const dayNum = i + 1;
                     const hasSessions = sessionFields.some(
@@ -717,7 +717,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                         key={day}
                         type="button"
                         onClick={() => addSession(dayNum)}
-                        className={`rounded-lg border px-2 py-3 text-center text-sm font-medium transition-colors hover:bg-accent ${
+                        className={`min-w-0 rounded-lg border px-0.5 py-3 sm:px-2 text-center text-sm font-medium transition-colors hover:bg-accent ${
                           hasSessions ? "border-primary bg-primary/5" : "border-border"
                         }`}
                       >
@@ -786,7 +786,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
 
                   {isOpen && (
                     <CardContent className="space-y-4 border-t pt-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
                           <Label>Seans Türü</Label>
                           <select
@@ -809,7 +809,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div className="space-y-1.5">
                           <Label>Seans Süresi (dk)</Label>
                           <Input
@@ -1018,7 +1018,7 @@ export const WeekEditorForm = forwardRef<WeekEditorHandle, Props>(function WeekE
             className="absolute inset-0 bg-black/40"
             onClick={() => !isPropagating && setShowPropagateConfirm(false)}
           />
-          <div className="relative z-10 w-full max-w-md rounded-xl border bg-card p-6 shadow-lg mx-4">
+          <div className="relative z-10 mx-3 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border bg-card p-4 shadow-lg sm:mx-4 sm:p-6">
             <h2 className="text-lg font-semibold mb-2">Sonraki Haftalara Uygula</h2>
             <p className="text-sm text-muted-foreground mb-3">
               Bu değişiklik şu haftalara uygulanacak:{" "}

@@ -122,14 +122,14 @@ export function AthleteDetailClient({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <Button variant="ghost" size="sm" asChild>
           <Link href="/athletes">
             <ArrowLeft className="h-4 w-4" />
             Sporcular
           </Link>
         </Button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <EditAthleteModal athlete={athlete} teams={teams} onSuccess={() => router.refresh()} />
           <Button variant="outline" size="sm" onClick={() => setStatusOpen(true)}>
             {athlete.is_active ? "Pasife Al / Sil" : "Tekrar Aktif Et"}
@@ -151,13 +151,13 @@ export function AthleteDetailClient({
       {/* Sporcu kartı */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex items-start gap-6">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10 text-primary text-2xl font-bold">
+          <div className="flex flex-wrap items-start gap-4 sm:flex-nowrap sm:gap-6">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xl font-bold text-primary sm:h-20 sm:w-20 sm:text-2xl">
               {initials}
             </div>
-            <div className="flex-1">
-              <div className="flex items-center gap-3">
-                <h1 className="text-2xl font-bold">{athlete.full_name}</h1>
+            <div className="min-w-0 flex-1 basis-48">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h1 className="break-words text-xl font-bold sm:text-2xl">{athlete.full_name}</h1>
                 <Badge variant={athlete.is_active ? "default" : "secondary"}>
                   {athlete.is_active ? "Aktif" : "Pasif"}
                 </Badge>
@@ -171,7 +171,7 @@ export function AthleteDetailClient({
                   </Badge>
                 )}
               </p>
-              <div className="mt-3 grid grid-cols-2 gap-x-8 gap-y-1 text-sm md:grid-cols-4">
+              <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:gap-x-8 md:grid-cols-4">
                 {athlete.birth_date && (
                   <div>
                     <span className="text-muted-foreground">Doğum: </span>
@@ -199,7 +199,7 @@ export function AthleteDetailClient({
               </div>
             </div>
             {latestAcwr?.acwr_ratio !== undefined && (
-              <div className="text-right">
+              <div className="w-full rounded-lg bg-muted/50 px-3 py-2 sm:w-auto sm:bg-transparent sm:p-0 sm:text-right">
                 <p className="text-xs text-muted-foreground">ACWR</p>
                 <p className={`text-3xl font-bold ${acwrColor(latestAcwr.acwr_ratio)}`}>
                   {latestAcwr.acwr_ratio?.toFixed(2) ?? "—"}

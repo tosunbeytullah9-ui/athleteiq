@@ -85,7 +85,7 @@ export function CreateCategoryModal({ orgId, userId, editTarget, onClose, onSave
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-xl border bg-card shadow-lg mx-4">
+      <div className="relative z-10 mx-3 max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border bg-card shadow-lg sm:mx-4">
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">
             {editTarget ? "Kategoriyi Düzenle" : "Yeni Kategori Oluştur"}
@@ -95,7 +95,7 @@ export function CreateCategoryModal({ orgId, userId, editTarget, onClose, onSave
           </button>
         </div>
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label>Kategori Adı (EN) *</Label>
               <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="gymnastics_specific" />

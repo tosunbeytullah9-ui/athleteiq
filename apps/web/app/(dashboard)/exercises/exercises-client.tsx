@@ -182,9 +182,9 @@ export function ExercisesClient({
   }, [org]);
 
   return (
-    <div className="flex h-full gap-0">
+    <div className="flex flex-col gap-0 md:h-full md:flex-row">
       {/* Sol sidebar */}
-      <aside className="w-56 shrink-0 border-r overflow-y-auto pr-0">
+      <aside className="max-h-44 w-full shrink-0 overflow-y-auto rounded-lg border pr-0 md:max-h-none md:w-56 md:rounded-none md:border-0 md:border-r">
         <div className="p-3 space-y-0.5">
           <button
             onClick={() => setSidebarFilter({ type: "all" })}
@@ -299,8 +299,8 @@ export function ExercisesClient({
       </aside>
 
       {/* Ana alan */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="min-w-0 flex-1 space-y-5 pt-4 md:overflow-y-auto md:p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold">Egzersiz Kütüphanesi</h1>
             <p className="text-sm text-muted-foreground mt-1">
@@ -308,7 +308,7 @@ export function ExercisesClient({
             </p>
           </div>
           {canWrite && (
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
               <Button
                 variant="outline"
                 size="sm"

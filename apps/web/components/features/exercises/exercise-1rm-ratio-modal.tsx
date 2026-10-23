@@ -92,7 +92,7 @@ export function Exercise1RMRatioModal({ editing, platformExercises, onClose, onS
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-      <div className="relative z-10 w-full max-w-md rounded-xl border bg-card shadow-lg mx-4 flex flex-col max-h-[90vh]">
+      <div className="relative z-10 w-full max-w-md rounded-xl border bg-card shadow-lg mx-3 sm:mx-4 flex flex-col max-h-[calc(100dvh-2rem)]">
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold">
             {editing ? "İlişkiyi Düzenle" : "Yeni 1RM Oran İlişkisi"}
