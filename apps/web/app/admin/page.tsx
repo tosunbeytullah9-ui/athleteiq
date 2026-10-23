@@ -19,7 +19,7 @@ type OrgRow = Database["public"]["Tables"]["organizations"]["Row"];
 export default async function SuperAdminPage() {
   const supabase = await createClient();
 
-  const [orgsRes, usersRes, athletesRes] = await Promise.all([
+  const [orgsRes, usersRes, athletesRes, demoRes] = await Promise.all([
     supabase
       .from("organizations")
       .select("id, name, slug, plan, created_at")
@@ -32,6 +32,10 @@ export default async function SuperAdminPage() {
       .from("athletes")
       .select("id", { count: "exact", head: true })
       .eq("is_active", true),
+    supabase
+      .from("demo_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "new"),
   ]);
 
   const orgs = orgsRes.data as Pick<
@@ -62,6 +66,16 @@ export default async function SuperAdminPage() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button variant="outline" asChild>
+            <Link href="/admin/demo-requests">
+              Demo Talepleri
+              {(demoRes.count ?? 0) > 0 && (
+                <span className="ml-1 rounded-full bg-primary px-1.5 text-[11px] font-semibold text-primary-foreground">
+                  {demoRes.count} yeni
+                </span>
+              )}
+            </Link>
+          </Button>
           <Button variant="outline" asChild>
             <Link href="/admin/exercises">Egzersiz Kütüphanesi</Link>
           </Button>
