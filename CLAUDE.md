@@ -317,7 +317,8 @@ AthleteIQ/
 │   │   ├── 20261002113543_week_number_allow_53.sql
 │   │   ├── 20261005122102_drill_diagrams.sql
 │   │   ├── 20261023115038_exercise_1rm_ratios_isportsi.sql
-│   │   └── 20261023144302_demo_requests.sql
+│   │   ├── 20261023144302_demo_requests.sql
+│   │   └── 20261023152441_org_slug_lock.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -1249,6 +1250,17 @@ programdaki tek bir egzersizde kütüphaneden bağımsız diyagram değişikliğ
 ```
 **Bildirim adresi koda yazılmaz** — yalnızca Vercel env'inde (`DEMO_REQUEST_NOTIFY_EMAIL`); sayfada hiçbir e-posta adresi görünmez (kullanıcı kararı). Resend test göndericisi (`onboarding@resend.dev`) yalnızca Resend hesabının sahibine gönderir; başka alıcı için alan adı doğrulanıp `DEMO_REQUEST_FROM_EMAIL` ayarlanmalı.
 
+**Sonradan eklenen görevler (2026-10-23 — süper admin organizasyon düzenleme + slug kilidi):**
+```
+[x] 20261023152441_org_slug_lock.sql → protect_org_admin_fields() genişletildi: slug değişiyorsa ve org'un profiles satırı varsa SÜPER ADMİN DAHİL raise eder; kontrol SECURITY DEFINER org_has_users(uuid) helper'ında (coalesce(is_super_admin() or my_role(org)='admin', false) yetki kontrolü, anon/PUBLIC EXECUTE yok). Canlı DB'de ROLLBACK içinde doğrulandı: TGF slug → reddedildi, kullanıcısız org slug+plan → başarılı, ad değişikliği → başarılı, org admin plan → reddedildi
+[x] packages/validators/organization.ts → ORG_SLUG_RE (^[a-z0-9-]{2,40}$) + ORG_PLANS, updateOrgSlugPlanSchema slug biçimini doğrular (+3 test)
+[x] app/admin/organizations/[id]/ → süper admin org düzenleme sayfası (ad, logo, plan, slug; kullanıcı/takım/aktif sporcu sayıları); /admin tablosunda org adı + "Düzenle" bağlantısı
+[x] settings-client.tsx → süper admin için de slug, kullanıcı varsa salt okunur (eski "giriş kimlikleri eski slug'da kalacak" uyarısı kaldırıldı); lib/org-errors.ts unique ihlalini Türkçeye çevirir
+[x] scripts/landing/demo-seed.mjs reset() → önce org (cascade), SONRA auth kullanıcıları (created_by/coach_replied_by NO ACTION FK'leri yüzünden ters sıra reddediliyordu) + @demo.athleteiq.app yetim hesap temizliği
+[x] /privacy → mailto kaldırıldı, iletişim/silme talepleri /#demo formuna yönlendirildi
+```
+**Neden slug kilitli:** giriş kimliği `{username}@{org_slug}.athleteiq.app` ve `auth.users.email` slug değişince güncellenmez — kullanıcısı olan bir org'un slug'ını değiştirmek o org'daki herkesin girişini bozardı. Kilit yalnızca UI'da değil DB trigger'ında.
+
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
 - Server Components veri çeker, `*-client.tsx` client component'lerine prop olarak geçer; mutation/realtime sonrası `router.refresh()` ile yeniden doğrulanır (TanStack Query DEĞİL — bağımlılık var ama kullanılmıyor) [Son doğrulama: Parti 7]
@@ -2013,6 +2025,7 @@ Son otomatik senkron: 2026-10-05
 - 20261005122102_drill_diagrams.sql
 - 20261023115038_exercise_1rm_ratios_isportsi.sql
 - 20261023144302_demo_requests.sql
+- 20261023152441_org_slug_lock.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/

@@ -18,9 +18,17 @@ export const updateOrgSchema = z.object({
 
 export type UpdateOrgInput = z.infer<typeof updateOrgSchema>;
 
+/** Giriş kimliğinin alan adı parçası ({username}@{slug}.athleteiq.app). */
+export const ORG_SLUG_RE = /^[a-z0-9-]{2,40}$/;
+
+export const ORG_PLANS = ["free", "pro", "enterprise"] as const;
+
 export const updateOrgSlugPlanSchema = z.object({
-  slug: z.string().min(2, "Slug en az 2 karakter olmalı"),
-  plan: z.enum(["free", "pro", "enterprise"]),
+  slug: z
+    .string()
+    .trim()
+    .regex(ORG_SLUG_RE, "Slug 2–40 karakter olmalı; yalnızca küçük harf, rakam ve tire (-)"),
+  plan: z.enum(ORG_PLANS),
 });
 
 export type UpdateOrgSlugPlanInput = z.infer<typeof updateOrgSlugPlanSchema>;
