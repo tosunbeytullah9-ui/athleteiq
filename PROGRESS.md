@@ -1,6 +1,19 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-10-02 (**Program formu kaydı engellemiyor + sade dayanıklılık arayüzü**) —
+> Son güncelleme: 2026-10-23 (**1RM Oran İlişkileri — iSPORTSi Exercise Menu içe aktarımı**) —
+> kullanıcının `Exercise_Menu.xlsx` dosyasındaki 8 sayfanın her hücresi katı bir ayrıştırıcıyla
+> okundu (yalnızca "N% TABAN" / "N% TABAN/2"; ikinci bağımsız okuma ile hücre hücre çapraz kontrol)
+> ve `exercise_1rm_ratios`'a **101 ilişki** yazıldı (`20261023115038_exercise_1rm_ratios_isportsi.sql`,
+> upsert). Kararlar (kullanıcı onaylı): CLEAN→Hang Clean, SQUAT→Back Squat, BENCH→Bench Press,
+> SNATCH→Hang Snatch, ROW→Barbell Bent Over Row; "/2" = dambıl başına (ratio = yüzde/2 — mevcut
+> Dumbbell Incline Bench Press 0.70 → 0.35); çakışmada Excel kazanır (Sumo Deadlift → Back Squat×0.85,
+> Romanian Deadlift → Hang Clean×1.20); sayfalar arası çelişkide Comprehensive (SL BB RDL 0.60,
+> SL Deadlift 0.70); "changed to …% for core lift" notları `notes`'ta. Atlananlar: JERK ve
+> BB INCLINE PRESS tabanlı satırlar (1RM kaydı yok + `buildMaxLookup` zincir desteklemiyor), vücut
+> ağırlığı formülleri, Hammer Pulldown (tekrara bağlı), taban hareketlerin kendisi (zincir riski).
+> Canlı tablo ayrıştırıcı çıktısıyla md5 düzeyinde birebir doğrulandı. `pnpm docs:sync` bu ortamda
+> root `.env` olmadığı için ÇALIŞTIRILAMADI — CLAUDE.md migration listesi bir sonraki senkronda güncellenmeli.
+> Önceki: 2026-10-02 (**Program formu kaydı engellemiyor + sade dayanıklılık arayüzü**) —
 > canlı testte koç ACK için program oluşturamadı ("Formda eksik veya hatalı alanlar var"). Kök
 > neden: boş "Tahmini Seans Süresi" `valueAsNumber` ile `NaN` oluyor ve zod reddediyordu; boş
 > tekrar/kg ve isimsiz egzersiz satırı da kaydı kilitliyordu, hatalar kapalı seans kartlarında
