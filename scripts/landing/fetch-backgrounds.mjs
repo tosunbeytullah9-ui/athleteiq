@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Bölüm arka plan fotoğraflarını indirir/dönüştürür → apps/web/public/landing/bg/*.webp
-// (1920 px genişlik, webp). Kaynaklar backgrounds.json'da: Unsplash fotoğraf
-// sayfası adresi (https://unsplash.com/photos/<slug-veya-id>) ya da yerel dosya yolu.
+// (1920 px genişlik, webp). Kaynaklar backgrounds.json'da: doğrudan görsel adresi
+// (https://images.unsplash.com/photo-...) ya da yerel dosya yolu. unsplash.com'un
+// /download adresi bot kontrolüne takıldığı için görsel CDN'inden indirilir.
 // Unsplash lisansı ticari kullanıma izin verir; fotoğrafçılar bg/CREDITS.md'ye yazılır.
 //
 //   pnpm landing:backgrounds
@@ -25,11 +26,9 @@ for (const [slot, entry] of Object.entries(config.slots)) {
   }
   const tmp = path.join(outDir, `.${slot}.src`);
   if (/^https?:\/\//.test(entry.source)) {
-    const id = entry.source.replace(/\/$/, "").split("/").pop().split("-").pop();
-    const url = `https://unsplash.com/photos/${id}/download?force=true&w=2400`;
-    const res = await fetch(url, { redirect: "follow" });
-    if (!res.ok) throw new Error(`${slot}: indirilemedi (${res.status}) ${url}`);
-    writeFileSync(tmp, Buffer.from(await res.arrayBuffer()));
+    const url = `${entry.source.split("?")[0]}?w=2400&q=85&fm=jpg`;
+    // curl: sistem proxy'sini (HTTPS_PROXY) kendiliğinden kullanır, Node fetch kullanmaz.
+    execFileSync("curl", ["-fsSL", "-o", tmp, url]);
   } else {
     const src = path.resolve(root, entry.source);
     if (!existsSync(src)) throw new Error(`${slot}: dosya yok ${src}`);
@@ -37,7 +36,7 @@ for (const [slot, entry] of Object.entries(config.slots)) {
   }
   execFileSync("ffmpeg", ["-y", "-hide_banner", "-loglevel", "error", "-i", tmp, "-vf", "scale='min(1920,iw)':-2", "-quality", "72", path.join(outDir, `${slot}.webp`)]);
   rmSync(tmp);
-  credits.push(`| ${slot}.webp | ${entry.source} | ${entry.credit ?? "—"} |`);
+  credits.push(`| ${slot}.webp | ${entry.page ?? entry.source} | ${(entry.credit ?? "—").replaceAll("|", "\\|")} |`);
   console.log(`  ✓ bg/${slot}.webp`);
 }
 writeFileSync(path.join(outDir, "CREDITS.md"), credits.join("\n") + "\n");
