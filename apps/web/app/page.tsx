@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@athleteiq/db/types";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { LandingPage } from "@/components/landing/landing-page";
 
 type MembershipRow = Database["public"]["Tables"]["memberships"]["Row"];
 
@@ -12,9 +13,9 @@ export default async function RootPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Giriş yapılmamışsa login'e yönlendir
+  // Giriş yapılmamışsa tanıtım sayfası (giriş formu içinde gömülü)
   if (!user) {
-    redirect("/login");
+    return <LandingPage />;
   }
 
   // Super admin platform_role kontrolü

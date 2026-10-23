@@ -1,0 +1,29 @@
+{
+  "_doc": "Her slot bir landing bölümünün arka planı. source: doğrudan görsel adresi (https://images.unsplash.com/photo-...) veya repo köküne göre yerel dosya yolu; page: lisans/kaynak sayfası. Görseller sayfada gri tonlu ve %16 opaklıkta, kenarları eriyerek görünür — kompozisyonu sakin, ortası boş, insan yüzü tanınmayan kareler seçin.",
+  "slots": {
+    "gym": {
+      "source": "https://images.unsplash.com/photo-1584970496149-097946651c57",
+      "credit": "Julien Dumas",
+      "hint": "Hero — artistik cimnastik salonu (halka/barfiks, minder, tebeşir), geniş açı",
+      "page": "https://unsplash.com/photos/white-pendant-lamp-turned-on-during-daytime-uH8JDWuxFX8"
+    },
+    "track": {
+      "source": "https://images.unsplash.com/photo-1612626360035-324ebf7d27f1",
+      "credit": "Nikolay Mitev",
+      "hint": "Sporcu bölümü — atletizm pisti, kulvar çizgileri, alçak açı",
+      "page": "https://unsplash.com/photos/red-and-white-track-field-under-blue-sky-during-daytime-Nj7zkf_cYtI"
+    },
+    "weights": {
+      "source": "https://images.unsplash.com/photo-1685633224767-361354e84e2b",
+      "credit": "Ambitious Studio* | Rick Barrett",
+      "hint": "Nasıl çalışır — kuvvet salonu, platform ve plakalar",
+      "page": "https://unsplash.com/photos/a-gym-with-a-lot-of-equipment-in-it-wZlsHihO2g4"
+    },
+    "arena": {
+      "source": "https://images.unsplash.com/photo-1621046590909-be3de07237a3",
+      "credit": "Brian Wangenheim",
+      "hint": "Kapanış — boş tribün / salon ışıkları",
+      "page": "https://unsplash.com/photos/blue-and-red-car-in-a-garage-B1wPuE0sMLw"
+    }
+  }
+}

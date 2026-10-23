@@ -16,7 +16,11 @@
     "lint": "turbo lint",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "db:gen:types": "supabase gen types typescript --local > packages/db/types.ts",
-    "docs:sync": "node scripts/docs-sync.mjs"
+    "docs:sync": "node scripts/docs-sync.mjs",
+    "landing:seed": "node scripts/landing/demo-seed.mjs",
+    "landing:capture": "node scripts/landing/capture.mjs",
+    "landing:replicas": "node scripts/landing/record-replicas.mjs",
+    "landing:backgrounds": "node scripts/landing/fetch-backgrounds.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.45.0",
