@@ -64,6 +64,19 @@ export default function PrivacyPolicyPage() {
       </p>
 
       <h2 className="mb-2 mt-6 text-base font-semibold text-gray-900">
+        Demo talep formu
+      </h2>
+      <p className="mb-6">
+        Tanıtım sayfasındaki demo talep formunu doldurduğunuzda adınız, kurumunuz,
+        rolünüz, branşınız, sporcu sayınız, e-posta adresiniz ve isteğe bağlı olarak
+        telefonunuz ile mesajınız yalnızca talebinize dönüş yapmak amacıyla saklanır.
+        Bu bilgileri yalnızca platform yöneticisi görür; üçüncü taraflarla paylaşılmaz.
+        IP adresiniz saklanmaz, kötüye kullanımı önlemek için yalnızca geri
+        döndürülemez bir özeti tutulur. Talebinizin silinmesini aşağıdaki adresten
+        isteyebilirsiniz.
+      </p>
+
+      <h2 className="mb-2 mt-6 text-base font-semibold text-gray-900">
         İletişim
       </h2>
       <p>

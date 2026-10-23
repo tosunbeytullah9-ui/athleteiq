@@ -679,6 +679,60 @@ export type Database = {
           },
         ]
       }
+      demo_requests: {
+        Row: {
+          admin_note: string | null
+          athlete_count: string | null
+          created_at: string
+          discipline: string | null
+          email: string
+          full_name: string
+          id: string
+          ip_hash: string | null
+          kvkk_consent: boolean
+          message: string | null
+          notified_at: string | null
+          organization: string
+          phone: string | null
+          role: string
+          status: string
+        }
+        Insert: {
+          admin_note?: string | null
+          athlete_count?: string | null
+          created_at?: string
+          discipline?: string | null
+          email: string
+          full_name: string
+          id?: string
+          ip_hash?: string | null
+          kvkk_consent: boolean
+          message?: string | null
+          notified_at?: string | null
+          organization: string
+          phone?: string | null
+          role: string
+          status?: string
+        }
+        Update: {
+          admin_note?: string | null
+          athlete_count?: string | null
+          created_at?: string
+          discipline?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          ip_hash?: string | null
+          kvkk_consent?: boolean
+          message?: string | null
+          notified_at?: string | null
+          organization?: string
+          phone?: string | null
+          role?: string
+          status?: string
+        }
+        Relationships: []
+      }
       drill_diagrams: {
         Row: {
           created_at: string
