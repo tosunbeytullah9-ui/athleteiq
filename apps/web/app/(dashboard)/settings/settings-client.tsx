@@ -13,6 +13,7 @@ import { Badge } from "@athleteiq/ui/components/badge";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
+import { orgUpdateErrorMessage } from "@/lib/org-errors";
 import { deleteTeam, updateOrganization } from "@athleteiq/db/queries";
 import type { TeamCounts } from "@athleteiq/db/queries";
 import { createTeamSchema, type CreateTeamInput } from "@athleteiq/validators/team";
@@ -103,7 +104,7 @@ function OrganizationCard({ orgId, org, orgUserCount }: { orgId: string; org: Or
       await updateOrganization(supabase, orgId, payload);
       router.refresh();
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Organizasyon güncellenemedi.");
+      setSubmitError(orgUpdateErrorMessage(err));
     } finally {
       setIsSaving(false);
     }
@@ -146,24 +147,24 @@ function OrganizationCard({ orgId, org, orgUserCount }: { orgId: string; org: Or
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="org-slug">Slug</Label>
-                {isSuperAdmin ? (
+                {isSuperAdmin && orgUserCount === 0 ? (
                   <>
                     <Input
                       id="org-slug"
                       value={form.slug}
                       onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))}
                     />
-                    <p className="text-xs text-amber-700">
-                      Bu organizasyondaki {orgUserCount} kullanıcının giriş kimliği eski slug&apos;da
-                      kalacak — e-postalar otomatik güncellenmez.
+                    <p className="text-xs text-muted-foreground">
+                      Bu organizasyonda henüz kullanıcı yok; slug değiştirilebilir.
                     </p>
                   </>
                 ) : (
                   <>
                     <Input id="org-slug" value={form.slug} readOnly className="font-mono text-xs bg-muted/40" />
                     <p className="text-xs text-muted-foreground">
-                      Sentetik giriş e-postaları ({"{"}kullanıcı adı{"}"}@{form.slug}.athleteiq.app) slug&apos;a
-                      bağlı olduğu için yalnızca süper admin değiştirebilir.
+                      {isSuperAdmin
+                        ? `Bu organizasyonda ${orgUserCount} kullanıcı var; giriş kimlikleri ({kullanıcı adı}@${form.slug}.athleteiq.app) slug'a bağlı olduğu için değiştirilemez.`
+                        : `Sentetik giriş e-postaları ({kullanıcı adı}@${form.slug}.athleteiq.app) slug'a bağlı olduğu için yalnızca süper admin, kullanıcısı olmayan bir organizasyonda değiştirebilir.`}
                     </p>
                   </>
                 )}

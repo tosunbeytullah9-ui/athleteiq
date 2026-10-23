@@ -59,7 +59,6 @@ const rnd = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
 
 if (process.argv.includes("--reset")) {
   await reset();
-  console.log("Demo org silindi.");
   process.exit(0);
 }
 if (!PASSWORD || PASSWORD.length < 8) fail("LANDING_DEMO_PASSWORD (en az 8 karakter) ortam değişkeni gerekli.");
@@ -216,13 +215,41 @@ async function refreshRolling(list) {
   }
 }
 
+// Sıra önemli: training_programs/program_blocks.created_by ve
+// session_feedback.coach_replied_by auth.users'a NO ACTION ile bağlı — auth
+// kullanıcısı önce silinirse reddedilir. Önce org (cascade ile takım, sporcu,
+// program, üyelik, profil), sonra auth kullanıcıları.
 async function reset() {
-  const { data: existing } = await db.from("organizations").select("id").eq("slug", SLUG).maybeSingle();
-  if (!existing) return;
-  const { data: profiles } = await db.from("profiles").select("id").eq("org_id", existing.id);
-  for (const p of profiles ?? []) await db.auth.admin.deleteUser(p.id);
-  const { error } = await db.from("organizations").delete().eq("id", existing.id);
-  if (error) fail(`Demo org silinemedi: ${error.message}`);
+  const { data: existing, error: orgErr } = await db
+    .from("organizations")
+    .select("id")
+    .eq("slug", SLUG)
+    .maybeSingle();
+  if (orgErr) fail(`Demo org okunamadı: ${orgErr.message}`);
+
+  const userIds = new Set();
+  if (existing) {
+    const { data: profiles, error } = await db.from("profiles").select("id").eq("org_id", existing.id);
+    if (error) fail(`Demo profilleri okunamadı: ${error.message}`);
+    for (const p of profiles ?? []) userIds.add(p.id);
+    const { error: delErr } = await db.from("organizations").delete().eq("id", existing.id);
+    if (delErr) fail(`Demo org silinemedi: ${delErr.message}`);
+  }
+
+  // Yarıda kalmış bir sıfırlamadan kalan yetim hesaplar: yalnızca demo alan adı.
+  const suffix = `@${SLUG}.athleteiq.app`;
+  for (let page = 1; ; page++) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
+    if (error) fail(`Auth kullanıcıları listelenemedi: ${error.message}`);
+    for (const u of data.users) if (u.email?.endsWith(suffix)) userIds.add(u.id);
+    if (data.users.length < 200) break;
+  }
+
+  for (const id of userIds) {
+    const { error } = await db.auth.admin.deleteUser(id);
+    if (error) fail(`Auth kullanıcısı silinemedi (${id}): ${error.message}`);
+  }
+  console.log(`✓ Demo verisi silindi (org: ${existing ? "1" : "0"}, hesap: ${userIds.size})`);
 }
 
 function loadEnv(file) {

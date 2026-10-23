@@ -2247,6 +2247,7 @@ export type Database = {
       }
       my_role: { Args: { org: string }; Returns: string }
       my_team_id: { Args: { org: string }; Returns: string }
+      org_has_users: { Args: { org: string }; Returns: boolean }
       propagate_week_to_future: {
         Args: { p_source_program_id: string }
         Returns: Json

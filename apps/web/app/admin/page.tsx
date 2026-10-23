@@ -12,7 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Users, UserRound } from "lucide-react";
+import { Building2, Pencil, Users, UserRound } from "lucide-react";
 
 type OrgRow = Database["public"]["Tables"]["organizations"]["Row"];
 
@@ -145,19 +145,24 @@ export default async function SuperAdminPage() {
               <TableHead>Slug</TableHead>
               <TableHead>Plan</TableHead>
               <TableHead>Oluşturulma</TableHead>
+              <TableHead className="w-0" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {!orgs?.length && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                   Henüz organizasyon yok.
                 </TableCell>
               </TableRow>
             )}
             {orgs?.map((org) => (
               <TableRow key={org.id}>
-                <TableCell className="font-medium">{org.name}</TableCell>
+                <TableCell className="font-medium">
+                  <Link href={`/admin/organizations/${org.id}`} className="hover:underline">
+                    {org.name}
+                  </Link>
+                </TableCell>
                 <TableCell className="text-muted-foreground font-mono text-sm">
                   {org.slug}
                 </TableCell>
@@ -168,6 +173,14 @@ export default async function SuperAdminPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {org.created_at ? new Date(org.created_at).toLocaleDateString("tr-TR") : "—"}
+                </TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href={`/admin/organizations/${org.id}`}>
+                      <Pencil className="h-3.5 w-3.5" />
+                      Düzenle
+                    </Link>
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
