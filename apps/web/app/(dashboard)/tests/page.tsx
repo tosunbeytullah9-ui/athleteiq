@@ -21,19 +21,25 @@ export default async function TestResultsPage() {
     );
   }
 
-  const [tests, athletesResult, platformExercises, orgExercises] = await Promise.all([
-    getTests(supabase, orgId),
-    supabase
-      .from("athletes")
-      .select("id, full_name")
-      .eq("org_id", orgId)
-      .eq("is_active", true)
-      .order("full_name"),
-    getPlatformExercises(supabase),
-    getOrgExercises(supabase, orgId),
-  ]);
+  const [tests, athletesResult, platformExercises, orgExercises] =
+    await Promise.all([
+      getTests(supabase, orgId),
+      supabase
+        .from("athletes")
+        .select("id, full_name, team_id, teams(name)")
+        .eq("org_id", orgId)
+        .eq("is_active", true)
+        .order("full_name"),
+      getPlatformExercises(supabase),
+      getOrgExercises(supabase, orgId),
+    ]);
 
-  const athletes: { id: string; full_name: string }[] = athletesResult.data ?? [];
+  const athletes = (athletesResult.data ?? []).map((a) => ({
+    id: a.id,
+    full_name: a.full_name,
+    team_id: a.team_id,
+    team_name: a.teams?.name ?? null,
+  }));
   // getAthleteMaxes tek bir athleteId alıyor (org-wide eşdeğeri yok) —
   // her sporcu için ayrı çağrılıp birleştiriliyor (bkz. PROGRESS.md Parti 2.2.E).
   const athleteMaxesLists = await Promise.all(
