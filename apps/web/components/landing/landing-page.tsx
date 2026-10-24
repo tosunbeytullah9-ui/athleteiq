@@ -11,7 +11,8 @@ import { ParallaxController, Reveal } from "./landing-effects";
 import { BrowserFrame, PhoneFrame } from "./device-frames";
 import { FeatureVideo } from "./feature-video";
 import { CoachTour } from "./coach-tour";
-import { CONTACT_EMAIL, LANDING_BG, LANDING_SHOTS, landingVideo } from "./assets";
+import { LANDING_BG, LANDING_SHOTS, landingVideo } from "./assets";
+import { DemoRequestForm } from "./demo-request-form";
 
 const display = Inter_Tight({
   subsets: ["latin", "latin-ext"],
@@ -494,33 +495,50 @@ function AudienceSection() {
 
 /* ─────────────────────────────────────────────────────────── Kapanış */
 
+const NEXT_STEPS = [
+  "Talebinizi okuyup 1–2 iş günü içinde e-postayla dönüyoruz.",
+  "Kısa bir görüşmede branşınızı, takımlarınızı ve şu an nasıl çalıştığınızı konuşuyoruz.",
+  "Organizasyonunuzu ve yönetici hesabınızı açıyoruz; kadro ve 1RM'ler Excel'den aktarılır.",
+  "İlk haftalık programınızı birlikte yazıp sporcularınızın telefonuna gönderiyoruz.",
+];
+
 function Closing() {
   return (
-    <SectionShell bg={LANDING_BG.closing} className="border-t border-white/5 py-28 lg:py-36">
-      <Reveal className="mx-auto max-w-3xl text-center">
-        <h2 className="font-display text-3xl font-semibold leading-tight sm:text-5xl">
-          Kulübünüz için hesap açalım.
-        </h2>
-        <p className="mx-auto mt-5 max-w-xl text-muted-foreground">
-          AthleteIQ&apos;da hesaplar kendi kendine açılmaz. Organizasyonunuzu biz kurarız,
-          koç ve sporcularınızı yöneticiniz ekler; ilk programınızı birlikte yazarız.
-        </p>
-        <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-          <a
-            href={`mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent("AthleteIQ demo talebi")}`}
-            className="inline-flex h-11 items-center gap-2 rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-          >
-            Demo isteyin
-            <ArrowRight className="h-4 w-4" />
-          </a>
+    <SectionShell id="demo" bg={LANDING_BG.closing} className="border-t border-white/5 py-24 lg:py-32">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-12 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:gap-16">
+        <Reveal>
+          <Eyebrow>Demo talebi</Eyebrow>
+          <h2 className="font-display mt-5 text-3xl font-semibold leading-tight sm:text-5xl">
+            Kulübünüz için hesap açalım.
+          </h2>
+          <p className="mt-5 max-w-xl text-muted-foreground">
+            AthleteIQ&apos;da hesaplar kendi kendine açılmaz. Organizasyonunuzu biz kurarız,
+            koç ve sporcularınızı yöneticiniz ekler; ilk programınızı birlikte yazarız.
+          </p>
+          <ol className="mt-10 space-y-5">
+            {NEXT_STEPS.map((step, i) => (
+              <li key={step} className="flex gap-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-primary/40 font-mono text-xs font-semibold text-primary">
+                  {i + 1}
+                </span>
+                <p className="pt-0.5 text-sm leading-relaxed text-muted-foreground">{step}</p>
+              </li>
+            ))}
+          </ol>
           <a
             href="#giris"
-            className="inline-flex h-11 items-center rounded-md border border-white/15 px-6 text-sm font-medium transition-colors hover:bg-white/5"
+            className="mt-10 inline-flex items-center gap-1.5 text-sm font-medium hover:text-primary"
           >
-            Hesabım var, giriş yap
+            Hesabınız var mı? Giriş yapın <ArrowRight className="h-3.5 w-3.5" />
           </a>
-        </div>
-      </Reveal>
+        </Reveal>
+
+        <Reveal delay={120}>
+          <div className="rounded-2xl border border-white/10 bg-card/70 p-6 shadow-[0_30px_80px_-40px_rgb(0_0_0/0.9)] backdrop-blur-xl sm:p-8">
+            <DemoRequestForm />
+          </div>
+        </Reveal>
+      </div>
     </SectionShell>
   );
 }
@@ -534,8 +552,8 @@ function Footer() {
           <Link href="/privacy" className="hover:text-foreground">
             Gizlilik
           </Link>
-          <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-foreground">
-            {CONTACT_EMAIL}
+          <a href="#demo" className="hover:text-foreground">
+            Demo talebi
           </a>
         </div>
       </div>

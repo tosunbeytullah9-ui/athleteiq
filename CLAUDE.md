@@ -204,6 +204,8 @@ AthleteIQ/
 │       ├── competition.ts
 │       ├── csv.test.ts
 │       ├── csv.ts
+│       ├── demo-request.test.ts
+│       ├── demo-request.ts
 │       ├── drill.test.ts
 │       ├── drill.ts
 │       ├── endurance.test.ts
@@ -216,6 +218,7 @@ AthleteIQ/
 │       ├── one-rm-import.test.ts
 │       ├── one-rm-import.ts
 │       ├── org-user.ts
+│       ├── organization.test.ts
 │       ├── organization.ts
 │       ├── package.json
 │       ├── program-copy.test.ts
@@ -327,6 +330,8 @@ AthleteIQ/
 │   │   ├── 20261002113543_week_number_allow_53.sql
 │   │   ├── 20261005122102_drill_diagrams.sql
 │   │   ├── 20261023115038_exercise_1rm_ratios_isportsi.sql
+│   │   ├── 20261023144302_demo_requests.sql
+│   │   ├── 20261023152441_org_slug_lock.sql
 │   │   └── 20261024082932_competition_stages.sql
 │   ├── snippets/
 │   ├── config.toml
@@ -375,6 +380,7 @@ AthleteIQ/
 - **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
 - **competition_stages** — Cimnastik (FIG) yarışmasının aşamaları — Qualification, Apparatus Final, Team Final, All-Around Final — ve her aşamanın günü (stage_date NULL = yarışma tarihi). Aşamalar AYNI yarışmanın parçasıdır, ayrı yarışma kaydı açılmaz; finale kalan sporcu competition_entries.stages ile işaretlenir. RLS competition_entries ile birebir (20261024082932_competition_stages.sql).
 - **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
+- **demo_requests** — Landing sayfasındaki "Demo isteyin" formundan gelen talepler (kurum, kişi, rol, branş, sporcu sayısı, iletişim, mesaj, KVKK onayı) ve süper admin'in takip durumu (new/contacted/onboarded/rejected) + notu. Yalnızca /api/demo-request service role ile yazar (INSERT politikası yok), RLS SELECT/UPDATE yalnızca is_super_admin(); ham IP saklanmaz, hız sınırı için tuzlu ip_hash tutulur (20261023144302_demo_requests.sql).
 - **drill_diagrams** — Hız/hızlanma/çeviklik drill'i için koni yerleşimi + rota diyagramı (koniler, hareket tipine göre çizilen rota bölümleri — sprint/geri koşu/shuffle/carioca/çapraz adım/hafif koşu —, koni etrafı dönüşler, etiketler); birim drill bazında (m/yd). Bir org egzersizine 1:1 bağlıdır, programda egzersiz ADINDAN çözülür (demo linki ile aynı model). Yalnızca koç/admin okur/yazar — sporcu görünürlüğü YOK; jsonb şekli packages/validators/drill.ts'te doğrulanır (20261005122102_drill_diagrams.sql).
 - **exercise_1rm_ratios** — Egzersizler arası bilinen 1RM oran ilişkisi (örn. Front Squat = Back Squat * 0.85); platform geneli, super admin panelinden yönetilir, sporcunun türetilen egzersizde doğrudan kaydı yoksa %1RM çözümlemesinde sessiz fallback olarak kullanılır (20260914075144_exercise_1rm_ratios.sql).
 - **exercise_sets** — Bir egzersize ait set bazlı yük/RPE/tekrar kaydı; exercises tablosundaki tekil kg/RPE/% alanlarının yerini alan set-bazlı model (014_exercise_sets.sql, Parti 2.1).
@@ -1238,7 +1244,7 @@ programdaki tek bir egzersizde kütüphaneden bağımsız diyagram değişikliğ
 
 **Sonradan eklenen görevler (2026-10-23 — landing page + gömülü giriş):**
 ```
-[x] apps/web/components/landing/ → landing-page (server, her zaman koyu tema: kapsayıcıda .dark), site-nav, coach-tour (4 adımlı koç turu: video/görsel), device-frames (tarayıcı + telefon çerçevesi), feature-video (yalnızca ekrandayken oynar, reduced-motion'da kontrol çubuğu), section-bg (gri tonlu spor alanı fotoğrafı + saha çizgisi dokusu), landing-effects (paralaks + reveal), assets.ts (medya yolları + CONTACT_EMAIL)
+[x] apps/web/components/landing/ → landing-page (server, her zaman koyu tema: kapsayıcıda .dark), site-nav, coach-tour (4 adımlı koç turu: video/görsel), device-frames (tarayıcı + telefon çerçevesi), feature-video (yalnızca ekrandayken oynar, reduced-motion'da kontrol çubuğu), section-bg (gri tonlu spor alanı fotoğrafı + saha çizgisi dokusu), landing-effects (paralaks + reveal), assets.ts (medya yolları), demo-request-form (kapanıştaki #demo formu — 2026-10-23 sonradan eklendi, aşağıya bakın)
 [x] app/page.tsx → oturumsuz ziyaretçiye redirect("/login") yerine <LandingPage />; app/(auth)/login/page.tsx de AYNI sayfayı render eder (giriş formu #giris) — middleware'in /login?next=... yönlendirmeleri değişmeden çalışır
 [x] login-form.tsx → yalnızca yerleşim değişti (iki sütunlu marka paneli kalktı, form kart oldu); giriş mantığı (resolveLoginIdentifier, signInWithPassword, next, no_membership) AYNEN
 [x] middleware.ts → matcher'a mp4|webm|avif|woff2 eklendi (aksi halde oturumsuz ziyaretçinin video isteği /login'e yönleniyordu); PUBLIC_ROUTES'a /landing-studio
@@ -1247,6 +1253,28 @@ programdaki tek bir egzersizde kütüphaneden bağımsız diyagram değişikliğ
 ```
 **Gizlilik kuralı:** landing'deki her görsel/video YALNIZCA hayali "Demo Kulübü" verisinden üretilir — gerçek sporcu adı ve sağlık verisi herkese açık sayfaya girmez (KVKK). `capture.mjs` çekimden önce /athletes listesini demo ad listesiyle karşılaştırır, tek bir yabancı ad görürse durur. Telefon görselleri Expo uygulamasına ait olduğu için tarayıcıdan çekilemez, replika olarak kalır; program oluşturma videosu da replikadan gelir.
 **Medya dosya adları sabittir** (`components/landing/assets.ts`) — replika ve gerçek çekim aynı dosyaların üzerine yazar, kod değişmez.
+
+**Sonradan eklenen görevler (2026-10-23 — demo talep formu):**
+```
+[x] 20261023144302_demo_requests.sql → demo_requests tablosu; RLS SELECT/UPDATE yalnızca coalesce(is_super_admin(), false), INSERT/DELETE politikası YOK, anon'un tüm yetkisi + authenticated'ın insert/delete yetkisi kaldırıldı (athlete_ai_insights deseni). Canlı DB'de ROLLBACK içinde doğrulandı: anon SELECT "permission denied", süper admin olmayan authenticated 0 satır görür, insert/delete yetkisi yok
+[x] packages/validators/demo-request.ts (+7 test) → demoRequestSchema (DB check'leriyle aynı sınırlar), rol/durum etiketleri, honeypot, DEMO_REQUEST_HOURLY_LIMIT — form ve API ortak
+[x] apps/web/app/api/demo-request/route.ts → oturumsuz POST: şema doğrulama, honeypot (sessiz 200), aynı ip_hash'ten saatte 3+ talepte 429, service role ile insert, Resend bildirimi (RESEND_API_KEY + DEMO_REQUEST_NOTIFY_EMAIL varsa; reply_to = talep sahibi), başarılıysa notified_at. Bildirim hatası talebi düşürmez
+[x] middleware.ts → PUBLIC_ROUTES'a /api/demo-request
+[x] components/landing/demo-request-form.tsx → kapanış bölümü (#demo) iki sütun: "sonraki adımlar" + form; mailto ve geçici iletisim@athleteiq.app adresi kaldırıldı, altbilgide "Demo talebi" (#demo), nav'da "Demo"
+[x] app/admin/demo-requests/ → süper admin talep listesi: Açık/durum filtreleri, durum + not düzenleme (RLS UPDATE), e-posta/telefon bağlantıları, bildirim durumu; /admin'de "Demo Talepleri (N yeni)" butonu
+```
+**Bildirim adresi koda yazılmaz** — yalnızca Vercel env'inde (`DEMO_REQUEST_NOTIFY_EMAIL`); sayfada hiçbir e-posta adresi görünmez (kullanıcı kararı). Resend test göndericisi (`onboarding@resend.dev`) yalnızca Resend hesabının sahibine gönderir; başka alıcı için alan adı doğrulanıp `DEMO_REQUEST_FROM_EMAIL` ayarlanmalı.
+
+**Sonradan eklenen görevler (2026-10-23 — süper admin organizasyon düzenleme + slug kilidi):**
+```
+[x] 20261023152441_org_slug_lock.sql → protect_org_admin_fields() genişletildi: slug değişiyorsa ve org'un profiles satırı varsa SÜPER ADMİN DAHİL raise eder; kontrol SECURITY DEFINER org_has_users(uuid) helper'ında (coalesce(is_super_admin() or my_role(org)='admin', false) yetki kontrolü, anon/PUBLIC EXECUTE yok). Canlı DB'de ROLLBACK içinde doğrulandı: TGF slug → reddedildi, kullanıcısız org slug+plan → başarılı, ad değişikliği → başarılı, org admin plan → reddedildi
+[x] packages/validators/organization.ts → ORG_SLUG_RE (^[a-z0-9-]{2,40}$) + ORG_PLANS, updateOrgSlugPlanSchema slug biçimini doğrular (+3 test)
+[x] app/admin/organizations/[id]/ → süper admin org düzenleme sayfası (ad, logo, plan, slug; kullanıcı/takım/aktif sporcu sayıları); /admin tablosunda org adı + "Düzenle" bağlantısı
+[x] settings-client.tsx → süper admin için de slug, kullanıcı varsa salt okunur (eski "giriş kimlikleri eski slug'da kalacak" uyarısı kaldırıldı); lib/org-errors.ts unique ihlalini Türkçeye çevirir
+[x] scripts/landing/demo-seed.mjs reset() → önce org (cascade), SONRA auth kullanıcıları (created_by/coach_replied_by NO ACTION FK'leri yüzünden ters sıra reddediliyordu) + @demo.athleteiq.app yetim hesap temizliği
+[x] /privacy → mailto kaldırıldı, iletişim/silme talepleri /#demo formuna yönlendirildi
+```
+**Neden slug kilitli:** giriş kimliği `{username}@{org_slug}.athleteiq.app` ve `auth.users.email` slug değişince güncellenmez — kullanıcısı olan bir org'un slug'ını değiştirmek o org'daki herkesin girişini bozardı. Kilit yalnızca UI'da değil DB trigger'ında.
 
 **UI kuralları:**
 - shadcn/ui komponentleri kullan, özel tasarım yapma
@@ -2011,6 +2039,8 @@ Son otomatik senkron: 2026-10-24
 - 20261002113543_week_number_allow_53.sql
 - 20261005122102_drill_diagrams.sql
 - 20261023115038_exercise_1rm_ratios_isportsi.sql
+- 20261023144302_demo_requests.sql
+- 20261023152441_org_slug_lock.sql
 - 20261024082932_competition_stages.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/

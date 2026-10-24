@@ -9,6 +9,7 @@ const LINKS = [
   { href: "#sporcu", label: "Sporcu için" },
   { href: "#nasil", label: "Nasıl çalışır" },
   { href: "#kimler", label: "Kimler için" },
+  { href: "#demo", label: "Demo" },
 ];
 
 export function SiteNav() {

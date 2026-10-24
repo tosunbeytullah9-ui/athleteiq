@@ -30,5 +30,3 @@ export const LANDING_BG = {
   closing: `${BG}/arena.webp`,
 } as const;
 
-/** Demo/hesap talepleri için iletişim adresi. */
-export const CONTACT_EMAIL = "iletisim@athleteiq.app";

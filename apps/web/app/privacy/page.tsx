@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export const metadata = {
   title: "Gizlilik Politikası — AthleteIQ",
 };
@@ -8,7 +10,7 @@ export default function PrivacyPolicyPage() {
       <h1 className="mb-2 text-2xl font-bold text-gray-900">
         AthleteIQ — Gizlilik Politikası
       </h1>
-      <p className="mb-8 text-xs text-gray-400">Son güncelleme: 11 Eylül 2026</p>
+      <p className="mb-8 text-xs text-gray-400">Son güncelleme: 23 Ekim 2026</p>
 
       <p className="mb-6">
         AthleteIQ, sporcuların antrenman yükünü, toparlanma durumunu ve
@@ -64,16 +66,27 @@ export default function PrivacyPolicyPage() {
       </p>
 
       <h2 className="mb-2 mt-6 text-base font-semibold text-gray-900">
+        Demo talep formu
+      </h2>
+      <p className="mb-6">
+        Tanıtım sayfasındaki demo talep formunu doldurduğunuzda adınız, kurumunuz,
+        rolünüz, branşınız, sporcu sayınız, e-posta adresiniz ve isteğe bağlı olarak
+        telefonunuz ile mesajınız yalnızca talebinize dönüş yapmak amacıyla saklanır.
+        Bu bilgileri yalnızca platform yöneticisi görür; üçüncü taraflarla paylaşılmaz.
+        IP adresiniz saklanmaz, kötüye kullanımı önlemek için yalnızca geri
+        döndürülemez bir özeti tutulur. Talebinizin silinmesini aynı form üzerinden
+        isteyebilirsiniz.
+      </p>
+
+      <h2 className="mb-2 mt-6 text-base font-semibold text-gray-900">
         İletişim
       </h2>
       <p>
-        Sorularınız için:{" "}
-        <a
-          href="mailto:tosunbeytullah9@gmail.com"
-          className="text-blue-700 underline"
-        >
-          tosunbeytullah9@gmail.com
-        </a>
+        Sorularınız ve veri silme talepleriniz için{" "}
+        <Link href="/#demo" className="text-blue-700 underline">
+          iletişim formunu
+        </Link>{" "}
+        kullanabilirsiniz; mesaj alanına talebinizi yazmanız yeterlidir.
       </p>
     </div>
   );

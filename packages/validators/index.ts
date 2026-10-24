@@ -17,4 +17,5 @@ export * from "./one-rm-import";
 export * from "./endurance";
 export * from "./program-copy";
 export * from "./greeting";
+export * from "./demo-request";
 export * from "./competition";

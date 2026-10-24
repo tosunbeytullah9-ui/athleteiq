@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 // "/landing-studio" landing videolarını kaydetmek için replika sahneleri
 // barındırır; LANDING_STUDIO=1 değilse sayfa notFound() döner.
-const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm", "/privacy", "/landing-studio"];
+const PUBLIC_ROUTES = ["/login", "/auth/callback", "/auth/confirm", "/privacy", "/landing-studio", "/api/demo-request"];
 const AUTH_ROUTES = ["/login"];
 
 export async function middleware(request: NextRequest) {

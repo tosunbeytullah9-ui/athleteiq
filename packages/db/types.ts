@@ -714,6 +714,60 @@ export type Database = {
           },
         ]
       }
+      demo_requests: {
+        Row: {
+          admin_note: string | null
+          athlete_count: string | null
+          created_at: string
+          discipline: string | null
+          email: string
+          full_name: string
+          id: string
+          ip_hash: string | null
+          kvkk_consent: boolean
+          message: string | null
+          notified_at: string | null
+          organization: string
+          phone: string | null
+          role: string
+          status: string
+        }
+        Insert: {
+          admin_note?: string | null
+          athlete_count?: string | null
+          created_at?: string
+          discipline?: string | null
+          email: string
+          full_name: string
+          id?: string
+          ip_hash?: string | null
+          kvkk_consent: boolean
+          message?: string | null
+          notified_at?: string | null
+          organization: string
+          phone?: string | null
+          role: string
+          status?: string
+        }
+        Update: {
+          admin_note?: string | null
+          athlete_count?: string | null
+          created_at?: string
+          discipline?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          ip_hash?: string | null
+          kvkk_consent?: boolean
+          message?: string | null
+          notified_at?: string | null
+          organization?: string
+          phone?: string | null
+          role?: string
+          status?: string
+        }
+        Relationships: []
+      }
       drill_diagrams: {
         Row: {
           created_at: string
@@ -2228,6 +2282,7 @@ export type Database = {
       }
       my_role: { Args: { org: string }; Returns: string }
       my_team_id: { Args: { org: string }; Returns: string }
+      org_has_users: { Args: { org: string }; Returns: boolean }
       propagate_week_to_future: {
         Args: { p_source_program_id: string }
         Returns: Json
