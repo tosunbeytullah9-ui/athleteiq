@@ -554,6 +554,7 @@ export type Database = {
           created_at: string | null
           id: string
           notes: string | null
+          stages: string[]
         }
         Insert: {
           athlete_id: string
@@ -561,6 +562,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           notes?: string | null
+          stages?: string[]
         }
         Update: {
           athlete_id?: string
@@ -568,6 +570,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           notes?: string | null
+          stages?: string[]
         }
         Relationships: [
           {
@@ -624,6 +627,38 @@ export type Database = {
           },
           {
             foreignKeyName: "competition_results_competition_id_fkey"
+            columns: ["competition_id"]
+            isOneToOne: false
+            referencedRelation: "competitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      competition_stages: {
+        Row: {
+          competition_id: string
+          created_at: string | null
+          id: string
+          stage: string
+          stage_date: string | null
+        }
+        Insert: {
+          competition_id: string
+          created_at?: string | null
+          id?: string
+          stage: string
+          stage_date?: string | null
+        }
+        Update: {
+          competition_id?: string
+          created_at?: string | null
+          id?: string
+          stage?: string
+          stage_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competition_stages_competition_id_fkey"
             columns: ["competition_id"]
             isOneToOne: false
             referencedRelation: "competitions"

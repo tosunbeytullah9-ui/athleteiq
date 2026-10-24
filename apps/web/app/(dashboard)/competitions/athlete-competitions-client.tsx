@@ -9,9 +9,19 @@ import type {
   getAthleteCompetitionResults,
 } from "@athleteiq/db/queries/competitions";
 import { daysUntil, toLocalDateString } from "@/lib/date";
+import {
+  competitionLastDate,
+  isCompetitionStage,
+  stagesForEntry,
+} from "@athleteiq/validators/competition";
+import { StageBadge } from "@/components/features/competitions/stage-badge";
 
-type CompetitionEntry = Awaited<ReturnType<typeof getAthleteCompetitionEntries>>[number];
-type CompetitionResult = Awaited<ReturnType<typeof getAthleteCompetitionResults>>[number];
+type CompetitionEntry = Awaited<
+  ReturnType<typeof getAthleteCompetitionEntries>
+>[number];
+type CompetitionResult = Awaited<
+  ReturnType<typeof getAthleteCompetitionResults>
+>[number];
 
 const LEVEL_LABELS: Record<string, string> = {
   international: "Uluslararası",
@@ -37,9 +47,13 @@ interface Props {
 // team_id'nin dolu olup olmadığı kullanılıyor (takım kapsamlı mı, bireysel mi).
 function scopeBadge(teamId: string | null | undefined) {
   return teamId ? (
-    <Badge variant="outline" className="text-xs">Takım</Badge>
+    <Badge variant="outline" className="text-xs">
+      Takım
+    </Badge>
   ) : (
-    <Badge variant="outline" className="text-xs">Bireysel</Badge>
+    <Badge variant="outline" className="text-xs">
+      Bireysel
+    </Badge>
   );
 }
 
@@ -49,6 +63,47 @@ function formatDate(dateStr: string) {
     month: "long",
     year: "numeric",
   });
+}
+
+// Sporcunun bu yarışmada yarıştığı aşamalar (yarışmada tanımlı olanlarla kesişim)
+function myStages(entry: CompetitionEntry) {
+  const comp = entry.competitions;
+  if (!comp) return [];
+  const defined = (comp.competition_stages ?? []).filter((st) =>
+    isCompetitionStage(st.stage)
+  );
+  const mine = stagesForEntry(
+    entry.stages,
+    defined.map((st) => st.stage).filter(isCompetitionStage)
+  );
+  return mine.map((stage) => ({
+    stage,
+    date:
+      defined.find((st) => st.stage === stage)?.stage_date ??
+      comp.competition_date,
+  }));
+}
+
+function EntryStages({ entry }: { entry: CompetitionEntry }) {
+  const stages = myStages(entry);
+  if (stages.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 pt-1">
+      {stages.map((st) => (
+        <StageBadge key={st.stage} stage={st.stage} date={st.date} />
+      ))}
+    </div>
+  );
+}
+
+// Final yarışma gününden sonraki bir güne düşebilir — son gün geçene kadar yaklaşan
+function lastDay(entry: CompetitionEntry): string | null {
+  const comp = entry.competitions;
+  if (!comp) return null;
+  return competitionLastDate(
+    comp.competition_date,
+    (comp.competition_stages ?? []).map((st) => st.stage_date)
+  );
 }
 
 export function AthleteCompetitionsClient({ entries, results }: Props) {
@@ -64,12 +119,14 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
       ),
     [entries]
   );
-  const upcoming = sortedEntries.filter(
-    (e) => e.competitions?.competition_date && e.competitions.competition_date >= today
-  );
-  const past = sortedEntries.filter(
-    (e) => !e.competitions?.competition_date || e.competitions.competition_date < today
-  );
+  const upcoming = sortedEntries.filter((e) => {
+    const d = lastDay(e);
+    return d != null && d >= today;
+  });
+  const past = sortedEntries.filter((e) => {
+    const d = lastDay(e);
+    return d == null || d < today;
+  });
 
   const featured = upcoming[0] ?? null;
   const rest = upcoming.slice(1);
@@ -91,7 +148,9 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
               key={t}
               onClick={() => setTab(t)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                tab === t ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"
+                tab === t
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {TAB_LABELS[t]}
@@ -121,12 +180,16 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
                           Sıradaki Müsabaka
                           {scopeBadge(featured.competitions.team_id)}
                         </div>
-                        <p className="mt-2 text-lg font-bold">{featured.competitions.name}</p>
+                        <p className="mt-2 text-lg font-bold">
+                          {featured.competitions.name}
+                        </p>
                         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
                           {featured.competitions.competition_date && (
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3.5 w-3.5" />
-                              {formatDate(featured.competitions.competition_date)}
+                              {formatDate(
+                                featured.competitions.competition_date
+                              )}
                             </span>
                           )}
                           {featured.competitions.location && (
@@ -136,13 +199,16 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
                             </span>
                           )}
                         </div>
+                        <EntryStages entry={featured} />
                       </div>
                       {featured.competitions.competition_date && (
                         <div className="text-center shrink-0">
                           <p className="text-3xl font-bold text-primary">
                             {daysUntil(featured.competitions.competition_date)}
                           </p>
-                          <p className="text-[10px] font-semibold uppercase text-muted-foreground">gün kaldı</p>
+                          <p className="text-[10px] font-semibold uppercase text-muted-foreground">
+                            gün kaldı
+                          </p>
                         </div>
                       )}
                     </div>
@@ -185,8 +251,11 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
                                 </span>
                               )}
                             </div>
+                            <EntryStages entry={entry} />
                             {entry.notes && (
-                              <p className="text-sm text-muted-foreground pt-1">{entry.notes}</p>
+                              <p className="text-sm text-muted-foreground pt-1">
+                                {entry.notes}
+                              </p>
                             )}
                           </div>
                           <Badge variant="default" className="shrink-0">
@@ -222,7 +291,9 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
                     <CardContent className="flex items-center justify-between gap-4 p-4">
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <p className="font-medium">{r.competitions?.name ?? "—"}</p>
+                          <p className="font-medium">
+                            {r.competitions?.name ?? "—"}
+                          </p>
                           {scopeBadge(r.competitions?.team_id)}
                         </div>
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
@@ -236,9 +307,13 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        {r.rank != null && <p className="text-sm font-bold">{r.rank}. sıra</p>}
+                        {r.rank != null && (
+                          <p className="text-sm font-bold">{r.rank}. sıra</p>
+                        )}
                         {r.score != null && (
-                          <p className="text-xs text-muted-foreground">{r.score} puan</p>
+                          <p className="text-xs text-muted-foreground">
+                            {r.score} puan
+                          </p>
                         )}
                         {r.rank == null && r.score == null && (
                           <p className="text-xs text-muted-foreground">—</p>
@@ -273,6 +348,7 @@ export function AthleteCompetitionsClient({ entries, results }: Props) {
                             {formatDate(comp.competition_date)}
                           </span>
                         )}
+                        <EntryStages entry={entry} />
                       </div>
                     </CardContent>
                   </Card>

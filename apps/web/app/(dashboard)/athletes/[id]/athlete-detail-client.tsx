@@ -27,6 +27,12 @@ import type {
 } from "@athleteiq/db/queries/exercises";
 import type { getAthleteCompetitionEntries } from "@athleteiq/db/queries/competitions";
 import { OneRmRecordsTab } from "./one-rm-records-tab";
+import {
+  competitionLastDate,
+  isCompetitionStage,
+  stagesForEntry,
+} from "@athleteiq/validators/competition";
+import { StageBadge } from "@/components/features/competitions/stage-badge";
 
 type Athlete = Tables<"athletes">;
 type CompetitionEntry = Awaited<ReturnType<typeof getAthleteCompetitionEntries>>[number];
@@ -323,8 +329,20 @@ export function AthleteDetailClient({
               {competitionEntries.map((entry) => {
                 const comp = entry.competitions;
                 if (!comp) return null;
-                const upcoming = comp.competition_date
-                  ? new Date(comp.competition_date) >= new Date(new Date().toDateString())
+                const defined = (comp.competition_stages ?? []).filter((st) =>
+                  isCompetitionStage(st.stage)
+                );
+                const stages = stagesForEntry(
+                  entry.stages,
+                  defined.map((st) => st.stage).filter(isCompetitionStage)
+                );
+                // Final yarışma gününden sonra olabilir — son gün geçene kadar yaklaşan
+                const lastDay = competitionLastDate(
+                  comp.competition_date,
+                  defined.map((st) => st.stage_date)
+                );
+                const upcoming = lastDay
+                  ? new Date(lastDay) >= new Date(new Date().toDateString())
                   : false;
                 return (
                   <li
@@ -339,6 +357,21 @@ export function AthleteDetailClient({
                           : ""}
                         {comp.location ? ` · ${comp.location}` : ""}
                       </p>
+                      {stages.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {stages.map((stage) => {
+                            const date =
+                              defined.find((st) => st.stage === stage)?.stage_date ?? null;
+                            return (
+                              <StageBadge
+                                key={stage}
+                                stage={stage}
+                                date={date && date !== comp.competition_date ? date : null}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                     {upcoming && (
                       <Badge variant="default" className="text-xs">

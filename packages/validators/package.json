@@ -23,7 +23,8 @@
     "./endurance": "./endurance.ts",
     "./program-copy": "./program-copy.ts",
     "./greeting": "./greeting.ts",
-    "./drill": "./drill.ts"
+    "./drill": "./drill.ts",
+    "./competition": "./competition.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

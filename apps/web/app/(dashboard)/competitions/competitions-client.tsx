@@ -4,11 +4,26 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Plus, Trophy, MapPin, Calendar, X, Pencil, Trash2, Users } from "lucide-react";
+import {
+  Plus,
+  Trophy,
+  MapPin,
+  Calendar,
+  X,
+  Pencil,
+  Trash2,
+  Users,
+  Flag,
+} from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@athleteiq/ui/components/card";
 import { Badge } from "@athleteiq/ui/components/badge";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
@@ -18,8 +33,25 @@ import {
   updateCompetition,
   deleteCompetition,
   syncCompetitionEntries,
+  syncCompetitionStages,
 } from "@athleteiq/db/queries/competitions";
 import type { Tables } from "@athleteiq/db/types";
+import {
+  COMPETITION_STAGES,
+  COMPETITION_STAGE_VALUES,
+  competitionLastDate,
+  isCompetitionStage,
+  isFinalStage,
+  stageLabel,
+  stageShort,
+  stagesForEntry,
+  type CompetitionStage,
+} from "@athleteiq/validators/competition";
+import {
+  StageBadge,
+  StageTag,
+  STAGE_TONE,
+} from "@/components/features/competitions/stage-badge";
 
 type Competition = Tables<"competitions"> & {
   competition_results: (Tables<"competition_results"> & {
@@ -28,7 +60,30 @@ type Competition = Tables<"competitions"> & {
   competition_entries: (Tables<"competition_entries"> & {
     athletes: { id: string; full_name: string; team_id: string | null } | null;
   })[];
+  competition_stages: Tables<"competition_stages">[];
 };
+
+type StageDraft = { enabled: boolean; date: string };
+type StageDrafts = Record<CompetitionStage, StageDraft>;
+
+function emptyStageDrafts(): StageDrafts {
+  return Object.fromEntries(
+    COMPETITION_STAGE_VALUES.map((s) => [s, { enabled: false, date: "" }])
+  ) as StageDrafts;
+}
+
+// DB satırlarından kanonik sırada, bilinen aşamalar
+function competitionStages(comp: Competition): Tables<"competition_stages">[] {
+  return COMPETITION_STAGE_VALUES.flatMap((v) =>
+    comp.competition_stages.filter((st) => st.stage === v)
+  );
+}
+
+function stageValuesOf(comp: Competition): CompetitionStage[] {
+  return competitionStages(comp)
+    .map((st) => st.stage)
+    .filter(isCompetitionStage);
+}
 type Team = { id: string; name: string };
 type AthleteOption = { id: string; full_name: string; team_id: string | null };
 
@@ -78,7 +133,9 @@ function AthleteChip({
       type="button"
       onClick={onToggle}
       className={`flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors ${
-        checked ? "border-primary bg-primary/10" : "border-input hover:bg-accent"
+        checked
+          ? "border-primary bg-primary/10"
+          : "border-input hover:bg-accent"
       }`}
     >
       <span
@@ -87,8 +144,18 @@ function AthleteChip({
         }`}
       >
         {checked && (
-          <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth={3}>
-            <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+          <svg
+            viewBox="0 0 24 24"
+            className="h-3 w-3"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={3}
+          >
+            <path
+              d="M5 13l4 4L19 7"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
           </svg>
         )}
       </span>
@@ -97,9 +164,46 @@ function AthleteChip({
   );
 }
 
+function CheckBox({ checked }: { checked: boolean }) {
+  return (
+    <span
+      className={`flex h-4 w-4 shrink-0 items-center justify-center rounded ${
+        checked ? "bg-primary text-primary-foreground" : "border border-input"
+      }`}
+    >
+      {checked && (
+        <svg
+          viewBox="0 0 24 24"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={3}
+        >
+          <path
+            d="M5 13l4 4L19 7"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      )}
+    </span>
+  );
+}
+
 function isUpcoming(dateStr: string | null): boolean {
   if (!dateStr) return false;
   return new Date(dateStr) >= new Date(new Date().toDateString());
+}
+
+// Finali yarışma tarihinden sonraki bir güne düşen yarışma, final bitene kadar
+// "yaklaşan" sayılır.
+function isCompetitionUpcoming(comp: Competition): boolean {
+  return isUpcoming(
+    competitionLastDate(
+      comp.competition_date,
+      comp.competition_stages.map((st) => st.stage_date)
+    )
+  );
 }
 
 export function CompetitionsClient({
@@ -108,13 +212,24 @@ export function CompetitionsClient({
   teams,
   athletes,
 }: Props) {
-  const [competitions, setCompetitions] = useState<Competition[]>(initialCompetitions);
+  const [competitions, setCompetitions] =
+    useState<Competition[]>(initialCompetitions);
   const [showForm, setShowForm] = useState(false);
   const [editTarget, setEditTarget] = useState<Competition | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Competition | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [filter, setFilter] = useState<"all" | "upcoming" | "past">("upcoming");
   const [selectedAthleteIds, setSelectedAthleteIds] = useState<string[]>([]);
+  const [stageDrafts, setStageDrafts] = useState<StageDrafts>(emptyStageDrafts);
+  const [athleteStages, setAthleteStages] = useState<
+    Record<string, CompetitionStage[]>
+  >({});
+
+  const enabledStages = COMPETITION_STAGE_VALUES.filter(
+    (s) => stageDrafts[s].enabled
+  );
+  const athleteName = (id: string) =>
+    athletes.find((a) => a.id === id)?.full_name ?? "—";
 
   const athletesByTeam = teams.map((team) => ({
     team,
@@ -122,18 +237,95 @@ export function CompetitionsClient({
   }));
   const unassignedAthletes = athletes.filter((a) => !a.team_id);
 
+  // Qualification tanımlıysa yeni eklenen sporcu varsayılan olarak orada yarışır
+  function seedQualification(ids: string[]) {
+    if (!stageDrafts.qualification.enabled) return;
+    setAthleteStages((prev) => {
+      const next = { ...prev };
+      for (const id of ids) if (!next[id]?.length) next[id] = ["qualification"];
+      return next;
+    });
+  }
+
   function toggleAthlete(athleteId: string) {
+    const adding = !selectedAthleteIds.includes(athleteId);
     setSelectedAthleteIds((prev) =>
-      prev.includes(athleteId) ? prev.filter((id) => id !== athleteId) : [...prev, athleteId]
+      prev.includes(athleteId)
+        ? prev.filter((id) => id !== athleteId)
+        : [...prev, athleteId]
     );
+    if (adding) seedQualification([athleteId]);
   }
 
   function selectAllInTeam(teamAthleteIds: string[]) {
-    setSelectedAthleteIds((prev) => Array.from(new Set([...prev, ...teamAthleteIds])));
+    setSelectedAthleteIds((prev) =>
+      Array.from(new Set([...prev, ...teamAthleteIds]))
+    );
+    seedQualification(
+      teamAthleteIds.filter((id) => !selectedAthleteIds.includes(id))
+    );
+  }
+
+  function toggleStage(stage: CompetitionStage) {
+    const enabling = !stageDrafts[stage].enabled;
+    setStageDrafts((prev) => ({
+      ...prev,
+      [stage]: { ...prev[stage], enabled: enabling },
+    }));
+    setAthleteStages((prev) => {
+      const next: Record<string, CompetitionStage[]> = {};
+      for (const id of selectedAthleteIds) {
+        const cur = prev[id] ?? [];
+        if (!enabling) next[id] = cur.filter((s) => s !== stage);
+        // Qualification'ı açmak kadronun tamamını oraya yazar; finaller elle işaretlenir
+        else if (stage === "qualification")
+          next[id] = cur.includes(stage) ? cur : [stage, ...cur];
+        else next[id] = cur;
+      }
+      return { ...prev, ...next };
+    });
+  }
+
+  function setStageDate(stage: CompetitionStage, date: string) {
+    setStageDrafts((prev) => ({ ...prev, [stage]: { ...prev[stage], date } }));
+  }
+
+  function hasStage(athleteId: string, stage: CompetitionStage) {
+    return (athleteStages[athleteId] ?? []).includes(stage);
+  }
+
+  function toggleAthleteStage(athleteId: string, stage: CompetitionStage) {
+    setAthleteStages((prev) => {
+      const cur = prev[athleteId] ?? [];
+      return {
+        ...prev,
+        [athleteId]: cur.includes(stage)
+          ? cur.filter((s) => s !== stage)
+          : [...cur, stage],
+      };
+    });
+  }
+
+  function toggleStageForAll(stage: CompetitionStage) {
+    const allHave = selectedAthleteIds.every((id) => hasStage(id, stage));
+    setAthleteStages((prev) => {
+      const next = { ...prev };
+      for (const id of selectedAthleteIds) {
+        const cur = next[id] ?? [];
+        next[id] = allHave
+          ? cur.filter((s) => s !== stage)
+          : cur.includes(stage)
+            ? cur
+            : [...cur, stage];
+      }
+      return next;
+    });
   }
 
   function clearTeam(teamAthleteIds: string[]) {
-    setSelectedAthleteIds((prev) => prev.filter((id) => !teamAthleteIds.includes(id)));
+    setSelectedAthleteIds((prev) =>
+      prev.filter((id) => !teamAthleteIds.includes(id))
+    );
   }
 
   const {
@@ -159,14 +351,38 @@ export function CompetitionsClient({
 
   function openCreateForm() {
     setEditTarget(null);
-    reset({ name: "", competition_date: "", location: "", level: undefined, team_id: "", notes: "" });
+    reset({
+      name: "",
+      competition_date: "",
+      location: "",
+      level: undefined,
+      team_id: "",
+      notes: "",
+    });
     setSelectedAthleteIds([]);
+    setStageDrafts(emptyStageDrafts());
+    setAthleteStages({});
     setShowForm(true);
   }
 
   function openEditForm(comp: Competition) {
     setEditTarget(comp);
     setSelectedAthleteIds(comp.competition_entries.map((e) => e.athlete_id));
+    const drafts = emptyStageDrafts();
+    for (const st of comp.competition_stages) {
+      if (isCompetitionStage(st.stage))
+        drafts[st.stage] = { enabled: true, date: st.stage_date ?? "" };
+    }
+    setStageDrafts(drafts);
+    const values = stageValuesOf(comp);
+    setAthleteStages(
+      Object.fromEntries(
+        comp.competition_entries.map((e) => [
+          e.athlete_id,
+          stagesForEntry(e.stages, values),
+        ])
+      )
+    );
     setShowForm(true);
   }
 
@@ -178,7 +394,10 @@ export function CompetitionsClient({
 
   // athletes prop'undan roster satırlarını yeniden inşa eder — competition_entries
   // tekrar fetch etmeden local state'i syncCompetitionEntries sonrasıyla tutarlı tutmak için.
-  function buildEntries(athleteIds: string[]): Competition["competition_entries"] {
+  function buildEntries(
+    athleteIds: string[],
+    stagesByAthlete: Record<string, string[]>
+  ): Competition["competition_entries"] {
     return athleteIds.map((athleteId) => {
       const athlete = athletes.find((a) => a.id === athleteId) ?? null;
       return {
@@ -187,6 +406,7 @@ export function CompetitionsClient({
         athlete_id: athleteId,
         notes: null,
         created_at: null,
+        stages: stagesByAthlete[athleteId] ?? [],
         athletes: athlete,
       } as Competition["competition_entries"][number];
     });
@@ -194,6 +414,17 @@ export function CompetitionsClient({
 
   async function onSubmit(data: CompetitionForm) {
     setSubmitError(null);
+    // Yalnızca tanımlı aşamalar yazılır — kapatılan aşamanın etiketi sporcudan da düşer
+    const stagesPayload = enabledStages.map((stage) => ({
+      stage,
+      stage_date: stageDrafts[stage].date || null,
+    }));
+    const stagesByAthlete: Record<string, string[]> = Object.fromEntries(
+      selectedAthleteIds.map((id) => [
+        id,
+        stagesForEntry(athleteStages[id], enabledStages),
+      ])
+    );
     try {
       const supabase = createClient();
       if (editTarget) {
@@ -205,15 +436,35 @@ export function CompetitionsClient({
           team_id: data.team_id || null,
           notes: data.notes ?? null,
         });
-        await syncCompetitionEntries(supabase, editTarget.id, selectedAthleteIds);
+        const savedStages = await syncCompetitionStages(
+          supabase,
+          editTarget.id,
+          stagesPayload
+        );
+        await syncCompetitionEntries(
+          supabase,
+          editTarget.id,
+          selectedAthleteIds,
+          stagesByAthlete
+        );
         setCompetitions((prev) =>
           prev
             .map((c) =>
               c.id === editTarget.id
-                ? { ...c, ...updated, competition_entries: buildEntries(selectedAthleteIds) }
+                ? {
+                    ...c,
+                    ...updated,
+                    competition_entries: buildEntries(
+                      selectedAthleteIds,
+                      stagesByAthlete
+                    ),
+                    competition_stages: savedStages,
+                  }
                 : c
             )
-            .sort((a, b) => ((a.competition_date ?? "") < (b.competition_date ?? "") ? -1 : 1))
+            .sort((a, b) =>
+              (a.competition_date ?? "") < (b.competition_date ?? "") ? -1 : 1
+            )
         );
         toast({ title: "Yarışma güncellendi" });
       } else {
@@ -226,14 +477,28 @@ export function CompetitionsClient({
           team_id: data.team_id || null,
           notes: data.notes ?? null,
         });
+        const savedStages = await syncCompetitionStages(
+          supabase,
+          newComp.id,
+          stagesPayload
+        );
         if (selectedAthleteIds.length > 0) {
-          await syncCompetitionEntries(supabase, newComp.id, selectedAthleteIds);
+          await syncCompetitionEntries(
+            supabase,
+            newComp.id,
+            selectedAthleteIds,
+            stagesByAthlete
+          );
         }
         // Fetch with results joined — competitions query returns base row, add empty results
         const compWithResults = {
           ...newComp,
           competition_results: [],
-          competition_entries: buildEntries(selectedAthleteIds),
+          competition_entries: buildEntries(
+            selectedAthleteIds,
+            stagesByAthlete
+          ),
+          competition_stages: savedStages,
         };
         setCompetitions((prev) =>
           [...prev, compWithResults as Competition].sort((a, b) =>
@@ -243,7 +508,11 @@ export function CompetitionsClient({
       }
       closeForm();
     } catch (err: unknown) {
-      setSubmitError(err instanceof Error ? err.message : "Yarışma kaydedilirken hata oluştu.");
+      setSubmitError(
+        err instanceof Error
+          ? err.message
+          : "Yarışma kaydedilirken hata oluştu."
+      );
     }
   }
 
@@ -266,12 +535,12 @@ export function CompetitionsClient({
   }
 
   const filtered = competitions.filter((c) => {
-    if (filter === "upcoming") return isUpcoming(c.competition_date);
-    if (filter === "past") return !isUpcoming(c.competition_date);
+    if (filter === "upcoming") return isCompetitionUpcoming(c);
+    if (filter === "past") return !isCompetitionUpcoming(c);
     return true;
   });
 
-  const upcomingCount = competitions.filter((c) => isUpcoming(c.competition_date)).length;
+  const upcomingCount = competitions.filter(isCompetitionUpcoming).length;
 
   return (
     <div className="space-y-6">
@@ -292,7 +561,9 @@ export function CompetitionsClient({
       {showForm && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{editTarget ? "Yarışmayı Düzenle" : "Yeni Yarışma"}</CardTitle>
+            <CardTitle className="text-base">
+              {editTarget ? "Yarışmayı Düzenle" : "Yeni Yarışma"}
+            </CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -305,15 +576,23 @@ export function CompetitionsClient({
                     placeholder="Örn: Türkiye Jimnastik Şampiyonası 2026"
                   />
                   {errors.name && (
-                    <p className="text-xs text-destructive">{errors.name.message}</p>
+                    <p className="text-xs text-destructive">
+                      {errors.name.message}
+                    </p>
                   )}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label htmlFor="comp-date">Tarih *</Label>
-                  <Input id="comp-date" type="date" {...register("competition_date")} />
+                  <Input
+                    id="comp-date"
+                    type="date"
+                    {...register("competition_date")}
+                  />
                   {errors.competition_date && (
-                    <p className="text-xs text-destructive">{errors.competition_date.message}</p>
+                    <p className="text-xs text-destructive">
+                      {errors.competition_date.message}
+                    </p>
                   )}
                 </div>
 
@@ -367,6 +646,59 @@ export function CompetitionsClient({
                 </div>
               </div>
 
+              {/* Yarışma aşamaları — cimnastikte Qualification + finaller AYNI yarışmanın
+                  parçası; ayrı yarışma kaydı açılmaz. Hiç seçilmezse aşama kavramı yok. */}
+              <div className="space-y-2 border-t pt-4">
+                <Label className="flex items-center gap-1.5">
+                  <Flag className="h-3.5 w-3.5" />
+                  Yarışma Aşamaları
+                  <span className="font-normal text-muted-foreground">
+                    (isteğe bağlı — cimnastik)
+                  </span>
+                </Label>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {COMPETITION_STAGES.map((st) => {
+                    const draft = stageDrafts[st.value];
+                    return (
+                      <div
+                        key={st.value}
+                        className={`flex min-h-11 items-center gap-2 rounded-lg border px-2.5 py-1.5 transition-colors ${
+                          draft.enabled
+                            ? "border-primary bg-primary/5"
+                            : "border-input"
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleStage(st.value)}
+                          aria-pressed={draft.enabled}
+                          className="flex flex-1 items-center gap-2 text-left text-sm"
+                        >
+                          <CheckBox checked={draft.enabled} />
+                          <span className="font-medium">{st.label}</span>
+                          <StageTag stage={st.value} />
+                        </button>
+                        {draft.enabled && (
+                          <Input
+                            type="date"
+                            value={draft.date}
+                            onChange={(e) =>
+                              setStageDate(st.value, e.target.value)
+                            }
+                            className="h-8 w-[9.5rem]"
+                            aria-label={`${st.label} tarihi`}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Aşama tarihi boş bırakılırsa yarışma tarihi kullanılır. Finale
+                  kalan sporcuları aşağıdaki aşama kadrosundan işaretleyin.
+                </p>
+              </div>
+
               {/* Katılımcı seçimi — her sporcu/takım her yarışmaya gitmez, bu yüzden
                   team_id alanı yalnızca gevşek bir ilişkilendirme; asıl "kim gidiyor"
                   kaydı burada, sporcu bazında. */}
@@ -379,43 +711,57 @@ export function CompetitionsClient({
                 </div>
                 <div className="max-h-56 overflow-y-auto rounded-md border p-3 space-y-3">
                   {athletes.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Henüz sporcu kaydı yok.</p>
+                    <p className="text-xs text-muted-foreground">
+                      Henüz sporcu kaydı yok.
+                    </p>
                   ) : (
                     <>
-                      {athletesByTeam.map(({ team, athletes: teamAthletes }) => {
-                        if (teamAthletes.length === 0) return null;
-                        const teamIds = teamAthletes.map((a) => a.id);
-                        const allSelected = teamIds.every((id) => selectedAthleteIds.includes(id));
-                        return (
-                          <div key={team.id}>
-                            <div className="flex items-center justify-between mb-1">
-                              <p className="text-xs font-medium text-muted-foreground">{team.name}</p>
-                              <button
-                                type="button"
-                                className="text-xs text-primary hover:underline"
-                                onClick={() =>
-                                  allSelected ? clearTeam(teamIds) : selectAllInTeam(teamIds)
-                                }
-                              >
-                                {allSelected ? "Takımı kaldır" : "Tüm takımı seç"}
-                              </button>
+                      {athletesByTeam.map(
+                        ({ team, athletes: teamAthletes }) => {
+                          if (teamAthletes.length === 0) return null;
+                          const teamIds = teamAthletes.map((a) => a.id);
+                          const allSelected = teamIds.every((id) =>
+                            selectedAthleteIds.includes(id)
+                          );
+                          return (
+                            <div key={team.id}>
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-medium text-muted-foreground">
+                                  {team.name}
+                                </p>
+                                <button
+                                  type="button"
+                                  className="text-xs text-primary hover:underline"
+                                  onClick={() =>
+                                    allSelected
+                                      ? clearTeam(teamIds)
+                                      : selectAllInTeam(teamIds)
+                                  }
+                                >
+                                  {allSelected
+                                    ? "Takımı kaldır"
+                                    : "Tüm takımı seç"}
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                {teamAthletes.map((a) => (
+                                  <AthleteChip
+                                    key={a.id}
+                                    name={a.full_name}
+                                    checked={selectedAthleteIds.includes(a.id)}
+                                    onToggle={() => toggleAthlete(a.id)}
+                                  />
+                                ))}
+                              </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {teamAthletes.map((a) => (
-                                <AthleteChip
-                                  key={a.id}
-                                  name={a.full_name}
-                                  checked={selectedAthleteIds.includes(a.id)}
-                                  onToggle={() => toggleAthlete(a.id)}
-                                />
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        }
+                      )}
                       {unassignedAthletes.length > 0 && (
                         <div>
-                          <p className="text-xs font-medium text-muted-foreground mb-1">Takımsız</p>
+                          <p className="text-xs font-medium text-muted-foreground mb-1">
+                            Takımsız
+                          </p>
                           <div className="grid grid-cols-2 gap-2">
                             {unassignedAthletes.map((a) => (
                               <AthleteChip
@@ -431,6 +777,92 @@ export function CompetitionsClient({
                     </>
                   )}
                 </div>
+
+                {enabledStages.length > 0 && selectedAthleteIds.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <Label className="flex items-center gap-1.5">
+                      <Flag className="h-3.5 w-3.5" />
+                      Aşama Kadrosu
+                    </Label>
+                    <div className="max-h-72 overflow-auto rounded-md border">
+                      <table className="w-full text-sm">
+                        <thead className="sticky top-0 z-10 bg-card">
+                          <tr className="border-b">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                              Sporcu
+                            </th>
+                            {enabledStages.map((stage) => {
+                              const count = selectedAthleteIds.filter((id) =>
+                                hasStage(id, stage)
+                              ).length;
+                              return (
+                                <th
+                                  key={stage}
+                                  className="px-2 py-2 text-center"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleStageForAll(stage)}
+                                    className={`inline-flex flex-col items-center rounded-md border px-2 py-1 text-xs font-medium hover:opacity-80 ${STAGE_TONE[stage]}`}
+                                    title={`${stageLabel(stage)} — tüm sporcuları seç / kaldır`}
+                                  >
+                                    <span className="whitespace-nowrap sm:hidden">
+                                      {stageShort(stage)}
+                                    </span>
+                                    <span className="hidden whitespace-nowrap sm:inline">
+                                      {stageLabel(stage)}
+                                    </span>
+                                    <span className="font-normal opacity-80 tabular-nums">
+                                      {count}/{selectedAthleteIds.length}
+                                    </span>
+                                  </button>
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {[...selectedAthleteIds]
+                            .sort((a, b) =>
+                              athleteName(a).localeCompare(
+                                athleteName(b),
+                                "tr-TR"
+                              )
+                            )
+                            .map((id) => (
+                              <tr key={id} className="border-b last:border-0">
+                                <td className="px-3 py-1.5 font-medium">
+                                  {athleteName(id)}
+                                </td>
+                                {enabledStages.map((stage) => (
+                                  <td
+                                    key={stage}
+                                    className="px-2 py-1.5 text-center"
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        toggleAthleteStage(id, stage)
+                                      }
+                                      aria-pressed={hasStage(id, stage)}
+                                      aria-label={`${athleteName(id)} — ${stageLabel(stage)}`}
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-md hover:bg-accent"
+                                    >
+                                      <CheckBox checked={hasStage(id, stage)} />
+                                    </button>
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Sütun başlığına tıklamak o aşamayı tüm sporculara
+                      işaretler / kaldırır.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {submitError && (
@@ -445,8 +877,8 @@ export function CompetitionsClient({
                   {isSubmitting
                     ? "Kaydediliyor..."
                     : editTarget
-                    ? "Kaydet"
-                    : "Yarışmayı Ekle"}
+                      ? "Kaydet"
+                      : "Yarışmayı Ekle"}
                 </Button>
               </div>
             </form>
@@ -479,32 +911,56 @@ export function CompetitionsClient({
             {filter === "upcoming"
               ? "Yaklaşan yarışma bulunmuyor."
               : filter === "past"
-              ? "Geçmiş yarışma bulunmuyor."
-              : "Henüz yarışma eklenmemiş."}
+                ? "Geçmiş yarışma bulunmuyor."
+                : "Henüz yarışma eklenmemiş."}
           </p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={openCreateForm}>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={openCreateForm}
+          >
             Yarışma Ekle
           </Button>
         </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((comp) => {
-            const upcoming = isUpcoming(comp.competition_date);
+            const upcoming = isCompetitionUpcoming(comp);
+            const stages = competitionStages(comp);
+            const stageValues = stageValuesOf(comp);
+            const entryStages = (
+              e: Competition["competition_entries"][number]
+            ) => stagesForEntry(e.stages, stageValues);
+            // Finalistler önce — çip listesi kısaltıldığında finale kalanlar görünür kalsın
+            const sortedEntries = [...comp.competition_entries].sort(
+              (a, b) =>
+                entryStages(b).filter(isFinalStage).length -
+                entryStages(a).filter(isFinalStage).length
+            );
             return (
-              <Card key={comp.id} className={upcoming ? "border-primary/30" : ""}>
+              <Card
+                key={comp.id}
+                className={upcoming ? "border-primary/30" : ""}
+              >
                 <CardContent className="pt-5">
                   <div className="flex items-start gap-4">
                     <div
                       className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg text-center ${
-                        upcoming ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                        upcoming
+                          ? "bg-primary/10 text-primary"
+                          : "bg-muted text-muted-foreground"
                       }`}
                     >
                       {comp.competition_date ? (
                         <>
                           <span className="text-xs font-medium">
-                            {new Date(comp.competition_date).toLocaleDateString("tr-TR", {
-                              month: "short",
-                            })}
+                            {new Date(comp.competition_date).toLocaleDateString(
+                              "tr-TR",
+                              {
+                                month: "short",
+                              }
+                            )}
                           </span>
                           <span className="text-lg font-bold leading-none">
                             {new Date(comp.competition_date).getDate()}
@@ -517,7 +973,9 @@ export function CompetitionsClient({
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <h3 className="font-semibold leading-tight">{comp.name}</h3>
+                        <h3 className="font-semibold leading-tight">
+                          {comp.name}
+                        </h3>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {upcoming && (
                             <Badge variant="default" className="text-xs">
@@ -527,7 +985,8 @@ export function CompetitionsClient({
                           {comp.level && (
                             <span
                               className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                LEVEL_COLORS[comp.level] ?? "bg-gray-100 text-gray-700"
+                                LEVEL_COLORS[comp.level] ??
+                                "bg-gray-100 text-gray-700"
                               }`}
                             >
                               {LEVEL_LABELS[comp.level] ?? comp.level}
@@ -554,12 +1013,15 @@ export function CompetitionsClient({
                         {comp.competition_date && (
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5" />
-                            {new Date(comp.competition_date).toLocaleDateString("tr-TR", {
-                              weekday: "long",
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
+                            {new Date(comp.competition_date).toLocaleDateString(
+                              "tr-TR",
+                              {
+                                weekday: "long",
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              }
+                            )}
                           </span>
                         )}
                         {comp.location && (
@@ -571,7 +1033,43 @@ export function CompetitionsClient({
                       </div>
 
                       {comp.notes && (
-                        <p className="mt-1.5 text-xs text-muted-foreground">{comp.notes}</p>
+                        <p className="mt-1.5 text-xs text-muted-foreground">
+                          {comp.notes}
+                        </p>
+                      )}
+
+                      {stages.length > 0 && (
+                        <div className="mt-2.5 flex flex-wrap gap-1.5">
+                          {stages.map((st) => {
+                            if (!isCompetitionStage(st.stage)) return null;
+                            const stage = st.stage;
+                            const inStage = comp.competition_entries.filter(
+                              (e) => entryStages(e).includes(stage)
+                            );
+                            return (
+                              <StageBadge
+                                key={st.id}
+                                stage={stage}
+                                date={
+                                  st.stage_date &&
+                                  st.stage_date !== comp.competition_date
+                                    ? st.stage_date
+                                    : null
+                                }
+                                extra={`${inStage.length} sporcu`}
+                                title={
+                                  inStage.length > 0
+                                    ? inStage
+                                        .map(
+                                          (e) => e.athletes?.full_name ?? "—"
+                                        )
+                                        .join(", ")
+                                    : undefined
+                                }
+                              />
+                            );
+                          })}
+                        </div>
                       )}
 
                       {comp.competition_entries.length > 0 && (
@@ -580,12 +1078,17 @@ export function CompetitionsClient({
                             <Users className="h-3 w-3" />
                             {comp.competition_entries.length} sporcu kayıtlı:
                           </span>
-                          {comp.competition_entries.slice(0, 6).map((e) => (
+                          {sortedEntries.slice(0, 6).map((e) => (
                             <span
                               key={e.id}
-                              className="rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs"
+                              className="inline-flex items-center gap-1 rounded-full bg-primary/10 text-primary px-2 py-0.5 text-xs"
                             >
                               {e.athletes?.full_name ?? "—"}
+                              {entryStages(e)
+                                .filter(isFinalStage)
+                                .map((stage) => (
+                                  <StageTag key={stage} stage={stage} />
+                                ))}
                             </span>
                           ))}
                           {comp.competition_entries.length > 6 && (

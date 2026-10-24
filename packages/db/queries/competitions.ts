@@ -5,7 +5,7 @@ export async function getCompetitions(client: DbClient, orgId: string) {
   const { data, error } = await client
     .from("competitions")
     .select(
-      `*, competition_results(*, athletes(full_name, avatar_url)), competition_entries(*, athletes(id, full_name, team_id))`
+      `*, competition_results(*, athletes(full_name, avatar_url)), competition_entries(*, athletes(id, full_name, team_id)), competition_stages(*)`
     )
     .eq("org_id", orgId)
     .order("competition_date", { ascending: true });
@@ -46,7 +46,10 @@ export async function updateCompetition(
   return data;
 }
 
-export async function deleteCompetition(client: DbClient, id: string): Promise<void> {
+export async function deleteCompetition(
+  client: DbClient,
+  id: string
+): Promise<void> {
   const { error } = await client.from("competitions").delete().eq("id", id);
   if (error) throw error;
 }
@@ -70,11 +73,17 @@ export async function addCompetitionResult(
  * athleteIds kümesine eşitler — mevcut satırlardan kümede olmayanlar silinir,
  * kümede olup mevcutta olmayanlar eklenir. competition_results (SONUÇ) ile
  * karıştırılmasın: bu, yarışma ÖNCESİ "kim gidiyor" kaydı.
+ *
+ * stagesByAthlete verilirse her sporcunun yarıştığı aşamalar
+ * (competition_entries.stages) da yazılır — mevcut sporcular dahil, böylece
+ * finale kalan sporcunun etiketi sonradan eklenebilir. Verilmezse aşamalara
+ * dokunulmaz (eski davranış).
  */
 export async function syncCompetitionEntries(
   client: DbClient,
   competitionId: string,
-  athleteIds: string[]
+  athleteIds: string[],
+  stagesByAthlete?: Record<string, string[]>
 ): Promise<void> {
   const { data: existing, error: fetchError } = await client
     .from("competition_entries")
@@ -100,27 +109,102 @@ export async function syncCompetitionEntries(
     if (error) throw error;
   }
 
+  if (stagesByAthlete) {
+    if (nextIds.size > 0) {
+      const { error } = await client.from("competition_entries").upsert(
+        [...nextIds].map((athlete_id) => ({
+          competition_id: competitionId,
+          athlete_id,
+          stages: stagesByAthlete[athlete_id] ?? [],
+        })),
+        { onConflict: "competition_id,athlete_id" }
+      );
+      if (error) throw error;
+    }
+    return;
+  }
+
   if (toAdd.length > 0) {
-    const { error } = await client
-      .from("competition_entries")
-      .insert(toAdd.map((athlete_id) => ({ competition_id: competitionId, athlete_id })));
+    const { error } = await client.from("competition_entries").insert(
+      toAdd.map((athlete_id) => ({
+        competition_id: competitionId,
+        athlete_id,
+      }))
+    );
     if (error) throw error;
   }
+}
+
+/**
+ * Yarışmanın aşamalarını (competition_stages) TAM OLARAK verilen listeye eşitler —
+ * listede olmayan aşamalar silinir, kalanlar (competition_id, stage) üzerinden
+ * upsert edilir. stage_date null = yarışma tarihiyle aynı gün.
+ */
+export async function syncCompetitionStages(
+  client: DbClient,
+  competitionId: string,
+  stages: { stage: string; stage_date: string | null }[]
+) {
+  const keep = stages.map((s) => s.stage);
+
+  let del = client
+    .from("competition_stages")
+    .delete()
+    .eq("competition_id", competitionId);
+  if (keep.length > 0) del = del.not("stage", "in", `(${keep.join(",")})`);
+  const { error: delError } = await del;
+  if (delError) throw delError;
+
+  if (stages.length === 0) return [];
+
+  const { data, error } = await client
+    .from("competition_stages")
+    .upsert(
+      stages.map((s) => ({
+        competition_id: competitionId,
+        stage: s.stage,
+        stage_date: s.stage_date,
+      })),
+      { onConflict: "competition_id,stage" }
+    )
+    .select();
+  if (error) throw error;
+  return data;
 }
 
 /**
  * Bir sporcunun kayıtlı olduğu yarışmaları (yaklaşan + geçmiş) döner —
  * sporcu detay sayfasında "Yarışmalar" sekmesi için.
  */
-export async function getAthleteCompetitionEntries(client: DbClient, athleteId: string) {
+export type AthleteCompetitionEntry = {
+  id: string;
+  notes: string | null;
+  stages: string[];
+  competitions: {
+    id: string;
+    name: string;
+    competition_date: string | null;
+    location: string | null;
+    level: string | null;
+    team_id: string | null;
+    competition_stages: { stage: string; stage_date: string | null }[];
+  } | null;
+};
+
+export async function getAthleteCompetitionEntries(
+  client: DbClient,
+  athleteId: string
+): Promise<AthleteCompetitionEntry[]> {
   const { data, error } = await client
     .from("competition_entries")
-    .select("id, notes, competitions(id, name, competition_date, location, level, team_id)")
+    .select(
+      "id, notes, stages, competitions(id, name, competition_date, location, level, team_id, competition_stages(stage, stage_date))"
+    )
     .eq("athlete_id", athleteId)
     .order("competitions(competition_date)", { ascending: true });
 
   if (error) throw error;
-  return data;
+  return (data ?? []) as AthleteCompetitionEntry[];
 }
 
 /**
@@ -128,7 +212,10 @@ export async function getAthleteCompetitionEntries(client: DbClient, athleteId: 
  * competition_entries'ten farklı, bkz. üstteki not). Sporcunun kendi "Müsabakalar"
  * ekranındaki "Sonuçlar" sekmesi için — gerçek rank/score, uydurulmuş veri yok.
  */
-export async function getAthleteCompetitionResults(client: DbClient, athleteId: string) {
+export async function getAthleteCompetitionResults(
+  client: DbClient,
+  athleteId: string
+) {
   const { data, error } = await client
     .from("competition_results")
     .select(
