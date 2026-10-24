@@ -6,7 +6,7 @@
 // yarışırlar. Aşamalar AYNI yarışmanın parçasıdır — ayrı yarışma kaydı açılmaz.
 //
 // DB ikizi: competition_stages.stage ve competition_entries.stages check
-// constraint'leri (20261024082212_competition_stages.sql). Biri değişirse diğeri
+// constraint'leri (20261024082932_competition_stages.sql). Biri değişirse diğeri
 // de değişmelidir.
 // =============================================
 

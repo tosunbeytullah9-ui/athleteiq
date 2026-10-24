@@ -159,6 +159,7 @@ AthleteIQ/
 │       ├── app/
 │       ├── components/
 │       ├── lib/
+│       ├── public/
 │       ├── .env.local
 │       ├── .env.local.testcheck
 │       ├── eslint.config.mjs
@@ -199,6 +200,8 @@ AthleteIQ/
 │       ├── attendance.ts
 │       ├── auth.test.ts
 │       ├── auth.ts
+│       ├── competition.test.ts
+│       ├── competition.ts
 │       ├── csv.test.ts
 │       ├── csv.ts
 │       ├── drill.test.ts
@@ -228,6 +231,13 @@ AthleteIQ/
 ├── patches/
 │   └── react-native-css-interop@0.2.6.patch
 ├── scripts/
+│   ├── landing/
+│   │   ├── lib/
+│   │   ├── backgrounds.json
+│   │   ├── capture.mjs
+│   │   ├── demo-seed.mjs
+│   │   ├── fetch-backgrounds.mjs
+│   │   └── record-replicas.mjs
 │   ├── security/
 │   │   └── check-metadata-escalation.mjs
 │   ├── docs-sync.mjs
@@ -315,7 +325,9 @@ AthleteIQ/
 │   │   ├── 20261002113316_endurance_sessions_and_block_copy.sql
 │   │   ├── 20261002113426_endurance_recovery_target.sql
 │   │   ├── 20261002113543_week_number_allow_53.sql
-│   │   └── 20261005122102_drill_diagrams.sql
+│   │   ├── 20261005122102_drill_diagrams.sql
+│   │   ├── 20261023115038_exercise_1rm_ratios_isportsi.sql
+│   │   └── 20261024082932_competition_stages.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -359,8 +371,9 @@ AthleteIQ/
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
 - **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo vb. (001_schema.sql). ÜÇ AYRI KAVRAM karıştırılmasın (20260922084236_position_vs_training_group.sql): BRANŞ sporcuda TUTULMAZ, teams.discipline'dan türetilir (tek kaynak); position = MEVKİ (Tight End, RB — serbest metin, bilgi amaçlı); training_group = ANTRENMAN GRUBU (Hücum Hattı, Skill), program görünürlüğünü RLS düzeyinde daraltan tek alan.
 - **attendance_records** — Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).
-- **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql).
+- **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql). stages = sporcunun yarıştığı aşamalar (qualification / apparatus_final / team_final / all_around_final); boş dizi = yarışmada aşama kavramı yok (20261024082932_competition_stages.sql).
 - **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
+- **competition_stages** — Cimnastik (FIG) yarışmasının aşamaları — Qualification, Apparatus Final, Team Final, All-Around Final — ve her aşamanın günü (stage_date NULL = yarışma tarihi). Aşamalar AYNI yarışmanın parçasıdır, ayrı yarışma kaydı açılmaz; finale kalan sporcu competition_entries.stages ile işaretlenir. RLS competition_entries ile birebir (20261024082932_competition_stages.sql).
 - **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
 - **drill_diagrams** — Hız/hızlanma/çeviklik drill'i için koni yerleşimi + rota diyagramı (koniler, hareket tipine göre çizilen rota bölümleri — sprint/geri koşu/shuffle/carioca/çapraz adım/hafif koşu —, koni etrafı dönüşler, etiketler); birim drill bazında (m/yd). Bir org egzersizine 1:1 bağlıdır, programda egzersiz ADINDAN çözülür (demo linki ile aynı model). Yalnızca koç/admin okur/yazar — sporcu görünürlüğü YOK; jsonb şekli packages/validators/drill.ts'te doğrulanır (20261005122102_drill_diagrams.sql).
 - **exercise_1rm_ratios** — Egzersizler arası bilinen 1RM oran ilişkisi (örn. Front Squat = Back Squat * 0.85); platform geneli, super admin panelinden yönetilir, sporcunun türetilen egzersizde doğrudan kaydı yoksa %1RM çözümlemesinde sessiz fallback olarak kullanılır (20260914075144_exercise_1rm_ratios.sql).
@@ -393,7 +406,7 @@ AthleteIQ/
 
 ## 4. ROW LEVEL SECURITY (ÇEKİRDEK TABLOLAR)
 
-> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) `competition_entries` (20260909070021) ve `drill_diagrams` (20261005122102 — sporcu dalı YOK) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
+> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) `competition_entries` (20260909070021), `competition_stages` (20261024082932) ve `drill_diagrams` (20261005122102 — sporcu dalı YOK) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
 
 ```sql
 -- =============================================
@@ -1921,7 +1934,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-10-05
+Son otomatik senkron: 2026-10-24
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -1997,6 +2010,8 @@ Son otomatik senkron: 2026-10-05
 - 20261002113426_endurance_recovery_target.sql
 - 20261002113543_week_number_allow_53.sql
 - 20261005122102_drill_diagrams.sql
+- 20261023115038_exercise_1rm_ratios_isportsi.sql
+- 20261024082932_competition_stages.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -2096,7 +2111,7 @@ Son otomatik senkron: 2026-10-05
   Eksiklikler §3'e kadar bu akış yalnızca mobile'da vardı; web athlete guard'ı hem
   `middleware.ts` hem `(dashboard)/layout.tsx`'te `/wellness`'e izin verecek şekilde
   genişletildi)
-- ✅ Yarışma: ekleme + listeleme + sporcu bazlı katılımcı (roster) seçimi — `competition_entries` tablosu, her yarışmaya yalnızca seçilen sporcular kayıtlı (2026-09-09). Sporcu web'de `/competitions`'ta kendi kayıtlı olduğu yarışmaları salt-okunur görür (2026-09-11).
+- ✅ Yarışma: ekleme + listeleme + sporcu bazlı katılımcı (roster) seçimi — `competition_entries` tablosu, her yarışmaya yalnızca seçilen sporcular kayıtlı (2026-09-09). Sporcu web'de `/competitions`'ta kendi kayıtlı olduğu yarışmaları salt-okunur görür (2026-09-11). **Cimnastik yarışma aşamaları (2026-10-24):** aynı yarışmanın Qualification / Apparatus Final / Team Final / All-Around Final aşamaları tek kayıtta tutulur — her aşamanın kendi günü olabilir (`competition_stages`), finale kalan sporcu yarışma formundaki "Aşama Kadrosu"ndan işaretlenir (`competition_entries.stages`). Yarışma kartı, sporcunun Müsabakalar ekranı ve sporcu detayı aşama rozetlerini gösterir; yarışma son final gününe kadar "yaklaşan" sayılır. Aşama seçilmeyen yarışmalar (Amerikan futbolu vb.) eskisi gibi çalışır. Kapsam dışı: hangi alet finali olduğu (yer, atlama…), aşama bazlı sonuç girişi, mobil görünüm.
 - ✅ Test sonuçları: ekleme + listeleme
 - ✅ Wearable altyapısı: tablolar + token saklama + normalize şema
 - ✅ WHOOP entegrasyonu (2026-09-11, CANLI 2026-09-13) — OAuth bağlanma (mobil + web, ikisi

@@ -1,4 +1,4 @@
--- 20261024082212_competition_stages.sql — yarışma aşamaları (cimnastik / FIG yapısı)
+-- 20261024082932_competition_stages.sql — yarışma aşamaları (cimnastik / FIG yapısı)
 --
 -- Cimnastikte sporcular önce Qualification'da yarışır; finale kalırlarsa AYNI
 -- yarışmanın Apparatus / Team / All-Around finallerinde de yarışır. Bugüne kadar
