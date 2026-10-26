@@ -173,6 +173,10 @@ AthleteIQ/
 │       ├── postcss.config.mjs
 │       ├── tsconfig.json
 │       └── tsconfig.tsbuildinfo
+├── docs/
+│   └── app-store/
+│       ├── review-notes.md
+│       └── submission-checklist.md
 ├── packages/
 │   ├── db/
 │   │   ├── queries/
