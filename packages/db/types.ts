@@ -20,6 +20,7 @@ export type Database = {
           display_name: string | null
           due_at: string
           id: string
+          notified_at: string | null
           org_id: string
           processed_at: string | null
           processed_by: string | null
@@ -35,6 +36,7 @@ export type Database = {
           display_name?: string | null
           due_at: string
           id?: string
+          notified_at?: string | null
           org_id: string
           processed_at?: string | null
           processed_by?: string | null
@@ -50,6 +52,7 @@ export type Database = {
           display_name?: string | null
           due_at?: string
           id?: string
+          notified_at?: string | null
           org_id?: string
           processed_at?: string | null
           processed_by?: string | null
@@ -2266,6 +2269,7 @@ export type Database = {
           display_name: string | null
           due_at: string
           id: string
+          notified_at: string | null
           org_id: string
           processed_at: string | null
           processed_by: string | null
@@ -2391,6 +2395,7 @@ export type Database = {
           display_name: string | null
           due_at: string
           id: string
+          notified_at: string | null
           org_id: string
           processed_at: string | null
           processed_by: string | null
@@ -2419,6 +2424,7 @@ export type Database = {
           display_name: string | null
           due_at: string
           id: string
+          notified_at: string | null
           org_id: string
           processed_at: string | null
           processed_by: string | null

@@ -844,6 +844,78 @@ getirildi. Uygulama kodu, migration ve yeni bağımlılık YOK.
 8. WHOOP "Bağlantıyı Kes" sahte token'la **çökmüyor** (WHOOP 401 döner, yutulur); bağlantı
    pasife düşer ve Recovery "bağlı değil"e geçer. Yeniden seed bunu düzeltir.
 
+### Parti 18B-ek — Silme Talebi Bildirimi + Lansman Öncesi Güvenlik Temizliği ✅ (2026-10-26)
+
+#### Faz 1 bulguları (canlı DB, salt-okunur)
+- `pg_default_acl`: postgres/public fonksiyon satırı `{postgres, anon, authenticated, service_role}=X`;
+  global satır yok → yerleşik `PUBLIC=X`. Yeni bir public fonksiyonu iki kanaldan anon EXECUTE alıyor.
+  Migration rolü `postgres`.
+- anon'un EXECUTE edebildiği public fonksiyonları: 2 SECURITY DEFINER (`create_program_with_weeks`,
+  `update_program_week` — eski imzalı overload YOK), 2 saf SQL INVOKER (`tr_fold`,
+  `matches_training_group`), 5 trigger fonksiyonu. Kodda hiçbiri anon istemciden çağrılmıyor.
+- `can_access_annual_plan`: SECURITY DEFINER SQL, `search_path` sabit değil, gövde nitelikli DEĞİL
+  (`annual_plans`, `athletes`, `my_role`…); 4 `annual_plan_weeks/cells` politikasında kullanılıyor.
+- postgres'in CREATE yetkisi olan şemalar: public, `extensions` (49 fonksiyon — pgcrypto,
+  uuid-ossp, pg_stat_statements), `supabase_migrations` (0).
+- Edge secret'ları: `RESEND_API_KEY` VAR; `ACCOUNT_DELETION_NOTIFY_EMAIL`, `ACCOUNT_DELETION_FROM_EMAIL`,
+  `APP_SITE_URL` YOK.
+- Mobil: `tsc` tek hata `[day].tsx:71` (`getActiveProgramId` `teamId: string`); expo-doctor 4/18
+  başarısız (`expo-font` peer eksik + bilinçli metro symlink + `@types/react-native` + küçük sürüm
+  farkları — son ikisi kapsam dışı).
+
+#### Değişiklikler
+- `supabase/migrations/20261026201410_function_default_privileges_hardening.sql` (MCP sürümüyle
+  hizalandı) — postgres/public varsayılanından
+  anon revoke, GLOBAL PUBLIC revoke, `extensions` + `supabase_migrations` için PUBLIC'e şema bazında
+  geri verme, iki RPC'den anon/PUBLIC revoke (authenticated korunur), `can_access_annual_plan`
+  `public.` nitelemesiyle yeniden yazılıp `set search_path = ''` (mantık birebir aynı).
+- `supabase/migrations/20261026201424_account_deletion_requests_notified_at.sql` — `notified_at
+  timestamptz`. `packages/db/types.ts` regenerate (`supabase gen types --linked --schema public`,
+  yalnızca ekleme: tablo Row/Insert/Update + tablo satırı döndüren 3 RPC'nin Returns'ü).
+- `supabase/functions/notify-account-deletion` (`verify_jwt = true`, config.toml'a eklendi) —
+  girdi yok, yalnızca çağıranın `pending` + `notified_at is null` talebi; Resend REST (`fetch`);
+  e-postada yalnızca kurum, rol, talep/son tarih, `{APP_SITE_URL}/settings/users`; sonuç kodları
+  `nothing_to_notify` / `not_configured` / `send_failed` / `notified: true`; loglarda yalnızca
+  talep id + sonuç.
+- Mobil: `AccountDeletionSection.tsx` talep başarılı olunca fire-and-forget `functions.invoke`;
+  `expo-font ~14.0.12` (`expo install` — `app.json` plugin listesine `expo-font` eklendi);
+  `getActiveProgramId` `teamId: string | null` (yalnızca tip, BUGS.md'de gizli hata notu).
+- CLAUDE.md: §1 Expo SDK 54, §4.1 imza değişikliği / default privileges kuralı, §4.3 bildirim
+  adımı, §11 Edge Function listesi. BUGS.md: kök neden kaydı + `getActiveProgramId` notu.
+
+#### Doğrulama (canlı)
+| # | Senaryo | Beklenen | Gerçek |
+|---|---|---|---|
+| 1 | `__acl_probe` (ROLLBACK): yeni public fonksiyon anon / authenticated, yeni extensions fonksiyonu anon | false / true / true | ✓ false / true / true (public ACL `{postgres, authenticated, service_role}`) |
+| 2 | İki RPC: anon / authenticated EXECUTE | false / true | ✓; anon çağrısı 42501 ×2 |
+| 3 | Koç kimliğiyle (ROLLBACK, `set local role authenticated` + JWT claim) `create_program_with_weeks` 2 hafta → `update_program_week` | başarılı | ✓ blok + 2 hafta, güncelleme 1 satır; sonrasında `P18BEK%` 0 satır |
+| 4 | `can_access_annual_plan` koç: kendi takımının planı / başka takım | true / false | ✓ |
+| 5 | Advisors (security) | anon SECURITY DEFINER 0; search_path yalnızca tr_fold, matches_training_group | ✓ (kalan: 17 authenticated WARN — tasarım gereği; leaked password protection) |
+| 6 | notify: anon key ile çağrı | 401 | ✓ |
+| 7 | notify: talep yokken | `nothing_to_notify` | ✓ |
+| 8 | notify: B, A'nın açık talebi varken | `nothing_to_notify` | ✓ |
+| 9 | notify: A, secret yokken (`ACCOUNT_DELETION_NOTIFY_EMAIL` girilmedi) | `not_configured`, `notified_at` NULL, talep pending | ✓ |
+| 10 | Temizlik | kalan auth / üyelik / talep 0 | ✓ 0 / 0 / 0 |
+
+Gerçek gönderim (`notified: true` → `notified_at` dolu → ikinci çağrı `nothing_to_notify`) secret
+girilmediği için TEST EDİLEMEDİ — bkz. manuel aksiyon. Edge Function `verify_jwt: true` ile deploy
+edildi (v1). Yerel: web type-check ✓, lint 0 hata ✓, build ✓; mobil `tsc --noEmit` 0 hata ✓,
+lint ✓, expo-doctor 15/18 (`expo-font` uyarısı kapandı; kalan 3 kapsam dışı). Mobil arayüz cihazda
+elle tıklanarak DOĞRULANMADI.
+
+#### MANUEL AKSİYON GEREKLİ
+- `supabase secrets set ACCOUNT_DELETION_NOTIFY_EMAIL=... APP_SITE_URL=... --project-ref nlmwcygmbbxmfpsubvmh`
+  (`RESEND_API_KEY` zaten var).
+- Resend test göndericisi (`onboarding@resend.dev`) yalnızca Resend hesabının sahibine gönderir;
+  alıcı farklıysa alan adı doğrulanıp `ACCOUNT_DELETION_FROM_EMAIL` ayarlanmalı.
+- Supabase Dashboard → Authentication → şifre güvenliği: **leaked password protection** kapalı
+  (advisor WARN) — açılmalı (plana bağlıysa panel söyler).
+
+#### 18D'ye not
+- `scripts/landing/demo-seed.mjs` `reset()` içindeki "created_by/coach_replied_by NO ACTION
+  FK'leri" yorumu artık yanlış — `20261026185415_auth_user_fk_set_null.sql` hepsini SET NULL yaptı
+  (bu dosya 18D'nin, burada dokunulmadı).
+
 ### Parti 18B — Uygulama İçi Hesap Silme Talebi ✅ (2026-10-26)
 
 #### Kapsam

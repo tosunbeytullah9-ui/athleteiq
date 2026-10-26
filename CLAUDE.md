@@ -56,7 +56,7 @@ Recharts (grafikler)
 
 ### Mobile (Sporcu Uygulaması)
 ```
-Expo SDK 53
+Expo SDK 54
 React Native
 Expo Router (file-based routing)
 NativeWind (Tailwind for RN)
@@ -272,6 +272,7 @@ AthleteIQ/
 │   │   ├── delete-org-user/
 │   │   ├── grant-athlete-access/
 │   │   ├── invite-member/
+│   │   ├── notify-account-deletion/
 │   │   ├── process-account-deletion/
 │   │   ├── reset-athlete-password/
 │   │   ├── reset-user-password/
@@ -344,7 +345,9 @@ AthleteIQ/
 │   │   ├── 20261023152441_org_slug_lock.sql
 │   │   ├── 20261024082932_competition_stages.sql
 │   │   ├── 20261026185415_auth_user_fk_set_null.sql
-│   │   └── 20261026185610_account_deletion_requests.sql
+│   │   ├── 20261026185610_account_deletion_requests.sql
+│   │   ├── 20261026201410_function_default_privileges_hardening.sql
+│   │   └── 20261026201424_account_deletion_requests_notified_at.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -378,7 +381,7 @@ AthleteIQ/
 > Tam DDL için `supabase/migrations/`, kolon tipleri için `packages/db/types.ts` bakın. Aşağıdaki liste her tablonun amacını özetler; açıklamalar `scripts/table-descriptions.json`'dan gelir ve `pnpm docs:sync` ile güncellenir.
 
 <!-- AUTO-GENERATED:SCHEMA:START -->
-- **account_deletion_requests** — Uygulama içinden başlatılan hesap silme talebi (App Store 5.1.1(v) + KVKK m.11/13): kişi (sporcu/koç/admin) mobil profilden talep eder, kişi başına tek açık talep, due_at = +30 gün. Yalnızca kişinin kendisi, o org'un admin'i ve süper admin görür; yazma politikası YOK — request/cancel/reject RPC'leri ve process-account-deletion Edge Function yazar. Tamamlanınca kişinin athletes satırı (21 tablo CASCADE) ve auth.users silinir, talepteki ad/kullanıcı adı/not NULL'lanır (20261026185610_account_deletion_requests.sql, Parti 18B).
+- **account_deletion_requests** — Uygulama içinden başlatılan hesap silme talebi (App Store 5.1.1(v) + KVKK m.11/13): kişi (sporcu/koç/admin) mobil profilden talep eder, kişi başına tek açık talep, due_at = +30 gün. Yalnızca kişinin kendisi, o org'un admin'i ve süper admin görür; yazma politikası YOK — request/cancel/reject RPC'leri ve process-account-deletion Edge Function yazar. Tamamlanınca kişinin athletes satırı (21 tablo CASCADE) ve auth.users silinir, talepteki ad/kullanıcı adı/not NULL'lanır (20261026185610_account_deletion_requests.sql, Parti 18B). notified_at = yeni talep e-postasının platform sahibine gönderildiği an (notify-account-deletion, Parti 18B-ek).
 - **acwr_logs** — sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql). source kolonu satırın kaynağını damgalar: 'manual' = koçun /acwr formundan elle girdiği, 'athlete_feedback' = session_feedback'ten otomatik türetilmiş (Parti 22-FB).
 - **annual_plan_cells** — Yıllık plan ızgarasının gövdesi: (plan × hafta × antrenman sistemi) → o hafta kaç seans. SEYREK — yalnızca sessions >= 1 olan hücreler satır tutar, sıfıra düşen hücre silinir (52 hafta × 11 sistem = 572 satırlık yoğun ızgara materyalize edilmez) (20260921081206_annual_plans.sql, Parti 23-YP).
 - **annual_plan_methods** — Organizasyona özel, düzenlenebilir antrenman sistemi listesi (Contrast Training, Hipertrofi, Max, Deload, Aerobik/Anaerobik Dayanıklılık, Hız/Çeviklik vb.) — yıllık plan ızgarasının SATIR başlıkları. org_exercises deseni: platform varsayılanı ilk plan oluşturulurken tohumlanır, sonrasında org kendi branşına göre düzenler. Silmek yerine is_active=false kullanılır, çünkü silme annual_plan_cells'i cascade ile götürür (20260921081206_annual_plans.sql, Parti 23-YP).
@@ -571,6 +574,22 @@ politikaları içinden çağrıldığı için `authenticated` yetkileri ASLA kal
 `copy_program_tree` ve `get_athlete_programs`'ın bu kuralı atladığı, ikisinin de gerçek
 cross-tenant açık olduğu bulundu ve kapatıldı — bkz. PROGRESS.md § Parti 18-S, BUGS.md Kritik.)
 
+**Bir fonksiyonun imzasını değiştirmek (parametre eklemek/çıkarmak) Postgres'te YENİ bir
+fonksiyon oluşturur ve eski fonksiyonun grant/revoke ayarları taşınmaz.** 20261026 itibarıyla
+public şemasındaki yeni fonksiyonlar anon/PUBLIC'e varsayılan EXECUTE almıyor (default
+privileges, `function_default_privileges_hardening` migration'ı — Parti 18B-ek); authenticated'a
+hâlâ alıyor — dahili helper'lardan authenticated'ı da elle kaldırın. Kök neden:
+`create_program_with_weeks` / `update_program_week`'ten Parti 18-S'te kaldırılan anon EXECUTE,
+imzalarına `p_discipline` / `p_training_group` eklenince geri gelmişti. PUBLIC'in EXECUTE hakkı
+yalnızca GLOBAL olarak kaldırılabildiği için (şema bazlı varsayılanlar global olana yalnızca
+eklenir) `extensions` ve `supabase_migrations` şemalarında PUBLIC'e varsayılan EXECUTE şema
+bazında geri verildi; postgres'in ileride oluşturacağı YENİ bir şemada fonksiyonlar varsayılan
+olarak PUBLIC'e açık OLMAZ. `supabase_admin` rolünün varsayılanlarına dokunulmadı.
+SECURITY DEFINER SQL fonksiyonlarında `set search_path = ''` + gövdede `public.` nitelemesi
+zorunludur (`can_access_annual_plan` 18B-ek'te düzeltildi); SECURITY INVOKER, saf SQL ve RLS
+içinde satır başına çağrılan `tr_fold` / `matches_training_group` bilinçli olarak muaf —
+`SET search_path` inline edilmelerini engeller.
+
 `20260818073627_parti_18s_secure_definer_functions.sql` zaman damgalı adlandırma kullanır
 (diğerleri `034`–`037` sıralıdır). MCP ile doğrudan uygulandığı için sürüm otomatik atanmıştır
 ve `schema_migrations` kaydıyla eşleşmesi zorunlu olduğundan yeniden adlandırılamaz. Bundan
@@ -694,6 +713,15 @@ korunacak, yazarı boşalacak içeriği) silmeden ÖNCE görür, kullanıcı ad�
 (`reject_account_deletion_request()`, not zorunlu, kişi notu mobilde görür). Kişi beklerken
 `cancel_account_deletion_request()` ile geri alabilir. Tabloda INSERT/UPDATE/DELETE politikası
 yok; tüm yazmalar bu 3 RPC + Edge Function'dan.
+**Yeni talep bildirimi (Parti 18B-ek):** talep başarıyla oluşturulunca mobil
+`notify-account-deletion` Edge Function'ını (`verify_jwt: true`, girdi yok) fire-and-forget
+çağırır — sonucu beklenmez, hatası gösterilmez, talep akışını etkilemez. Fonksiyon yalnızca
+ÇAĞIRANIN kendi `pending` + `notified_at is null` talebini arar (başkasınınkini tetikleyemez),
+Resend REST API ile platform sahibine (`ACCOUNT_DELETION_NOTIFY_EMAIL` — koç/sporcu e-postaları
+sentetik olduğu için org admin'ine DEĞİL) e-posta atar ve başarılıysa `notified_at`'i doldurur
+(ikinci çağrı `nothing_to_notify`). E-postada yalnızca kurum adı, rol, talep tarihi, son tarih
+ve `{APP_SITE_URL}/settings/users` bağlantısı var — **ad, kullanıcı adı, talep notu YOK**;
+loglarda yalnızca talep id'si + sonuç kodu. Secret yoksa `not_configured` döner.
 **`delete-org-user` ile farkı:** `delete-org-user` yalnızca **giriş erişimini kaldırır**
 (`athletes.user_id` SET NULL — roster ve tüm sağlık/antrenman verisi kalır).
 `process-account-deletion` **kişiyi ve verisini siler**: kişinin `athletes` satırı varsa
@@ -2086,6 +2114,8 @@ Son otomatik senkron: 2026-10-26
 - 20261024082932_competition_stages.sql
 - 20261026185415_auth_user_fk_set_null.sql
 - 20261026185610_account_deletion_requests.sql
+- 20261026201410_function_default_privileges_hardening.sql
+- 20261026201424_account_deletion_requests_notified_at.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -2099,6 +2129,7 @@ Son otomatik senkron: 2026-10-26
   - `update-org-user` — yeni (2026-09-09), ACTIVE — ad/kullanıcı adı düzenler, username değişirse `auth.users.email`'i senkron günceller (bkz. §4.3)
   - `delete-org-user` — yeni (2026-09-09), ACTIVE — kullanıcı silme, `auth.users` cascade'iyle memberships/profiles otomatik temizlenir (Parti 18B'den beri audit FK'leri SET NULL olduğu için aktif kullanıcılarda da çalışır)
   - `process-account-deletion` — yeni (Parti 18B, 2026-10-26), ACTIVE, `verify_jwt: true` — hesap silme talebini tamamlar: athletes satırı (21 tablo CASCADE) + auth.users, bkz. §4.3
+  - `notify-account-deletion` — yeni (Parti 18B-ek, 2026-10-26), `verify_jwt: true` — yeni silme talebini platform sahibine e-postayla bildirir (`notified_at`), bkz. §4.3
   - `whoop-webhook` — ACTIVE, v8 (2026-09-13) — gerçek senkron mantığı devrede + tekil workout senkronu, bkz. §6 Agent 5
   - `polar-sync` — **YOK** (bu listede önceden "ACTIVE" yazıyordu, bu YANLIŞTI — dosya hiç
     oluşturulmamış, `list_edge_functions` ile 2026-09-11'de doğrulandı; Polar entegrasyonu

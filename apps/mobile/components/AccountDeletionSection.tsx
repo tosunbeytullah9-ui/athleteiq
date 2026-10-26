@@ -77,6 +77,9 @@ export function AccountDeletionSection({ isStaff }: { isStaff: boolean }) {
           setBusy(true);
           try {
             setLatest(await requestAccountDeletion(supabase));
+            // Platform sahibine e-posta bildirimi (notify-account-deletion) — fire-and-forget:
+            // beklenmez, hatası gösterilmez, talep akışını etkilemez. Fonksiyon idempotent.
+            supabase.functions.invoke("notify-account-deletion").catch(() => {});
           } catch (err) {
             Alert.alert("Talep oluşturulamadı", errorMessage(err));
           } finally {

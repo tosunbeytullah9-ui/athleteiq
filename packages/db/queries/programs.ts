@@ -138,7 +138,8 @@ export async function updateProgram(
 /** Sporcunun/takımının en güncel yayınlanmış programının id'si — mobil program/[day] akışlarının paylaşılan ilk aşaması. */
 export async function getActiveProgramId(
   client: DbClient,
-  params: { athleteId: string; teamId: string }
+  // teamId null olabilir (athletes.team_id nullable) — bkz. BUGS.md "getActiveProgramId takımsız sporcu".
+  params: { athleteId: string; teamId: string | null }
 ): Promise<string | null> {
   const { data, error } = await client
     .from("training_programs")

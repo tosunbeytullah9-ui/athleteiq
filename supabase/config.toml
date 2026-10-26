@@ -40,3 +40,6 @@ verify_jwt = true
 
 [functions.whoop-webhook]
 verify_jwt = false
+
+[functions.notify-account-deletion]
+verify_jwt = true
