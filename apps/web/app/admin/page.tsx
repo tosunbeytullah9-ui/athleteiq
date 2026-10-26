@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@athleteiq/db/types";
+import { countPendingDeletionRequestsByOrg } from "@athleteiq/db/queries";
 import {
   Table,
   TableBody,
@@ -19,7 +20,7 @@ type OrgRow = Database["public"]["Tables"]["organizations"]["Row"];
 export default async function SuperAdminPage() {
   const supabase = await createClient();
 
-  const [orgsRes, usersRes, athletesRes, demoRes] = await Promise.all([
+  const [orgsRes, usersRes, athletesRes, demoRes, deletionCounts] = await Promise.all([
     supabase
       .from("organizations")
       .select("id, name, slug, plan, created_at")
@@ -36,6 +37,8 @@ export default async function SuperAdminPage() {
       .from("demo_requests")
       .select("id", { count: "exact", head: true })
       .eq("status", "new"),
+    // Açık hesap silme talepleri (Parti 18B) — RLS süper admin'e tüm org'ları açar.
+    countPendingDeletionRequestsByOrg(supabase),
   ]);
 
   const orgs = orgsRes.data as Pick<
@@ -145,13 +148,14 @@ export default async function SuperAdminPage() {
               <TableHead>Slug</TableHead>
               <TableHead>Plan</TableHead>
               <TableHead>Oluşturulma</TableHead>
+              <TableHead>Silme Talebi</TableHead>
               <TableHead className="w-0" />
             </TableRow>
           </TableHeader>
           <TableBody>
             {!orgs?.length && (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   Henüz organizasyon yok.
                 </TableCell>
               </TableRow>
@@ -173,6 +177,13 @@ export default async function SuperAdminPage() {
                 </TableCell>
                 <TableCell className="text-muted-foreground text-sm">
                   {org.created_at ? new Date(org.created_at).toLocaleDateString("tr-TR") : "—"}
+                </TableCell>
+                <TableCell>
+                  {(deletionCounts.get(org.id) ?? 0) > 0 ? (
+                    <Badge variant="destructive">{deletionCounts.get(org.id)} açık</Badge>
+                  ) : (
+                    <span className="text-muted-foreground text-sm">—</span>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Button variant="ghost" size="sm" asChild>

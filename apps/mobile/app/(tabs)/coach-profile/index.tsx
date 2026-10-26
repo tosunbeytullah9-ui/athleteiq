@@ -3,6 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, ActivityIndicator } from "rea
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { confirmSignOut } from "@/lib/signOut";
+import { AccountDeletionSection } from "@/components/AccountDeletionSection";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -82,6 +83,8 @@ export default function CoachProfileScreen() {
             <Text className="text-red-500 font-medium">Çıkış Yap</Text>
           )}
         </TouchableOpacity>
+
+        <AccountDeletionSection isStaff />
 
         <View className="h-8" />
       </View>

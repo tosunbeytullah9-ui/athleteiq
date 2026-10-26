@@ -8,6 +8,7 @@ import type { User } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { usePainAlerts } from "@/lib/hooks/pain-alerts-provider";
+import { useServerUserContext } from "@/lib/hooks/user-context-provider";
 import { signOut } from "@/lib/auth-client";
 import { findActiveHref, getNavSections } from "@/components/shared/nav-config";
 
@@ -49,6 +50,7 @@ export function Sidebar({ open, onOpenChange, collapsed, onCollapsedChange }: Si
   const { user, role, isSuperAdmin } = useUserContext();
   const { alerts } = usePainAlerts();
   const painCount = alerts.length;
+  const { pendingDeletionCount = 0 } = useServerUserContext();
 
   // Sayfa değişince mobil menüyü otomatik kapat.
   useEffect(() => {
@@ -154,7 +156,15 @@ export function Sidebar({ open, onOpenChange, collapsed, onCollapsedChange }: Si
               <ul className="space-y-0.5">
                 {section.items.map(({ href, label, icon: Icon }) => {
                   const isActive = href === activeHref;
-                  const showPain = href === "/feedback" && painCount > 0;
+                  // Rozet: Geri Bildirimler → okunmamış ağrı (yanıp söner),
+                  // Kullanıcılar → açık hesap silme talebi (Parti 18B).
+                  const badgeCount =
+                    href === "/feedback"
+                      ? painCount
+                      : href === "/settings/users"
+                        ? pendingDeletionCount
+                        : 0;
+                  const showBadge = badgeCount > 0;
                   return (
                     <li key={href} className="relative">
                       <Link
@@ -184,21 +194,21 @@ export function Sidebar({ open, onOpenChange, collapsed, onCollapsedChange }: Si
                               isActive && "scale-110"
                             )}
                           />
-                          {showPain && mini && (
+                          {showBadge && mini && (
                             <span className="absolute -right-1.5 -top-1.5 hidden h-2.5 w-2.5 rounded-full bg-red-600 ring-2 ring-card md:block" />
                           )}
                         </span>
                         <span className={cn("truncate", mini && "md:hidden")}>{label}</span>
-                        {/* Okunmamış ağrı bildirimi sayacı — yalnızca Geri Bildirimler
-                            satırında, yalnızca 0'dan büyükse. */}
-                        {showPain && (
+                        {/* Sayaç rozeti — yalnızca 0'dan büyükse. */}
+                        {showBadge && (
                           <span
                             className={cn(
-                              "ml-auto flex h-5 min-w-[1.25rem] animate-pulse items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white",
+                              "ml-auto flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-[11px] font-bold text-white",
+                              href === "/feedback" && "animate-pulse",
                               mini && "md:hidden"
                             )}
                           >
-                            {painCount > 99 ? "99+" : painCount}
+                            {badgeCount > 99 ? "99+" : badgeCount}
                           </span>
                         )}
                         {/* Daraltılmış modda üzerine gelince ad etiketi */}

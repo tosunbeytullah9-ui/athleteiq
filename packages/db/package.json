@@ -22,7 +22,8 @@
     "./queries/ai-insights": "./queries/ai-insights.ts",
     "./queries/session-feedback": "./queries/session-feedback.ts",
     "./queries/annual-plans": "./queries/annual-plans.ts",
-    "./queries/drills": "./queries/drills.ts"
+    "./queries/drills": "./queries/drills.ts",
+    "./queries/account-deletion": "./queries/account-deletion.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit"

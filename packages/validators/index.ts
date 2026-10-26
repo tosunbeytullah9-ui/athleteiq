@@ -19,3 +19,4 @@ export * from "./program-copy";
 export * from "./greeting";
 export * from "./demo-request";
 export * from "./competition";
+export * from "./account-deletion";

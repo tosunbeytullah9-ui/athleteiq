@@ -193,6 +193,8 @@ AthleteIQ/
 │   │   ├── package.json
 │   │   └── tsconfig.json
 │   └── validators/
+│       ├── account-deletion.test.ts
+│       ├── account-deletion.ts
 │       ├── acwr.ts
 │       ├── annual-plan.test.ts
 │       ├── annual-plan.ts
@@ -266,6 +268,7 @@ AthleteIQ/
 │   │   ├── delete-org-user/
 │   │   ├── grant-athlete-access/
 │   │   ├── invite-member/
+│   │   ├── process-account-deletion/
 │   │   ├── reset-athlete-password/
 │   │   ├── reset-user-password/
 │   │   ├── update-org-user/
@@ -335,7 +338,9 @@ AthleteIQ/
 │   │   ├── 20261023115038_exercise_1rm_ratios_isportsi.sql
 │   │   ├── 20261023144302_demo_requests.sql
 │   │   ├── 20261023152441_org_slug_lock.sql
-│   │   └── 20261024082932_competition_stages.sql
+│   │   ├── 20261024082932_competition_stages.sql
+│   │   ├── 20261026185415_auth_user_fk_set_null.sql
+│   │   └── 20261026185610_account_deletion_requests.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -369,6 +374,7 @@ AthleteIQ/
 > Tam DDL için `supabase/migrations/`, kolon tipleri için `packages/db/types.ts` bakın. Aşağıdaki liste her tablonun amacını özetler; açıklamalar `scripts/table-descriptions.json`'dan gelir ve `pnpm docs:sync` ile güncellenir.
 
 <!-- AUTO-GENERATED:SCHEMA:START -->
+- **account_deletion_requests** — Uygulama içinden başlatılan hesap silme talebi (App Store 5.1.1(v) + KVKK m.11/13): kişi (sporcu/koç/admin) mobil profilden talep eder, kişi başına tek açık talep, due_at = +30 gün. Yalnızca kişinin kendisi, o org'un admin'i ve süper admin görür; yazma politikası YOK — request/cancel/reject RPC'leri ve process-account-deletion Edge Function yazar. Tamamlanınca kişinin athletes satırı (21 tablo CASCADE) ve auth.users silinir, talepteki ad/kullanıcı adı/not NULL'lanır (20261026185610_account_deletion_requests.sql, Parti 18B).
 - **acwr_logs** — sRPE yöntemiyle günlük antrenman yükü ve hesaplanan ACWR (Acute:Chronic Workload Ratio) oranı (001_schema.sql). source kolonu satırın kaynağını damgalar: 'manual' = koçun /acwr formundan elle girdiği, 'athlete_feedback' = session_feedback'ten otomatik türetilmiş (Parti 22-FB).
 - **annual_plan_cells** — Yıllık plan ızgarasının gövdesi: (plan × hafta × antrenman sistemi) → o hafta kaç seans. SEYREK — yalnızca sessions >= 1 olan hücreler satır tutar, sıfıra düşen hücre silinir (52 hafta × 11 sistem = 572 satırlık yoğun ızgara materyalize edilmez) (20260921081206_annual_plans.sql, Parti 23-YP).
 - **annual_plan_methods** — Organizasyona özel, düzenlenebilir antrenman sistemi listesi (Contrast Training, Hipertrofi, Max, Deload, Aerobik/Anaerobik Dayanıklılık, Hız/Çeviklik vb.) — yıllık plan ızgarasının SATIR başlıkları. org_exercises deseni: platform varsayılanı ilk plan oluşturulurken tohumlanır, sonrasında org kendi branşına göre düzenler. Silmek yerine is_active=false kullanılır, çünkü silme annual_plan_cells'i cascade ile götürür (20260921081206_annual_plans.sql, Parti 23-YP).
@@ -415,7 +421,7 @@ AthleteIQ/
 
 ## 4. ROW LEVEL SECURITY (ÇEKİRDEK TABLOLAR)
 
-> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) `competition_entries` (20260909070021), `competition_stages` (20261024082932) ve `drill_diagrams` (20261005122102 — sporcu dalı YOK) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
+> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) `competition_entries` (20260909070021), `competition_stages` (20261024082932), `drill_diagrams` (20261005122102 — sporcu dalı YOK) ve `account_deletion_requests` (20261026185610 — yazma politikası YOK, yalnızca RPC/Edge Function) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
 
 ```sql
 -- =============================================
@@ -665,7 +671,36 @@ olduğu için geri kalan her şey otomatik temizlenir (sporcuysa roster kaydı S
 giriş erişimi kalkar). İkisi de `create-org-user`/`reset-user-password` ile aynı yetki kısıtını
 taşır: yalnızca `super_admin` veya hedef org'un admin'i (koç ÇAĞIRAMAZ), süper admin hesapları
 bu yoldan silinemez/rolü değiştirilemez, ve `delete-org-user` org'un son admin'ini silmeyi
-reddeder (org'u kilitlemesin diye).
+reddeder (org'u kilitlemesin diye). **Parti 18B'ye kadar bu silme aktif kullanıcıların çoğunda
+ÇALIŞMIYORDU:** `auth.users`'a referans veren 15 audit kolonu (`created_by`, `entered_by`,
+`recorded_by`, `invited_by`, `coach_replied_by`...) `ON DELETE NO ACTION`'dı — program yazmış
+bir koçun veya wellness girmiş bir sporcunun `deleteUser`'ı FK ihlaliyle reddediliyordu (canlıda
+21 üyeliğin 14'ü). `20261026185415_auth_user_fk_set_null.sql` hepsini `SET NULL` yaptı: satırlar
+org'da kalır, yalnızca yazar alanı boşalır. **Yeni bir `auth.users` FK'si eklerken `on delete
+set null` (audit) veya `cascade` (kişiye ait veri) seçin — `no action` kullanıcı silmeyi kırar.**
+
+**Hesap silme talebi (Parti 18B, 2026-10-26 — App Store 5.1.1(v) + KVKK m.11/13).** Sporcu,
+koç veya admin mobil profildeki "Hesabımı Sil" ile `request_account_deletion()` RPC'sini
+çağırır → `account_deletion_requests`'e `pending` talep (kişi başına tek açık talep, `due_at` =
++30 gün; süper admin talep OLUŞTURAMAZ). Talep yalnızca kişinin kendisine, o org'un admin'ine
+ve süper admine görünür (koç başkasınınkini görmez). Admin `/settings/users` → "Silme
+Talepleri"nde `get_account_deletion_impact()` ile silinecek kayıt sayılarını (ve kurumda
+korunacak, yazarı boşalacak içeriği) silmeden ÖNCE görür, kullanıcı adını yazarak onaylar →
+`supabase/functions/process-account-deletion` ya da gerekçeyle reddeder
+(`reject_account_deletion_request()`, not zorunlu, kişi notu mobilde görür). Kişi beklerken
+`cancel_account_deletion_request()` ile geri alabilir. Tabloda INSERT/UPDATE/DELETE politikası
+yok; tüm yazmalar bu 3 RPC + Edge Function'dan.
+**`delete-org-user` ile farkı:** `delete-org-user` yalnızca **giriş erişimini kaldırır**
+(`athletes.user_id` SET NULL — roster ve tüm sağlık/antrenman verisi kalır).
+`process-account-deletion` **kişiyi ve verisini siler**: kişinin `athletes` satırı varsa
+(rolden bağımsız — bir admin'in de sporcu satırı olabiliyor) önce aktif wearable yetkilerini
+sağlayıcıda iptal eder (best-effort; Fitbit secret'ı Edge ortamında yoksa atlanır), sonra satırı
+siler → 21 tablo CASCADE; ardından `auth.users`'ı siler ve talebi `completed` yapıp ad/kullanıcı
+adı/notu NULL'lar. Aynı yetki kısıtları: yalnızca talebin org admin'i veya süper admin, süper
+admin hedef silinemez, org'un son admin'i silinemez ("Önce başka bir yönetici atayın"), kişi
+kendi talebini işleyemez. `auth.users` silme başarısız olursa talep `pending` kalır, yeniden
+deneme idempotenttir. `recalc_acwr_day()` artık silinmekte olan sporcu için `acwr_logs`'a
+satır eklemez (CASCADE sırasına bağlı kırılgan bir FK hatası önlendi).
 
 ### 4.4 Branş / Mevki / Antrenman Grubu — üç ayrı kavram (2026-09-22)
 
@@ -2045,6 +2080,8 @@ Son otomatik senkron: 2026-10-26
 - 20261023144302_demo_requests.sql
 - 20261023152441_org_slug_lock.sql
 - 20261024082932_competition_stages.sql
+- 20261026185415_auth_user_fk_set_null.sql
+- 20261026185610_account_deletion_requests.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/
@@ -2056,7 +2093,8 @@ Son otomatik senkron: 2026-10-26
   - `create-athlete-account` — ACTIVE (Parti 4.B) — sporcuya özel, hâlâ paralel kullanımda
   - `grant-athlete-access` / `reset-athlete-password` — ACTIVE (Parti 10) — sporcuya özel
   - `update-org-user` — yeni (2026-09-09), ACTIVE — ad/kullanıcı adı düzenler, username değişirse `auth.users.email`'i senkron günceller (bkz. §4.3)
-  - `delete-org-user` — yeni (2026-09-09), ACTIVE — kullanıcı silme, `auth.users` cascade'iyle memberships/profiles otomatik temizlenir
+  - `delete-org-user` — yeni (2026-09-09), ACTIVE — kullanıcı silme, `auth.users` cascade'iyle memberships/profiles otomatik temizlenir (Parti 18B'den beri audit FK'leri SET NULL olduğu için aktif kullanıcılarda da çalışır)
+  - `process-account-deletion` — yeni (Parti 18B, 2026-10-26), ACTIVE, `verify_jwt: true` — hesap silme talebini tamamlar: athletes satırı (21 tablo CASCADE) + auth.users, bkz. §4.3
   - `whoop-webhook` — ACTIVE, v8 (2026-09-13) — gerçek senkron mantığı devrede + tekil workout senkronu, bkz. §6 Agent 5
   - `polar-sync` — **YOK** (bu listede önceden "ACTIVE" yazıyordu, bu YANLIŞTI — dosya hiç
     oluşturulmamış, `list_edge_functions` ile 2026-09-11'de doğrulandı; Polar entegrasyonu
@@ -2083,6 +2121,7 @@ Son otomatik senkron: 2026-10-26
   oluşturması (`create-org-user`, Parti 16) + kullanıcı-adı tabanlı sporcu hesabı oluşturma
   (Parti 4.B/4.C, hâlâ paralel), middleware (role-based routing)
 - ✅ Kullanıcı yönetimi: `/settings/users` — org admin ve süper admin için kullanıcı listesi + oluşturma + şifre sıfırlama + düzenleme + silme (Parti 16, düzenleme/silme 2026-09-09)
+- ✅ Uygulama içi hesap silme talebi (Parti 18B, 2026-10-26 — App Store 5.1.1(v) + KVKK): sporcu/koç/admin mobil profilden "Hesabımı Sil" ile talep oluşturur veya geri alır (en geç 30 gün), admin `/settings/users` → "Silme Talepleri"nde etkiyi görüp kullanıcı adını yazarak kalıcı siler ya da gerekçeyle reddeder; sidebar'da "Kullanıcılar" rozeti, `/admin`'de org bazında açık talep sayısı. Bkz. §4.3
 - ✅ Sporcu yönetimi: listeleme, arama, ekleme, detay, düzenleme, pasife alma/kalıcı silme (2026-09-09 — bkz. §4.1, §6 Agent 3)
 - ✅ Branş / Mevki / Antrenman Grubu ayrımı (2026-09-22) — eski tek "Pozisyon / Branş"
   kutusu üçe ayrıldı: branş takımdan türetilir (`teams.discipline`, sporcu formunda

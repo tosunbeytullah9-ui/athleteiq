@@ -8,12 +8,15 @@ export interface ServerUserContext {
   role: Role | null;
   orgId: string | null;
   teamId: string | null;
+  /** Org'un açık hesap silme talebi sayısı — yalnızca admin için sayılır, diğerlerinde 0. */
+  pendingDeletionCount?: number;
 }
 
 const Ctx = createContext<ServerUserContext>({
   role: null,
   orgId: null,
   teamId: null,
+  pendingDeletionCount: 0,
 });
 
 /**

@@ -1,6 +1,12 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-10-26 (**Parti 18A — iOS App Store yayın hazırlığı, mobil konfigürasyon**) —
+> Son güncelleme: 2026-10-26 (**Parti 18B — uygulama içi hesap silme talebi**, App Store
+> 5.1.1(v) + KVKK m.11/13) — mobil profilden "Hesabımı Sil" → org admin'e düşen talep (30 gün) →
+> web'de etki raporu + kullanıcı adıyla onay → `process-account-deletion` (athletes CASCADE +
+> auth.users) ya da gerekçeli red. Aynı partide `auth.users`'a referans veren 15 audit FK'si
+> `SET NULL` yapıldı — `delete-org-user` daha önce aktif kullanıcıların 14/21'inde FK ihlaliyle
+> çalışmıyordu. Canlıda 9 senaryo + temizlik geçici hesaplarla doğrulandı. Detay: § Parti 18B.
+> Önceki: 2026-10-26 (**Parti 18A — iOS App Store yayın hazırlığı, mobil konfigürasyon**) —
 > `app.json`: yalnızca iPhone (`supportsTablet: false`), `buildNumber "1"`,
 > `ITSAppUsesNonExemptEncryption: false`, `userInterfaceStyle: "light"` (mobilde dark mode yok),
 > `expo-secure-store` `faceIDPermission: false` (kullanılmayan İngilizce `NSFaceIDUsageDescription`
@@ -752,6 +758,75 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 18B — Uygulama İçi Hesap Silme Talebi ✅ (2026-10-26)
+
+#### Kapsam
+Apple 5.1.1(v) hesap silmenin uygulama İÇİNDEN başlatılabilmesini, KVKK m.11/13 talebin en geç
+30 gün içinde sonuçlandırılmasını istiyor. Hesapları kurum açtığı için veri sorumlusu kurumdur:
+kişi talep eder, org admin'i (süper admin tüm org'lar) işler.
+
+#### Faz 1 bulguları (canlı DB, salt-okunur)
+- `auth.users`'a referans veren 15 audit FK'si `NO ACTION` → 21 üyeliğin 14'ü `delete-org-user`
+  ile silinemiyordu (BUGS.md § Yüksek). `athletes.user_id` SET NULL → `auth.users` silmek sporcu
+  verisini silmez; gerçek silme için `athletes` satırı silinmeli (21 tablo CASCADE).
+- `athletes.user_id` UNIQUE, birden fazla org'da üyeliği olan kullanıcı yok; **bir admin hesabının
+  da sporcu satırı var** → silme kuralı rolden bağımsız "athletes satırı varsa sil".
+- `session_feedback_acwr_sync` → `recalc_acwr_day()` silinmekte olan sporcu için `acwr_logs`'a
+  INSERT deneyebiliyordu. ROLLBACK'li sentetik testte silme BAŞARILI oldu: `acwr_logs` CASCADE'i
+  (daha eski FK) geçici satırı FK kontrolünden önce siliyor — yani bugün tesadüfen geçiyor, FK
+  sırası değişirse silme tamamen geri dönerdi. Koruma eklendi (kullanıcı onaylı).
+- `packages/integrations/*` Deno'dan import edilemiyor (uzantısız import + çıplak `zod`) →
+  sağlayıcı iptal çağrıları Edge Function'a kopyalandı (`whoop-webhook` deseni).
+
+#### Değişiklikler
+- `20261026185415_auth_user_fk_set_null.sql` — 15 FK `ON DELETE SET NULL`.
+- `20261026185610_account_deletion_requests.sql` — tablo (kişi başına tek açık talep partial
+  unique, `rejected` ⇒ `admin_note` CHECK), RLS SELECT (kendi / org admin / süper admin,
+  `coalesce`), yazma politikası yok + anon'un tüm, authenticated'ın yazma yetkisi kaldırıldı;
+  SECURITY DEFINER RPC'ler (§4.1: ilk satırda `coalesce` yetki kontrolü, `search_path ''`,
+  anon/PUBLIC EXECUTE yok): `request_account_deletion` (idempotent, süper admin reddedilir),
+  `cancel_account_deletion_request`, `reject_account_deletion_request` (not zorunlu),
+  `get_account_deletion_impact` (delete / keep / block satırları); `recalc_acwr_day` koruması.
+- `packages/db/types.ts` regenerate (`supabase gen types --linked --schema public`, yalnızca ekleme).
+- `supabase/functions/process-account-deletion` (`verify_jwt: true`) — yetki (org admin / süper
+  admin), pending değilse 409, süper admin / son admin / kendi talebi reddi, wearable iptali
+  (best-effort), athletes sil → auth.users sil → talebi `completed` + kişisel alanlar NULL.
+  `auth.users` silme başarısızsa talep pending kalır, yeniden deneme idempotent. Loglarda yalnızca id.
+- `packages/validators/account-deletion.ts` (+11 test, toplam 255) — kalan gün, aciliyet (≤7),
+  not/gerekçe şemaları, kullanıcı adı onayı. `packages/db/queries/account-deletion.ts`.
+- Mobil: `components/AccountDeletionSection.tsx` — sporcu `profile` ve koç/admin `coach-profile`
+  ekranlarında "Çıkış Yap"ın altında "Hesap" bölümü (talep / bekleyen talep kartı + geri al /
+  red notu); süper admin'e gösterilmez.
+- Web: `/settings/users` → "Silme Talepleri" (`components/features/settings/deletion-requests-section.tsx`,
+  kalan gün ≤7 kırmızı, etki penceresi + kullanıcı adıyla onay, gerekçeli red); sidebar
+  "Kullanıcılar" rozeti (layout'ta RLS altında sayım, `ServerUserContext.pendingDeletionCount`);
+  `/admin` tablosunda org bazında "Silme Talebi" kolonu.
+
+#### Doğrulama (canlı, gerçek JWT — geçici TGF admin/koç/sporcu + geçici org, hepsi silindi)
+| # | Senaryo | Beklenen | Gerçek |
+|---|---|---|---|
+| 1 | Sporcu talep oluşturur, ikinci çağrı | aynı talep, 1 satır | ✓ aynı id, 1 satır, due = +30 gün |
+| 2 | Sporcu başkasının talebi | 0 satır | ✓ 0 (kendi: 1) |
+| 3 | Aynı org koçu / başka org admini | 0 / 0 | ✓ 0 / 0 (org admini: 2 — kontrol) |
+| 4 | authenticated INSERT/UPDATE/DELETE; anon SELECT/INSERT/RPC | reddedilir | ✓ 42501 ×6 |
+| 5 | Koç reject / admin notsuz reject / sporcu geri al / koç process | yetkisiz / zorunlu / cancelled / 403 | ✓ hepsi |
+| 6 | Süper admin talep | reddedilir | ✓ 42501 |
+| 7 | Uçtan uca: wellness + feedback + 1RM + program + acwr → process | 200, her şey silinir | ✓ auth/athletes/profiles/memberships yok, 21 tabloda 0 satır, talep completed + kişisel alanlar NULL |
+| 8 | Program yazmış koç `delete-org-user` | 200, program durur, created_by NULL | ✓ |
+| 9 | Tek admin'in talebi (süper admin işler) | 400 "Önce başka bir yönetici atayın" | ✓ hesap duruyor, etkide block satırı |
+| 10 | Advisors (security) | yeni ERROR yok | ✓ yalnızca beklenen 4 WARN (`authenticated_security_definer_function_executable`, yeni RPC'ler — tasarım gereği, kullanıcı onaylı) |
+
+Temizlik sonrası `parti18b*` profil/sporcu/auth kullanıcısı, geçici org, `P18B*` program ve talep
+satırı: 0. Kullanıcı adı kuralı tire kabul etmediği için hesaplar `parti18b_temp_*` adını aldı.
+Web type-check + lint (0 hata) + build, mobil lint temiz; mobil `tsc`'deki tek hata
+(`my-athletes/[athleteId]/program/[day].tsx:71`) Parti 18A'dan beri bilinen, bu partiyle ilgisiz.
+Arayüz cihazda/tarayıcıda elle tıklanarak DOĞRULANMADI.
+
+#### Kapsam dışı / bilinen
+- `delete-org-user` ile silinmiş bir kullanıcının bekleyen talebi `user_id = NULL` ile `pending`
+  kalır; `process-account-deletion` bunu 409 ile reddeder, admin gerekçeyle reddedebilir.
+- Talep bildirim e-postası / push yok — admin rozet ve listeden görür.
 
 ### Parti 18A — iOS App Store Yayın Hazırlığı (Mobil Konfigürasyon) ✅ (2026-10-26)
 

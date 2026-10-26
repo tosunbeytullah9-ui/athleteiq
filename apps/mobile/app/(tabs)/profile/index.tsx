@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import { revokeWhoopAccess } from "@/lib/wearables";
+import { AccountDeletionSection } from "@/components/AccountDeletionSection";
 import type { Database } from "@athleteiq/db/types";
 
 type WearableConnection =
@@ -230,6 +231,8 @@ export default function ProfileScreen() {
             <Text className="text-red-500 font-medium">Çıkış Yap</Text>
           )}
         </TouchableOpacity>
+
+        <AccountDeletionSection isStaff={false} />
 
         <View className="h-8" />
       </View>

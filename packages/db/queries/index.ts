@@ -14,3 +14,4 @@ export * from "./ai-insights";
 export * from "./session-feedback";
 export * from "./annual-plans";
 export * from "./drills";
+export * from "./account-deletion";

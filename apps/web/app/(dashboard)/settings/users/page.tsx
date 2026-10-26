@@ -1,7 +1,13 @@
 import { cookies } from "next/headers";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { getMembershipsByOrg, getProfilesByOrg } from "@athleteiq/db/queries";
+import {
+  getMembershipsByOrg,
+  getPendingDeletionRequests,
+  getProfilesByOrg,
+} from "@athleteiq/db/queries";
 import type { Tables } from "@athleteiq/db/types";
+import { DeletionRequestsSection } from "@/components/features/settings/deletion-requests-section";
+import { createClient } from "@/lib/supabase/server";
 import { UsersClient } from "./users-client";
 
 type ProfileRow = Tables<"profiles">;
@@ -25,11 +31,14 @@ export default async function SettingsUsersPage() {
     { auth: { persistSession: false } }
   );
 
-  const [memberships, profiles, teamsResult, orgResult] = await Promise.all([
+  const [memberships, profiles, teamsResult, orgResult, deletionRequests] = await Promise.all([
     getMembershipsByOrg(admin, orgId) as Promise<MembershipRow[]>,
     getProfilesByOrg(admin, orgId) as Promise<ProfileRow[]>,
     admin.from("teams").select("id, name").eq("org_id", orgId).order("name"),
     admin.from("organizations").select("slug").eq("id", orgId).single(),
+    // Hesap silme talepleri (Parti 18B) — service role DEĞİL, çağıranın oturumuyla:
+    // RLS yalnızca o org'un admin'ine / süper admin'e gösterir.
+    getPendingDeletionRequests(await createClient(), orgId),
   ]);
 
   // profiles ve memberships arasında doğrudan FK yok (ikisi de ayrı ayrı
@@ -65,11 +74,14 @@ export default async function SettingsUsersPage() {
   }));
 
   return (
-    <UsersClient
-      orgId={orgId}
-      orgSlug={orgResult.data?.slug ?? ""}
-      users={users}
-      teams={teamsResult.data ?? []}
-    />
+    <div className="max-w-4xl space-y-6">
+      <UsersClient
+        orgId={orgId}
+        orgSlug={orgResult.data?.slug ?? ""}
+        users={users}
+        teams={teamsResult.data ?? []}
+      />
+      <DeletionRequestsSection requests={deletionRequests} />
+    </div>
   );
 }

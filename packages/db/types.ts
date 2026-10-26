@@ -14,6 +14,62 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_deletion_requests: {
+        Row: {
+          admin_note: string | null
+          display_name: string | null
+          due_at: string
+          id: string
+          org_id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          requested_at: string
+          role: string
+          status: string
+          user_id: string | null
+          username: string | null
+        }
+        Insert: {
+          admin_note?: string | null
+          display_name?: string | null
+          due_at: string
+          id?: string
+          org_id: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          requested_at?: string
+          role: string
+          status?: string
+          user_id?: string | null
+          username?: string | null
+        }
+        Update: {
+          admin_note?: string | null
+          display_name?: string | null
+          due_at?: string
+          id?: string
+          org_id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reason?: string | null
+          requested_at?: string
+          role?: string
+          status?: string
+          user_id?: string | null
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "account_deletion_requests_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       acwr_logs: {
         Row: {
           acute_load: number | null
@@ -2203,6 +2259,30 @@ export type Database = {
         Args: { p_athlete_id: string }
         Returns: boolean
       }
+      cancel_account_deletion_request: {
+        Args: never
+        Returns: {
+          admin_note: string | null
+          display_name: string | null
+          due_at: string
+          id: string
+          org_id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          requested_at: string
+          role: string
+          status: string
+          user_id: string | null
+          username: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "account_deletion_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       copy_program_block: {
         Args: {
           p_athlete_id?: string
@@ -2232,6 +2312,15 @@ export type Database = {
           p_weeks_count: number
         }
         Returns: Json
+      }
+      get_account_deletion_impact: {
+        Args: { p_request_id: string }
+        Returns: {
+          kind: string
+          label: string
+          row_count: number
+          table_name: string
+        }[]
       }
       get_athlete_programs: {
         Args: { p_athlete_id: string }
@@ -2295,9 +2384,57 @@ export type Database = {
         Args: { p_athlete_id: string; p_from: string; p_to: string }
         Returns: undefined
       }
+      reject_account_deletion_request: {
+        Args: { p_note: string; p_request_id: string }
+        Returns: {
+          admin_note: string | null
+          display_name: string | null
+          due_at: string
+          id: string
+          org_id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          requested_at: string
+          role: string
+          status: string
+          user_id: string | null
+          username: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "account_deletion_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reply_to_session_feedback: {
         Args: { p_feedback_id: string; p_reply: string }
         Returns: undefined
+      }
+      request_account_deletion: {
+        Args: { p_reason?: string }
+        Returns: {
+          admin_note: string | null
+          display_name: string | null
+          due_at: string
+          id: string
+          org_id: string
+          processed_at: string | null
+          processed_by: string | null
+          reason: string | null
+          requested_at: string
+          role: string
+          status: string
+          user_id: string | null
+          username: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "account_deletion_requests"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       tr_fold: { Args: { p_value: string }; Returns: string }
       update_program_week: {

@@ -1,6 +1,8 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { countPendingDeletionRequests } from "@athleteiq/db/queries";
 import { DashboardShell } from "@/components/shared/dashboard-shell";
+import { createClient } from "@/lib/supabase/server";
 import {
   UserContextProvider,
   type Role,
@@ -44,8 +46,20 @@ export default async function DashboardLayout({
     }
   }
 
+  // "Kullanıcılar" menüsündeki açık hesap silme talebi rozeti (Parti 18B). Yalnızca
+  // admin — /settings/users zaten admin'e açık; RLS de yalnızca admin/süper admin'e
+  // gösterir. Realtime yok, sayfa yüklemesinde (ve router.refresh'te) sayılır.
+  let pendingDeletionCount = 0;
+  if (role === "admin" && orgId) {
+    try {
+      pendingDeletionCount = await countPendingDeletionRequests(await createClient(), orgId);
+    } catch {
+      pendingDeletionCount = 0;
+    }
+  }
+
   return (
-    <UserContextProvider value={{ role, orgId, teamId }}>
+    <UserContextProvider value={{ role, orgId, teamId, pendingDeletionCount }}>
       <DashboardShell>{children}</DashboardShell>
     </UserContextProvider>
   );
