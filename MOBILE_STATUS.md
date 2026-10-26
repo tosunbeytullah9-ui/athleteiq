@@ -1,5 +1,15 @@
 # MOBILE_STATUS.md — Mobil Uygulama Durum Tespiti (Sporcu + Koç/Admin salt-okunur)
 
+> **GÜNCELLEME 2026-10-26 (Parti 18A — App Store yayın hazırlığı):** **Polar mobilden
+> kaldırıldı** — `profile/connect-polar.tsx` (stub) silindi, `profile/_layout.tsx` route kaydı
+> kalktı, profildeki "Cihaz Bağlantıları" kartında artık yalnızca WHOOP satırı var + "Polar ve
+> Fitbit bağlantıları web panelinden yapılır." notu. Sporcunun recovery boş-durum metni de buna
+> göre güncellendi. Polar VERİSİNİN gösterimi (recovery ekranlarındaki sağlayıcı etiketi)
+> korundu; DB'ye dokunulmadı. Aynı partide `app.json` yalnızca iPhone + açık tema + şifreleme
+> beyanı + ikon/splash (YER TUTUCU) ile güncellendi, `eas.json` ve `.env.example` eklendi.
+> Aşağıdaki ağaçta/tabloda geçen `connect-polar.tsx` satırları tarihseldir. Detay: PROGRESS.md
+> § Parti 18A.
+>
 > **GÜNCELLEME 2026-08-11 (Parti 14):** Sporcu `(tabs)/program/*` ağacına yeni bir route eklendi:
 > `program/checkin.tsx` — günlük 5 maddelik (uyku kalitesi/kas ağrısı/yorgunluk/stres/ruh hali,
 > 1-5, hepsi aynı yönde) wellness self-report formu + son 7 gün geçmişi. `program/index.tsx`'in

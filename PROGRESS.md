@@ -1,6 +1,14 @@
 # AthleteIQ — Proje Durumu
 
-> Son güncelleme: 2026-10-23 (**1RM Oran İlişkileri — iSPORTSi Exercise Menu içe aktarımı**) —
+> Son güncelleme: 2026-10-26 (**Parti 18A — iOS App Store yayın hazırlığı, mobil konfigürasyon**) —
+> `app.json`: yalnızca iPhone (`supportsTablet: false`), `buildNumber "1"`,
+> `ITSAppUsesNonExemptEncryption: false`, `userInterfaceStyle: "light"` (mobilde dark mode yok),
+> `expo-secure-store` `faceIDPermission: false` (kullanılmayan İngilizce `NSFaceIDUsageDescription`
+> kalktı — artık hiç `NS*UsageDescription` yok), ikon + `expo-splash-screen` yolları. **İkon/splash
+> PNG'leri YER TUTUCU — gönderimden önce değiştirilecek.** `eas.json` (preview + production, Node
+> 22.23.4 + pnpm 11.9.0 sabit), `.env.example`. Polar mobilden kaldırıldı (web-only, Fitbit gibi).
+> Detay: § Parti 18A.
+> Önceki: 2026-10-23 (**1RM Oran İlişkileri — iSPORTSi Exercise Menu içe aktarımı**) —
 > kullanıcının `Exercise_Menu.xlsx` dosyasındaki 8 sayfanın her hücresi katı bir ayrıştırıcıyla
 > okundu (yalnızca "N% TABAN" / "N% TABAN/2"; ikinci bağımsız okuma ile hücre hücre çapraz kontrol)
 > ve `exercise_1rm_ratios`'a **101 ilişki** yazıldı (`20261023115038_exercise_1rm_ratios_isportsi.sql`,
@@ -744,6 +752,91 @@
 ---
 
 ## Tamamlanan Özellikler
+
+### Parti 18A — iOS App Store Yayın Hazırlığı (Mobil Konfigürasyon) ✅ (2026-10-26)
+
+#### Kapsam
+Mobil uygulamayı App Store'a ilk gönderime hazırlamak — yalnızca yapılandırma + Polar'ın mobilden
+kaldırılması. Kararlar (kullanıcı onaylı): yalnızca Türkiye, yalnızca **iPhone** (iPad yok);
+`expo.name`, `bundleIdentifier`, `android.package` ve `scheme` DEĞİŞMEDİ (marka/rebrand kararı
+bekliyor — bundle ID App Store'a bir kez gönderildikten sonra değiştirilemez; `athleteiq` scheme'i
+WHOOP callback'inde sabit kodlu).
+
+#### Değişiklikler
+- `apps/mobile/app.json`: `ios.supportsTablet: false`, `ios.buildNumber: "1"`,
+  `ios.infoPlist.ITSAppUsesNonExemptEncryption: false` (yalnızca standart HTTPS — her yüklemede
+  ihracat uyumluluğu sorusu çıkmasın), `userInterfaceStyle: "light"` (kodda hiç `dark:` /
+  `useColorScheme` yok; `automatic` iOS karanlık modda sistem öğelerini koyu, uygulamayı açık
+  bırakırdı), `["expo-secure-store", { "faceIDPermission": false }]`, `icon: ./assets/icon.png`,
+  `expo-splash-screen` plugin'i (`./assets/splash-icon.png`, `#1d4ed8`, `imageWidth: 200`).
+- `faceIDPermission: false` neden güvenli: kodda biyometrik kullanım yok (`requireAuthentication`
+  / `expo-local-authentication` hiçbir yerde geçmiyor), plugin varsayılan olarak İngilizce
+  "Allow $(PRODUCT_NAME) to access your Face ID biometric data." ekliyordu. `false` değerinin
+  anahtarı sildiği `@expo/config-plugins/build/ios/Permissions.js` kaynağında doğrulandı
+  (`=== false → delete`) ve introspect çıktısında anahtar artık yok.
+- `expo-splash-screen ~31.0.13` `expo install` ile eklendi.
+- `apps/mobile/assets/icon.png` + `splash-icon.png`: **YER TUTUCU — gönderimden önce
+  değiştirilecek.** sharp ile üretilmiş düz `#1d4ed8` 1024×1024, alpha kanalsız (3 kanal) PNG —
+  tasarım değil, build kırılmasın diye. Spesifikasyon: `apps/mobile/assets/README.md`.
+- `apps/mobile/eas.json`: `cli.version >= 26.0.0` (kurulu `eas-cli/26.0.0`), `appVersionSource:
+  "remote"`, `preview` (internal) + `production` (`autoIncrement`), her ikisinde `environment`,
+  `node: "22.23.4"`, `pnpm: "11.9.0"`. **Neden node/pnpm sabit:** EAS'ın SDK 54 iOS imajı
+  (`macos-sequoia-15.6-xcode-26.0`) varsayılan olarak Node 20.19.4 + pnpm 10.16.1 kullanıyor;
+  repo `packageManager: pnpm@11.9.0` ve `pnpm-workspace.yaml`'da pnpm 11 ayarları
+  (`allowBuilds`, `patchedDependencies`) kullanıyor, pnpm 11.9.0 ise `node >=22.13` istiyor.
+  `development` profili EKLENMEDİ — `expo-dev-client` kurulu değil (push bildirimi işiyle
+  eklenecek). `submit.production` boş — `ascAppId`/`appleTeamId` hesap açılınca.
+- **Build numarası notu:** `appVersionSource: "remote"` + `autoIncrement` ile iOS build numarasını
+  EAS sunucusu yönetir; `app.json`'daki `buildNumber: "1"` yalnızca ilk değerdir, sonrasında
+  yerel dosyada güncellenmez.
+- `apps/mobile/.env.example` (yeni): `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+  (ikisi yoksa uygulama açılışta çöker — `lib/supabase.ts` `createClient` modül yüklenirken
+  hata atar), `EXPO_PUBLIC_APP_URL` (yoksa yalnızca WHOOP bağlantısı hata verir). EAS bulut
+  derlemesi git'e girmeyen `.env`'i yüklemez → değerler `eas env:create` ile girilmeli.
+- **Polar mobilden kaldırıldı:** `app/(tabs)/profile/connect-polar.tsx` (yalnızca başlık
+  gösteren stub — App Review'da yarım özellik = Guideline 2.1 reddi) silindi, `profile/_layout.tsx`
+  route kaydı kaldırıldı; `profile/index.tsx`'te `WearableRow` → `WhoopRow` (provider prop'u,
+  `polarConn`, `handleDisconnect`'in polar dalı kalktı — WHOOP davranışı aynı), kartın altına
+  "Polar ve Fitbit bağlantıları web panelinden yapılır." notu. `recovery/index.tsx`'in sporcu
+  boş-durum metni "Profil ekranından WHOOP veya Polar" yönlendirmesi yerine WHOOP + web notunu
+  söylüyor (kullanıcı onaylı, seçenek a). **Veriye dokunulmadı:** canlıdaki aktif Polar
+  bağlantısı ve `wearable_daily_metrics`'teki `provider='polar'` satırları aynen duruyor;
+  recovery ekranlarındaki "Polar" sağlayıcı etiketi (gösterim) korundu.
+
+#### Doğrulama
+- `expo config --type introspect`: `supportsTablet false`, `buildNumber "1"`,
+  `ITSAppUsesNonExemptEncryption false`, `UIUserInterfaceStyle Light`, iPad yönelimleri yok,
+  **`NS*UsageDescription` listesi boş.** (Not: dokümandaki `--platform ios` bayrağı bu Expo CLI
+  sürümünde yok — bayraksız çalıştırıldı.)
+- `pnpm --filter @athleteiq/mobile run lint`: 0 hata/uyarı.
+- `tsc --noEmit` (mobile): 1 hata — `my-athletes/[athleteId]/program/[day].tsx:71`
+  (`athletes.team_id` 036'dan beri nullable, `string` bekleniyor). Bu partide dokunulmayan
+  dosya, önceden var olan hata.
+- `expo-doctor`: 4 kontrol başarısız, **hepsi önceden var olan, bu partiyle ilgisiz** —
+  `metro.config.js` `unstable_enableSymlinks` (pnpm monorepo için bilinçli), doğrudan kurulu
+  `@types/react-native`, **eksik `expo-font` peer'ı (`@expo/vector-icons` için — "Expo Go
+  dışında çökebilir" uyarısı, gerçek EAS build öncesi ele alınmalı)**, `expo`/`expo-constants`
+  patch + `@types/react`/`@react-navigation/native` minor sürüm farkları.
+- `expo export --platform ios`: JS paketi hatasız derlendi (silinen `connect-polar` route'u
+  dahil hiçbir kırık import yok).
+- **Emülatör/Expo Go'da profil ekranı DOĞRULANMADI:** emülatörde uygulamanın build'i de Expo Go
+  da kurulu değildi, Expo Go indirmesi takıldı; ayrıca profil sekmesi sporcu girişi gerektiriyor
+  ve oturumda sporcu şifresi yoktu. Profil ekranının açılması ve WHOOP satırının çalışması
+  cihazda elle doğrulanmalı.
+
+#### MANUEL AKSİYON GEREKLİ
+1. Expo hesabı → `cd apps/mobile && npx eas-cli login && npx eas-cli init` (`app.json`'a
+   `extra.eas.projectId` + `owner` yazar — commit'leyin).
+2. EAS ortam değişkenleri (her biri için `production` ve `preview`):
+   `npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_URL --value <url> --environment production --visibility plaintext`
+   `npx eas-cli env:create --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value <anon-key> --environment production --visibility sensitive`
+   `npx eas-cli env:create --name EXPO_PUBLIC_APP_URL --value https://<vercel-alan-adi> --environment production --visibility plaintext`
+   (`EXPO_PUBLIC_APP_URL` 10.0.2.2 DEĞİL, gerçek Vercel adresi olmalı — yoksa WHOOP bağlantısı çalışmaz.)
+3. Gerçek `apps/mobile/assets/icon.png` + `splash-icon.png` (spesifikasyon: `assets/README.md`).
+4. Marka kararından sonra `expo.name` + `ios.bundleIdentifier` (ilk gönderimden ÖNCE — sonra değişmez).
+5. Apple Developer hesabı açılınca `eas.json` `submit.production`'a `ascAppId`/`appleTeamId`.
+6. İlk EAS build öncesi: `npx expo install expo-font` (expo-doctor: `@expo/vector-icons` peer'ı
+   eksik, Expo Go dışında çökme riski) — Parti 18A kapsamı dışında bırakıldı.
 
 ### Parti 16 — Kimlik Temeli ✅ (2026-08-13)
 

@@ -157,8 +157,9 @@ export default function RecoveryScreen() {
               Wearable Bağlı Değil
             </Text>
             <Text className="text-gray-500 text-sm text-center mt-2">
-              Recovery verilerini görmek için Profil ekranından WHOOP veya Polar
-              cihazınızı bağlayın.
+              Recovery verilerini görmek için Profil ekranından WHOOP
+              cihazınızı bağlayın. Polar ve Fitbit bağlantıları web
+              panelinden yapılır.
             </Text>
           </View>
         ) : metrics.length === 0 ? (

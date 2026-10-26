@@ -127,15 +127,18 @@ AthleteIQ/
 │   ├── mobile/
 │   │   ├── android/
 │   │   ├── app/
+│   │   ├── assets/
 │   │   ├── components/
 │   │   ├── lib/
 │   │   ├── .env
+│   │   ├── .env.example
 │   │   ├── .gitignore
 │   │   ├── .npmrc
 │   │   ├── app.json
 │   │   ├── babel.config.js
 │   │   ├── bugreport-sdk_gphone64_x86_64-BE4B.251210.005-2026-08-25-14-18-20.zip
 │   │   ├── bundle_test.json
+│   │   ├── eas.json
 │   │   ├── emulator.log
 │   │   ├── emulator2.log
 │   │   ├── eslint.config.js
@@ -1365,7 +1368,7 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 [x] apps/web/app/api/wearables/whoop/callback/route.ts → OAuth callback (WHOOP_REDIRECT_URI ile birebir eşleşir)
 [x] apps/web/app/api/wearables/polar/connect/route.ts + callback/route.ts + disconnect/route.ts + sync/route.ts → YENİ (2026-09-13), whoop/connect-callback-disconnect'in web-only kopyası + manuel senkron route'u (bkz. aşağıdaki "Polar entegrasyonu" notu). Eski görev listesindeki `apps/web/app/(dashboard)/wearables/polar-connect/route.ts` yolu KULLANILMADI (WHOOP'taki stale `whoop-connect/route.ts` girdisiyle aynı durum, bkz. yukarıdaki not).
 [x] apps/mobile/app/(tabs)/profile/connect-whoop.tsx → Sporcu WHOOP bağlantı (expo-web-browser + Linking)
-[ ] apps/mobile/app/(tabs)/profile/connect-polar.tsx → Sporcu Polar bağlantı (hâlâ stub — Polar bilinçli olarak yalnızca web'den bağlanıyor, bkz. aşağıdaki not)
+[x] apps/mobile/app/(tabs)/profile/connect-polar.tsx → KALDIRILDI (Parti 18A, web-only) — stub dosya ve profildeki Polar satırı silindi, profilde "Polar ve Fitbit bağlantıları web panelinden yapılır." notu var
 [x] packages/integrations/fitbit/{client,oauth,types,normalize,index}.ts → YENİ (2026-09-13), dev.fitbit.com resmi dokümantasyonuyla doğrulanarak sıfırdan yazıldı (bkz. §5.3)
 [x] apps/web/app/api/wearables/fitbit/{connect,callback,disconnect,sync}/route.ts → YENİ (2026-09-13), Polar'ın web-only + manuel senkron deseninin üçüncü kopyası, sync route'unda WHOOP tarzı ensureFreshToken (Fitbit token'ları 8sa'da sona eriyor)
 [ ] apps/mobile/app/(tabs)/profile/connect-fitbit.tsx → YOK, Fitbit bilinçli olarak yalnızca web'den bağlanıyor (Polar ile aynı kullanıcı tercihi)
@@ -1481,8 +1484,8 @@ Sporcu (web) → GET /api/wearables/polar/connect (cookie oturumu)
 `polar_sync_state` tablosu (004_wearables.sql) BİLİNÇLİ OLARAK kullanılmıyor — manuel
 tetiklemede transaction zaten kendi durumunu (commit) sunucu tarafında tuttuğu, direct
 pull de otomatik "son 28 gün" döndüğü için gereksiz; ileride otomatik/periyodik senkrona
-geçilirse devreye girer. Mobil bağlantı ekranı (`connect-polar.tsx`) bilinçli olarak stub
-bırakıldı — yalnızca web akışı kuruldu.
+geçilirse devreye girer. Mobil bağlantı ekranı (`connect-polar.tsx`) stub olarak kalmıştı, Parti 18A'da
+(App Store hazırlığı) tamamen kaldırıldı — yalnızca web akışı var.
 
 **Devreye alma canlı testte tamamlandı (2026-09-13):** admin.polaraccesslink.com'da
 gerçek bir uygulama kaydedildi, `POLAR_CLIENT_ID`/`POLAR_CLIENT_SECRET`/
@@ -1962,7 +1965,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-10-24
+Son otomatik senkron: 2026-10-26
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -2154,7 +2157,7 @@ Son otomatik senkron: 2026-10-24
   (workout) kayıtları tablosu (`whoop_workouts`, event-bazlı senkron, backfill yok — bkz.
   §6 Agent 5).
 - ✅ Polar entegrasyonu (2026-09-13) — gerçek developer app kaydedildi, OAuth bağlanma
-  (yalnızca web, mobil `connect-polar.tsx` bilinçli olarak stub) canlı testte çalıştı.
+  (yalnızca web — mobil stub `connect-polar.tsx` Parti 18A'da kaldırıldı) canlı testte çalıştı.
   Manuel "Senkronize Et" butonuyla direct pull (nightly-recharge/uyku) + transaction
   pull (egzersizler → `polar_exercises`), bağlantı kesme (`deregisterUser`). Canlı
   testte üç ayrı yanlış varsayım bulunup düzeltildi (yanlış scope, yanlış API version

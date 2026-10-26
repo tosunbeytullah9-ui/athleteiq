@@ -13,15 +13,6 @@ export default function ProfileLayout() {
           headerTintColor: "#534AB7",
         }}
       />
-      <Stack.Screen
-        name="connect-polar"
-        options={{
-          headerShown: true,
-          headerTitle: "Polar Bağlantısı",
-          headerBackTitle: "Geri",
-          headerTintColor: "#534AB7",
-        }}
-      />
     </Stack>
   );
 }

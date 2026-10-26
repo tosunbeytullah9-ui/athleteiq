@@ -31,27 +31,24 @@ function InitialAvatar({ name }: { name: string }) {
   );
 }
 
-function WearableRow({
-  provider,
+// Mobilde yalnızca WHOOP bağlanır — Polar ve Fitbit web-only (Parti 18A).
+function WhoopRow({
   connection,
   onConnect,
   onDisconnect,
 }: {
-  provider: "whoop" | "polar";
   connection: WearableConnection | null;
   onConnect: () => void;
   onDisconnect: () => void;
 }) {
   const isConnected = connection?.is_active ?? false;
-  const label = provider === "whoop" ? "WHOOP" : "Polar";
-  const emoji = provider === "whoop" ? "⌚" : "🔵";
 
   return (
     <View className="flex-row items-center justify-between py-4 border-b border-gray-50">
       <View className="flex-row items-center">
-        <Text className="text-xl mr-3">{emoji}</Text>
+        <Text className="text-xl mr-3">⌚</Text>
         <View>
-          <Text className="text-gray-900 font-medium">{label}</Text>
+          <Text className="text-gray-900 font-medium">WHOOP</Text>
           {isConnected && connection?.last_synced_at && (
             <Text className="text-gray-400 text-xs">
               Son sync:{" "}
@@ -101,9 +98,9 @@ export default function ProfileScreen() {
     fetchConnections(athlete.id);
   }, [athlete, fetchConnections]);
 
-  const handleDisconnect = (provider: "whoop" | "polar") => {
+  const handleDisconnect = () => {
     Alert.alert(
-      `${provider === "whoop" ? "WHOOP" : "Polar"} Bağlantısını Kes`,
+      "WHOOP Bağlantısını Kes",
       "Cihaz bağlantısı kesilecek. Mevcut veriler silinmez.",
       [
         { text: "İptal", style: "cancel" },
@@ -112,19 +109,17 @@ export default function ProfileScreen() {
           style: "destructive",
           onPress: async () => {
             if (!athlete) return;
-            if (provider === "whoop") {
-              const conn = connections.find(
-                (c) => c.provider === "whoop" && c.athlete_id === athlete.id
-              );
-              if (conn?.access_token) {
-                await revokeWhoopAccess(conn.access_token);
-              }
+            const conn = connections.find(
+              (c) => c.provider === "whoop" && c.athlete_id === athlete.id
+            );
+            if (conn?.access_token) {
+              await revokeWhoopAccess(conn.access_token);
             }
             await supabase
               .from("wearable_connections")
               .update({ is_active: false })
               .eq("athlete_id", athlete.id)
-              .eq("provider", provider);
+              .eq("provider", "whoop");
             fetchConnections(athlete.id);
           },
         },
@@ -157,8 +152,6 @@ export default function ProfileScreen() {
 
   const whoopConn =
     connections.find((c) => c.provider === "whoop") ?? null;
-  const polarConn =
-    connections.find((c) => c.provider === "polar") ?? null;
 
   return (
     <ScrollView className="flex-1 bg-gray-50">
@@ -214,20 +207,16 @@ export default function ProfileScreen() {
         <Text className="text-gray-900 font-semibold text-base mb-2">
           Cihaz Bağlantıları
         </Text>
-        <View className="bg-white rounded-2xl px-4 py-1 mb-4 shadow-sm">
-          <WearableRow
-            provider="whoop"
+        <View className="bg-white rounded-2xl px-4 py-1 mb-2 shadow-sm">
+          <WhoopRow
             connection={whoopConn}
             onConnect={() => router.push("/(tabs)/profile/connect-whoop" as never)}
-            onDisconnect={() => handleDisconnect("whoop")}
-          />
-          <WearableRow
-            provider="polar"
-            connection={polarConn}
-            onConnect={() => router.push("/(tabs)/profile/connect-polar" as never)}
-            onDisconnect={() => handleDisconnect("polar")}
+            onDisconnect={handleDisconnect}
           />
         </View>
+        <Text className="text-gray-400 text-xs mb-4 px-1">
+          Polar ve Fitbit bağlantıları web panelinden yapılır.
+        </Text>
 
         {/* Çıkış */}
         <TouchableOpacity
