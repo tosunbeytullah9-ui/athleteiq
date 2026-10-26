@@ -759,6 +759,91 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18D — App Review Demo Ortamı ✅ (2026-10-26)
+
+#### Kapsam
+Hesapları kurumlar açtığı için uygulamada kayıt yok. Apple App Review bu yüzden çalışan
+demo hesapları ister; incelemeci uygulamayı boş görürse Guideline 2.1 (App Completeness)
+ile reddeder. İkinci bir demo org açılmadı: landing görsellerinin kaynağı olan "Demo
+Kulübü" (`slug = demo`, `scripts/landing/demo-seed.mjs`) App Review'a uygun hale
+getirildi. Uygulama kodu, migration ve yeni bağımlılık YOK.
+
+#### Demo hesaplar (şifre yalnızca `LANDING_DEMO_PASSWORD` ortam değişkeninde)
+- Sporcu: `defne.arslan@demo` (Defne Arslan, Artistik Cimnastik A)
+- Koç: `koc.demo@demo` (Selin Er, yalnızca Artistik Cimnastik A takımı)
+
+#### Script değişiklikleri (`demo-seed.mjs`)
+- **Program:** 3 haftalık blok yerine 10 haftalık blok: geçmiş 3 hafta + bu hafta + gelecek
+  6 hafta, hepsi yayında. `week_number` = ISO hafta (`create_program_with_weeks` ile aynı).
+  %1RM'ler 3 haftalık dalgayla artıyor (+0 / +2,5 / +5); doğrusal artış 10 haftada %100'ü
+  aşardı. Takım 1 (Atletizm Sprint) için program eklenmedi: koçun üyeliği yalnızca takım
+  0'da, RLS o takımı koça hiç göstermez.
+- **Geri bildirim:** Defne'nin son 14 gündeki (bugün dahil) 7 seansına `source='athlete'`
+  kaydı. Bu haftanın seansları ve geçmiş haftalardan biri demo koçun **gerçek oturumuyla**
+  `reply_to_session_feedback` üzerinden yanıtlandı, bir diğeri `mark_session_feedback_read`
+  ile okundu yapıldı. `session_feedback_guard_coach_columns` trigger'ı service role dahil
+  normal UPDATE'i geri aldığı için başka bir yol yok. Ağrı bayraklı örnek (Kerem) korundu.
+- **Wellness:** Defne son 14 gün, **bugün hariç** (incelemeci bugünkü check-in'i kendisi
+  girebilsin). Diğer sporcular 7 gün.
+- **WHOOP:** Defne son 28 gün + bugün. İleri tarihli metrik **yazılmadı**: mobil Recovery
+  sorgusunun üst sınırı yok (`recovery/index.tsx:101-105`), gelecek tarihli satır "son
+  ölçüm" olarak görünürdü (Faz 1'de önce ileri tarihleme önerilmişti, Faz 3'te bu kısıt
+  fark edilip geri alındı).
+- **Yarışmalar:** İstanbul Kupası (−30 gün, sonuçlu), Türkiye Şampiyonası (+20), Balkan
+  Şampiyonası (+60). Defne üçüne de kayıtlı.
+- Çıktı seed tarihini ve "bu veri şu tarihe kadar taze" uyarısını yazıyor. Reset
+  yorumundaki "NO ACTION FK" ifadesi düzeltildi (Parti 18B'den beri SET NULL); sıra
+  değişmedi.
+- `docs/app-store/review-notes.md` (İngilizce, App Review ekibi için) +
+  `docs/app-store/submission-checklist.md` (gönderimden hemen önce yapılacaklar).
+
+#### Canlı doğrulama (2026-10-26, demo hesapların gerçek JWT'leriyle)
+| Ekran | +0 | +7 | +14 | +30 |
+|---|---|---|---|---|
+| Sporcu → Program (bugünün haftası) + gün detayı | ✓ | ✓ | ✓ | ✓ |
+| Sporcu → koç yanıtı (bu haftanın seansları) | 1 | 0 | 0 | 0 |
+| Sporcu → Check-in bugün boş / geçmiş | boş / 7 | boş / 0 | boş / 0 | boş / 0 |
+| Sporcu ve koç → Recovery metrik (7 gün) | 8 | 1 | **0** | **0** |
+| Yarışmalar yaklaşan / geçmiş | 2 / 1 | 2 / 1 | 2 / 1 | 1 / 2 |
+| Koç → Sporcularım / Program / Gün detayı | ✓ (6 sporcu) | ✓ | ✓ | ✓ |
+- **İzolasyon:** Demo koç TGF ve Koç Üniversitesi'nden 0 sporcu, 0 program görüyor. Koç 6,
+  sporcu 1 sporcu satırı görüyor. Sporcu yalnızca kendi wellness, geri bildirim ve metrik
+  satırlarını okuyabiliyor. (Not: `competition_entries` org üyelerine bütün olarak açık;
+  bu mevcut RLS tasarımı.)
+- **Reset sınırı:** `--reset` öncesi ve sonrası TGF (10 sporcu / 13 üyelik / 90 program /
+  20 wellness / 18 geri bildirim) ve KU (42 / 8 / 10 / 26 / 0) birebir aynı, toplam auth
+  kullanıcısı 21 → 21. Sonra yeniden seed edildi.
+- **Koç yanıtı** sporcu JWT'siyle okunuyor: 2 yanıt + 1 yanıtsız okundu.
+
+#### Bulunan ama bu partide düzeltilmeyen uygulama sorunları
+1. **Sporcu gün ekranı sorgusu yavaş, ara sıra timeout veriyor.** `getDaySessions`
+   (`training_sessions → exercises → exercise_sets`) sporcu JWT'siyle medyan 1,3–3 sn,
+   en uzun 12,2 sn; üç doğrulama koşusunda ~26 denemede 2 kez `statement timeout`. `[day].tsx` hatayı yutup
+   "Dinlenme Günü" gösteriyor. EXPLAIN: planlama 405 ms, ~1060 alt plan. Politika alt
+   sorgularındaki tablolar kendi RLS'lerini zincirleme uyguluyor
+   (exercise_sets → exercises → training_sessions → training_programs → athletes) ve her
+   seviyede `is_super_admin()`/`my_role()` yeniden çağrılıyor. Öneri:
+   `can_access_annual_plan` gibi tek bir SECURITY DEFINER erişim helper'ı ile zinciri kırmak.
+   **App Review öncesi en riskli bulgu.**
+2. **Mobil koç Program ekranları bugünün haftasını değil en ileri haftayı gösteriyor.**
+   `my-athletes/[athleteId]/program/index.tsx:54-68,148` ve `getActiveProgramId`
+   (`packages/db/queries/programs.ts:139`) tarih ve arşiv filtresi olmadan en büyük
+   `start_date`'i seçiyor. Demo koç bloğun son haftasını (+6) "Aktif Program" olarak görüyor.
+   Öneri: sporcu ekranındaki gibi `isDateActive`.
+3. **Mobil Recovery üst sınırsız 7 günlük pencere** (`recovery/index.tsx:101-105`,
+   `my-athletes/[athleteId]/recovery.tsx:106-110`). Demo için Recovery tazeliği ~7 günle
+   sınırlı.
+4. **Koç yanıtı sporcuya yalnızca içinde bulunulan haftada görünür.** Mobilde geçmiş
+   haftalara gidilemiyor.
+5. **Mobil koç ekranlarında geri bildirim ve ağrı görünümü yok.** Ağrı örneği yalnızca web'deki
+   `/feedback`'te görünüyor.
+6. **Mobil yarışma ekranları** `competition_stages`, `competition_results` ve
+   `competition_entries` göstermiyor; org'un tüm yarışmalarını listeliyor.
+7. Sporcu program ekranı bugünü UTC'den alıyor (`program/index.tsx:67`); Türkiye saatiyle
+   Pazartesi 00:00–03:00 arası önceki haftayı gösterir.
+8. WHOOP "Bağlantıyı Kes" sahte token'la **çökmüyor** (WHOOP 401 döner, yutulur); bağlantı
+   pasife düşer ve Recovery "bağlı değil"e geçer. Yeniden seed bunu düzeltir.
+
 ### Parti 18B — Uygulama İçi Hesap Silme Talebi ✅ (2026-10-26)
 
 #### Kapsam
