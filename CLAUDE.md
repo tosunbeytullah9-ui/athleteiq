@@ -213,6 +213,8 @@ AthleteIQ/
 │       ├── competition.ts
 │       ├── csv.test.ts
 │       ├── csv.ts
+│       ├── date.test.ts
+│       ├── date.ts
 │       ├── demo-request.test.ts
 │       ├── demo-request.ts
 │       ├── drill.test.ts
@@ -251,7 +253,8 @@ AthleteIQ/
 │   │   ├── fetch-backgrounds.mjs
 │   │   └── record-replicas.mjs
 │   ├── security/
-│   │   └── check-metadata-escalation.mjs
+│   │   ├── check-metadata-escalation.mjs
+│   │   └── rls-visibility-snapshot.mjs
 │   ├── docs-sync.mjs
 │   ├── import-exercise-library.mjs
 │   └── table-descriptions.json
@@ -347,7 +350,8 @@ AthleteIQ/
 │   │   ├── 20261026185415_auth_user_fk_set_null.sql
 │   │   ├── 20261026185610_account_deletion_requests.sql
 │   │   ├── 20261026201410_function_default_privileges_hardening.sql
-│   │   └── 20261026201424_account_deletion_requests_notified_at.sql
+│   │   ├── 20261026201424_account_deletion_requests_notified_at.sql
+│   │   └── 20261027091923_program_tree_rls_performance.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -562,7 +566,62 @@ create policy "exercises_select" on exercises for select using (
 );
 ```
 
+> **Yukarıdaki blok TARİHSELDİR.** `training_programs` / `training_sessions` / `exercises` /
+> `exercise_sets` politikaları sonradan değişti (025 koç takım kapsamı, 20260922084236
+> `matches_training_group`) ve **Parti 18P'de (2026-10-27,
+> `20261027091923_program_tree_rls_performance.sql`) tamamen yeniden yazıldı** — güncel desen
+> aşağıdaki §4.0.
+
+### 4.0 Program ağacı politikaları — definer id kümeleri (Parti 18P, 2026-10-27)
+
+Eski politikalar dört tablonun her birinde `EXISTS (... join training_programs ...)` ile ebeveyne
+iniyordu; alt sorgudaki her tablo kendi RLS'ini de uyguladığı için zincir 4 kat derinleşiyor,
+`is_super_admin()`/`my_role()`/`auth.uid()` satır başına çağrılıyordu ve FOR ALL `*_write`
+politikaları SELECT'te de OR'lanıyordu. Sporcunun gün sorgusu 184 SubPlan'lık bir plana
+dönüşüyor, PostgREST üzerinden medyan 3,6 sn / p95 8,7 sn sürüp 30 denemede 2 kez statement
+timeout veriyordu. Yeni desen:
+
+| Tablo | SELECT | INSERT (with check) | UPDATE (using / with check) | DELETE |
+|---|---|---|---|---|
+| `training_programs` | `id in (select readable_program_ids())` | `can_write_program(org_id, team_id, athlete_id)` | `id in (select writable_program_ids())` / `can_write_program(...)` | `id in (select writable_program_ids())` |
+| `training_sessions` | `program_id in (select readable_program_ids())` | `program_id in (select writable_program_ids())` | aynı / aynı | aynı |
+| `exercises` | `session_id in (select readable_session_ids())` | `session_id in (select writable_session_ids())` | aynı / aynı | aynı |
+| `exercise_sets` | `exercise_id in (select readable_exercise_ids())` | `exercise_id in (select writable_exercise_ids())` | aynı / aynı | aynı |
+
+- **Erişim mantığı TEK yerde:** `readable_program_ids()` eski `programs_select`'in, `writable_program_ids()`
+  / `can_write_program()` eski `programs_write`'ın birebir karşılığı (admin org geneli; koç kendi takım
+  programları + kendi takımındaki sporcuların bireysel programları — koç dalı sporcunun org'uyla,
+  `my_team_id(a2.org_id)`; sporcu kendi bireysel + `matches_training_group` eşleşen yayınlanmış takım
+  programları). `*_session_ids()` / `*_exercise_ids()` program kümesini aşağı taşır.
+- SECURITY DEFINER SQL fonksiyonları inline edilmez → her biri sorgu başına bir kez çalışır (hashed
+  subplan), içerideki tablolara RLS uygulanmaz → zincir yok. Gün sorgusu: planlama 150 → 0,3 ms,
+  PostgREST medyan 3.630 → 152 ms, timeout 2 → 0 (bkz. PROGRESS.md § Parti 18P).
+- `training_programs` INSERT ve UPDATE WITH CHECK'i id kümesiyle yazılamaz (eklenen satır henüz
+  kümede değil, UPDATE kapsamı değiştirebilir) → satır koşulu `can_write_program()`.
+- Eşdeğerlik `scripts/security/rls-visibility-snapshot.mjs` ile kanıtlandı: 24 kimlik (anon dahil) ×
+  4 tablo — okuma, toplu UPDATE/DELETE, örnek bazlı UPDATE/DELETE/INSERT ve ebeveyn taşıma — önce/sonra
+  birebir aynı.
+- Eşdeğerlik iki veri değişmezine dayanır (ikisi de canlıda 0 ihlal): `memberships (user_id, org_id)`
+  UNIQUE (kısıt var) ve bireysel programın org'u = sporcunun org'u (kısıt YOK — bozulursa koç dalında
+  `p.org_id` / `a2.org_id` farkı görünürlüğü değiştirebilir).
+- **Ölçek notu:** `readable_exercise_ids()` görünür egzersizlerin tamamını materyalize eder (süper
+  admin için bugün ~900). Görünür egzersiz sayısı ~100 bine yaklaşırsa `exercises` / `exercise_sets`'e
+  `program_id` denormalizasyonu değerlendirilecek.
+- `get_athlete_programs` aynı partide `matches_training_group` aldı — artık bir sporcu için
+  döndürdüğü küme, o sporcunun RLS ile gördüğü arşivlenmemiş programlarla aynıdır (snapshot'ta her
+  sporcu için kontrol edilir). Mobil sporcu/koç program ekranları ve web sporcu panosu aktif haftayı
+  bu RPC + `isDateActive` + `sortAthletePrograms` (`getActiveAthletePrograms`, `packages/db/queries/programs.ts`)
+  ve İstanbul takvimi (`todayInIstanbul`, `packages/validators/date.ts`) ile seçer.
+
 ### 4.1 Güvenlik Konvansiyonları
+
+**RLS politika kuralları (Parti 18P, kalıcı):** RLS politikasında fonksiyon çağrıları `(select ...)`
+ile sarılır; başka bir RLS'li tabloya `EXISTS` ile inmek yerine SECURITY DEFINER küme fonksiyonu
+kullanılır; `FOR ALL` politika yazılmaz — INSERT/UPDATE/DELETE ayrı yazılır. RLS'e dokunan her parti
+`scripts/security/rls-visibility-snapshot.mjs` ile önce/sonra eşdeğerliğini kanıtlar
+(`--out önce.json` → migration → `--out sonra.json` → `--compare önce.json sonra.json`; tek fark
+→ ters migration). Script yeni tabloları `TABLES` listesine ekleyerek kapsar, hiçbir koşulda COMMIT
+etmez ve `SUPABASE_DB_URL`'yi (kök `.env`) yalnızca bağlanmak için kullanır.
 
 Herhangi bir plpgsql fonksiyonunda manuel yetkilendirme kontrolü yazılırken (`IF NOT (...) THEN RAISE EXCEPTION` deseni), koşul ifadesi MUTLAKA `coalesce(..., false)` ile sarılmalı. Ham `is_super_admin() OR my_role(org)=X OR ...` zinciri, org üyeliği olmayan kullanıcılar için `my_role()` NULL döndüğünde üç değerli mantık yüzünden sessizce bypass edilir (NOT NULL = NULL, hiçbir zaman true olmaz). Bu, Parti 3.C'de gerçek bir yetkisiz-erişim açığı olarak bulundu ve düzeltildi (bkz. PROGRESS.md § Parti 3.C).
 
@@ -570,7 +629,13 @@ Her yeni `SECURITY DEFINER` fonksiyonu, gövdesinin ilk satırlarında `coalesce
 sarmalanmış bir yetki kontrolü İÇERMELİDİR. Yalnızca dahili yardımcı olarak kullanılacak
 `SECURITY DEFINER` fonksiyonlarından `PUBLIC`, `anon` ve `authenticated` rollerinin EXECUTE
 yetkisi kaldırılmalıdır. `my_role`, `my_team_id` ve `is_super_admin` fonksiyonları RLS
-politikaları içinden çağrıldığı için `authenticated` yetkileri ASLA kaldırılamaz. (Parti 18-S'te
+politikaları içinden çağrıldığı için `authenticated` yetkileri ASLA kaldırılamaz. Aynı istisna
+(Parti 18P): `readable_program_ids`, `readable_session_ids`, `readable_exercise_ids`,
+`writable_program_ids`, `writable_session_ids`, `writable_exercise_ids`, `can_write_program` ve
+`can_access_annual_plan` — RLS içinden çağrılırlar, gövdeleri zaten fail-closed bir yetki
+kontrolüdür (`coalesce(..., false)`), döndürdükleri id'ler çağıranın zaten okuyabildiği/yazabildiği
+satırlardır; anon/PUBLIC EXECUTE yok. Anon bu dört tablodan okurken `42501` alır (bugün de
+`is_super_admin()` yüzünden böyleydi — snapshot bunu "ERR:42501" olarak kaydeder). (Parti 18-S'te
 `copy_program_tree` ve `get_athlete_programs`'ın bu kuralı atladığı, ikisinin de gerçek
 cross-tenant açık olduğu bulundu ve kapatıldı — bkz. PROGRESS.md § Parti 18-S, BUGS.md Kritik.)
 
@@ -2032,7 +2097,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-10-26
+Son otomatik senkron: 2026-10-27
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
@@ -2116,6 +2181,7 @@ Son otomatik senkron: 2026-10-26
 - 20261026185610_account_deletion_requests.sql
 - 20261026201410_function_default_privileges_hardening.sql
 - 20261026201424_account_deletion_requests_notified_at.sql
+- 20261027091923_program_tree_rls_performance.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/

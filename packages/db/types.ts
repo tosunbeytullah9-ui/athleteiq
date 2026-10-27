@@ -2262,6 +2262,10 @@ export type Database = {
         Args: { p_athlete_id: string }
         Returns: boolean
       }
+      can_write_program: {
+        Args: { p_athlete_id: string; p_org_id: string; p_team_id: string }
+        Returns: boolean
+      }
       cancel_account_deletion_request: {
         Args: never
         Returns: {
@@ -2380,6 +2384,9 @@ export type Database = {
         Args: { p_source_program_id: string }
         Returns: Json
       }
+      readable_exercise_ids: { Args: never; Returns: string[] }
+      readable_program_ids: { Args: never; Returns: string[] }
+      readable_session_ids: { Args: never; Returns: string[] }
       recalc_acwr_day: {
         Args: { p_athlete_id: string; p_date: string }
         Returns: undefined
@@ -2457,6 +2464,9 @@ export type Database = {
         }
         Returns: undefined
       }
+      writable_exercise_ids: { Args: never; Returns: string[] }
+      writable_program_ids: { Args: never; Returns: string[] }
+      writable_session_ids: { Args: never; Returns: string[] }
     }
     Enums: {
       [_ in never]: never

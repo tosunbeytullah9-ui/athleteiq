@@ -1,6 +1,13 @@
 import type { DbClient } from "./_client";
 import type { TablesInsert, TablesUpdate, Tables } from "../types";
 
+// account-deletion.ts / session-feedback.ts ile aynı: metot kısayolu, supabase-js'in
+// daraltılmış rpc() imzasıyla bivariant uyum için.
+type RpcClient = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rpc(fn: string, args?: Record<string, unknown>): any;
+};
+
 export async function getPrograms(client: DbClient, orgId: string) {
   const { data, error } = await client
     .from("training_programs")
@@ -135,22 +142,30 @@ export async function updateProgram(
   return data;
 }
 
-/** Sporcunun/takımının en güncel yayınlanmış programının id'si — mobil program/[day] akışlarının paylaşılan ilk aşaması. */
-export async function getActiveProgramId(
-  client: DbClient,
-  // teamId null olabilir (athletes.team_id nullable) — bkz. BUGS.md "getActiveProgramId takımsız sporcu".
-  params: { athleteId: string; teamId: string | null }
-): Promise<string | null> {
-  const { data, error } = await client
-    .from("training_programs")
-    .select("id")
-    .or(`athlete_id.eq.${params.athleteId},team_id.eq.${params.teamId}`)
-    .eq("is_published", true)
-    .order("start_date", { ascending: false })
-    .limit(1);
-
+/** Sporcunun bugün (todayISODate, İstanbul takvimi — bkz. todayInIstanbul) tarih olarak
+ * aktif programları, sporcu ekranının gösterdiği sırayla: get_athlete_programs
+ * (yayınlanmış + arşivlenmemiş + antrenman grubu eşleşen) → isDateActive →
+ * sortAthletePrograms. Sporcu, koç (mobil) ve web panosu bu TEK kuralı kullanır. */
+export async function getActiveAthletePrograms(
+  client: RpcClient,
+  athleteId: string,
+  todayISODate: string
+): Promise<Tables<"training_programs">[]> {
+  const { data, error } = await client.rpc("get_athlete_programs", { p_athlete_id: athleteId });
   if (error) throw error;
-  return data?.[0]?.id ?? null;
+  const programs = (data ?? []) as Tables<"training_programs">[];
+  return sortAthletePrograms(programs.filter((p) => isDateActive(p, todayISODate)));
+}
+
+/** getActiveAthletePrograms'ın ilk programının id'si; bugünü kapsayan hafta yoksa null
+ * (en ileri ya da en son haftaya DÜŞMEZ). */
+export async function getActiveProgramId(
+  client: RpcClient,
+  athleteId: string,
+  todayISODate: string
+): Promise<string | null> {
+  const programs = await getActiveAthletePrograms(client, athleteId, todayISODate);
+  return programs[0]?.id ?? null;
 }
 
 /** Bir veya birden fazla programın arşiv durumunu tek seferde değiştirir (blok kapsamlı işlemler için). */

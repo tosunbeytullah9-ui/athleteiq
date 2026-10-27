@@ -12,14 +12,15 @@ import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import {
+  getActiveAthletePrograms,
   getProgramSessionsSummary,
-  isDateActive,
-  sortAthletePrograms,
 } from "@athleteiq/db/queries/programs";
 import { getWellnessCheckin } from "@athleteiq/db/queries/wellness";
 import { getLocalDateString } from "@athleteiq/validators/wellness";
 import { getTimeGreeting } from "@athleteiq/validators/greeting";
+import { dayOfWeekInIstanbul, todayInIstanbul } from "@athleteiq/validators/date";
 import { ProgramTabStrip } from "@/components/ProgramTabStrip";
+import { LoadErrorState } from "@/components/LoadErrorState";
 import type { Tables } from "@athleteiq/db/types";
 
 type TrainingProgram = Tables<"training_programs">;
@@ -57,20 +58,22 @@ export default function ProgramScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
   const [todayWellness, setTodayWellness] = useState<WellnessCheckin | null>(null);
+  // Sorgu hatası ≠ program yok: hata durumunda "Henüz program yok"/"Dinlenme" gösterilmez.
+  const [loadError, setLoadError] = useState(false);
 
   const fetchPrograms = useCallback(async (athleteId: string) => {
-    const { data, error } = await supabase.rpc("get_athlete_programs", {
-      p_athlete_id: athleteId,
-    });
-
-    if (!error && data) {
-      const today = new Date().toISOString().slice(0, 10);
-      const active = sortAthletePrograms(data.filter((p) => isDateActive(p, today)));
+    try {
+      // Aktif hafta İstanbul takvimiyle (UTC'de Pazartesi 00:00–03:00 önceki haftaydı).
+      const active = await getActiveAthletePrograms(supabase, athleteId, todayInIstanbul());
       setActivePrograms(active);
       setActiveTabIndex((prev) => (prev < active.length ? prev : 0));
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
-    setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -139,9 +142,13 @@ export default function ProgramScreen() {
       return;
     }
     let cancelled = false;
-    getProgramSessionsSummary(supabase, current.id).then((data) => {
-      if (!cancelled) setTabSessions(data);
-    });
+    getProgramSessionsSummary(supabase, current.id)
+      .then((data) => {
+        if (!cancelled) setTabSessions(data);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true);
+      });
     return () => {
       cancelled = true;
     };
@@ -228,7 +235,9 @@ export default function ProgramScreen() {
           </View>
         </TouchableOpacity>
 
-        {activePrograms.length === 0 ? (
+        {loadError ? (
+          <LoadErrorState onRetry={onRefresh} />
+        ) : activePrograms.length === 0 ? (
           <View className="bg-white rounded-2xl p-8 items-center mt-4">
             <Text className="text-4xl mb-3">📋</Text>
             <Text className="text-gray-900 font-semibold text-lg text-center">
@@ -275,8 +284,7 @@ export default function ProgramScreen() {
                 .filter((s) => s.day_of_week === dayNum)
                 .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
-              const isToday =
-                new Date().getDay() === (dayNum === 7 ? 0 : dayNum);
+              const isToday = dayOfWeekInIstanbul() === dayNum;
 
               return (
                 <TouchableOpacity

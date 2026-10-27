@@ -23,6 +23,7 @@
     "./endurance": "./endurance.ts",
     "./program-copy": "./program-copy.ts",
     "./greeting": "./greeting.ts",
+    "./date": "./date.ts",
     "./drill": "./drill.ts",
     "./competition": "./competition.ts",
     "./account-deletion": "./account-deletion.ts"

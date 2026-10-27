@@ -28,8 +28,9 @@ import {
   SESSION_FEEDBACK_STATUS_LABELS,
   type SessionFeedbackStatus,
 } from "@athleteiq/validators/session-feedback";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { todayInIstanbul } from "@athleteiq/validators/date";
 import { SessionFeedbackSheet } from "@/components/SessionFeedbackSheet";
+import { LoadErrorState } from "@/components/LoadErrorState";
 import type { Tables } from "@athleteiq/db/types";
 
 type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: Tables<"exercise_sets">[] };
@@ -61,6 +62,10 @@ export default function ProgramDayScreen() {
   const [sessions, setSessions] = useState<SessionWithExercises[]>([]);
   const [maxLookup, setMaxLookup] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  // Sorgu hatası/timeout ≠ dinlenme günü — "Dinlenme Günü" yalnızca sorgu başarılı ve
+  // seans sayısı 0 ise gösterilir.
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   // Seans başına geri bildirim (session_id -> satır) + formu açık olan seans.
   const [feedback, setFeedback] = useState<Record<string, FeedbackRow>>({});
   const [programStart, setProgramStart] = useState<string | null>(null);
@@ -76,6 +81,9 @@ export default function ProgramDayScreen() {
     }
 
     async function fetchDaySessions() {
+      setLoading(true);
+      setLoadError(false);
+      let sessionIds: string[];
       try {
         const [data, athleteMaxes, ratios, programRes] = await Promise.all([
           getDaySessions(supabase, programId!, dayNum),
@@ -96,26 +104,37 @@ export default function ProgramDayScreen() {
             (a, b) => (a.order_index ?? 0) - (b.order_index ?? 0)
           ),
         }));
+        if (programRes.error) throw programRes.error;
         setSessions(withSortedExercises);
         setMaxLookup(buildMaxLookup(athleteMaxes, ratios));
         setProgramStart(programRes.data?.start_date ?? null);
+        sessionIds = withSortedExercises.map((s) => s.id);
+      } catch {
+        setLoadError(true);
+        setLoading(false);
+        return;
+      }
 
+      try {
         const rows = (await getSessionFeedbackForSessions(
           supabase,
           athlete!.id,
-          withSortedExercises.map((s) => s.id)
+          sessionIds
         )) as FeedbackRow[];
         setFeedback(Object.fromEntries(rows.map((r) => [r.session_id, r])));
+      } catch {
+        // Geri bildirim okunamazsa program yine gösterilir (eski davranış: seanslar
+        // set edilmiş, geri bildirim boş).
       } finally {
         setLoading(false);
       }
     }
 
     fetchDaySessions();
-  }, [athlete, dayNum, programId]);
+  }, [athlete, dayNum, programId, reloadKey]);
 
   const sessionDate = resolveSessionDate(programStart, dayNum);
-  const feedbackEditable = isFeedbackEditable(sessionDate, getLocalDateString());
+  const feedbackEditable = isFeedbackEditable(sessionDate, todayInIstanbul());
   const sheetSession = sessions.find((s) => s.id === sheetSessionId) ?? null;
 
   const totalDuration = sessions.reduce(
@@ -165,6 +184,8 @@ export default function ProgramDayScreen() {
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#1d4ed8" />
         </View>
+      ) : loadError ? (
+        <LoadErrorState onRetry={() => setReloadKey((k) => k + 1)} />
       ) : !programId ? (
         <View className="flex-1 items-center justify-center p-8">
           <Text className="text-4xl mb-3">⚠️</Text>

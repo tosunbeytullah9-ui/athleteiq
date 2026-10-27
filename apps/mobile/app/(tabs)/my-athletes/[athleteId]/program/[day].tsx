@@ -21,6 +21,8 @@ import {
   type DrillDiagramRecord,
 } from "@athleteiq/db/queries/drills";
 import { getActiveProgramId, getDaySessions } from "@athleteiq/db/queries/programs";
+import { todayInIstanbul } from "@athleteiq/validators/date";
+import { LoadErrorState } from "@/components/LoadErrorState";
 import {
   getAthleteMaxes,
   buildMaxLookup,
@@ -50,7 +52,11 @@ const SESSION_TYPE_LABELS: Record<string, string> = {
 };
 
 export default function CoachProgramDayScreen() {
-  const { athleteId, day } = useLocalSearchParams<{ athleteId: string; day: string }>();
+  const { athleteId, day, programId: programIdParam } = useLocalSearchParams<{
+    athleteId: string;
+    day: string;
+    programId?: string;
+  }>();
   const router = useRouter();
   const { athlete, loading: athleteLoading, notFound } = useCoachAthlete(athleteId);
   const [sessions, setSessions] = useState<SessionWithExercises[]>([]);
@@ -58,20 +64,30 @@ export default function CoachProgramDayScreen() {
   // Drill (koni) diyagramları — yalnızca koç/admin (RLS); bu ekran zaten koç ekranı.
   const [drills, setDrills] = useState<Record<string, DrillDiagramRecord>>({});
   const [loading, setLoading] = useState(true);
+  // Sorgu hatası ≠ dinlenme günü; aktif hafta yoksa da dinlenme günü DEĞİL.
+  const [loadError, setLoadError] = useState(false);
+  const [noProgram, setNoProgram] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const dayNum = parseInt(day ?? "1", 10);
 
   useEffect(() => {
     if (!athlete) return;
 
     async function fetchDaySessions() {
+      setLoading(true);
+      setLoadError(false);
+      setNoProgram(false);
       try {
-        // Sporcunun en güncel yayınlanmış programını bul
-        const programId = await getActiveProgramId(supabase, {
-          athleteId: athlete!.id,
-          teamId: athlete!.team_id,
-        });
+        // Hafta ekranının seçtiği program; derin bağlantıda yoksa aynı kuralla
+        // (bugünü İstanbul takvimiyle kapsayan hafta) yeniden çözülür.
+        const programId =
+          programIdParam ?? (await getActiveProgramId(supabase, athlete!.id, todayInIstanbul()));
 
-        if (!programId) return;
+        if (!programId) {
+          setSessions([]);
+          setNoProgram(true);
+          return;
+        }
 
         const [data, athleteMaxes, ratios, drillRecords] = await Promise.all([
           getDaySessions(supabase, programId, dayNum),
@@ -91,13 +107,15 @@ export default function CoachProgramDayScreen() {
         }));
         setSessions(withSortedExercises);
         setMaxLookup(buildMaxLookup(athleteMaxes, ratios));
+      } catch {
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     }
 
     fetchDaySessions();
-  }, [athlete, dayNum]);
+  }, [athlete, dayNum, programIdParam, reloadKey]);
 
   if (athleteLoading) {
     return (
@@ -167,6 +185,15 @@ export default function CoachProgramDayScreen() {
       {loading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator size="large" color="#1d4ed8" />
+        </View>
+      ) : loadError ? (
+        <LoadErrorState onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : noProgram ? (
+        <View className="flex-1 items-center justify-center p-8">
+          <Text className="text-4xl mb-3">📋</Text>
+          <Text className="text-gray-900 font-semibold text-lg text-center">
+            Bu sporcu için aktif program yok
+          </Text>
         </View>
       ) : sessions.length === 0 ? (
         <View className="flex-1 items-center justify-center p-8">

@@ -25,6 +25,7 @@ import { getWearableConnection, getWearableMetrics } from "@athleteiq/db/queries
 import { getAthleteCoachReplies } from "@athleteiq/db/queries/session-feedback";
 import { getExerciseDemoLinks } from "@athleteiq/db/queries/exercises";
 import { getLocalDateString, computeCheckinStreak } from "@athleteiq/validators/wellness";
+import { dayOfWeekInIstanbul, todayInIstanbul } from "@athleteiq/validators/date";
 import { getTodayDayOfWeek, getWeekRange } from "@/lib/date";
 import { AthleteDashboardClient } from "./athlete-dashboard-client";
 import { AdminDashboardWidgets } from "./admin-dashboard-widgets";
@@ -221,16 +222,15 @@ async function AthleteDashboardSection() {
   }
 
   const today = getLocalDateString();
-  const todayDow = getTodayDayOfWeek();
+  // Aktif hafta ve günün seansları İstanbul takvimiyle (sunucu Vercel'de UTC) — mobil
+  // sporcu/koç ekranlarıyla aynı kural (getActiveAthletePrograms).
+  const todayDow = dayOfWeekInIstanbul();
   const week = getWeekRange();
   const historyFrom = getLocalDateString(
     new Date(Date.now() - 13 * 24 * 60 * 60 * 1000)
   );
 
-  const activeProgramId = await getActiveProgramId(supabase, {
-    athleteId: athlete.id,
-    teamId: athlete.team_id ?? "",
-  });
+  const activeProgramId = await getActiveProgramId(supabase, athlete.id, todayInIstanbul());
 
   const [
     todaySessions,

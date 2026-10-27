@@ -759,6 +759,110 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18P — Program RLS Performansı + Mobil Doğruluk ✅ (2026-10-27)
+
+#### Kapsam
+App Review öncesi 18D canlı testinin iki bulgu sınıfı: (A) program ağacı RLS'inin yavaşlığı
+(sporcunun gün ekranı 1–12 sn, ara sıra statement timeout), (B) mobilde yanlış aktif hafta,
+UTC "bugün", hatayı "Dinlenme Günü" olarak gösterme ve üst sınırsız Recovery penceresi.
+
+#### Faz 1 bulguları (canlı, salt-okunur)
+- Dört tablonun politikaları: `*_select` (SELECT) + `*_write` (ALL, `with_check` YOK → qual hem
+  USING hem WITH CHECK). Write koşulu select'in personel dallarının alt kümesi.
+- Seans/egzersiz/set'e doğrudan istemci yazması YOK — tüm yazmalar SECURITY DEFINER RPC'lerden.
+  `training_programs`'a doğrudan: `publishProgram`, `setBlockPublished`, `setProgramsArchived`,
+  `deletePrograms` (UPDATE/DELETE). `set_session_feedback_date()` (INVOKER) ve
+  `session_feedback_insert` program ağacını sporcu RLS'iyle okur.
+- Sporcu gün sorgusu planı: 825 satır, 184 SubPlan, 0 InitPlan; planlama rolden bağımsız ~135 ms.
+- Aynı iç içe/satır başı desen 39 başka politikada (advisor `auth_rls_initplan`), bu partide
+  dokunulmadı.
+- `getActiveProgramId` çağıranları: mobil koç gün ekranı + **web sporcu panosu**
+  (`dashboard/page.tsx:230`). Koç hafta ekranı aynı hatalı sorguyu inline yazmıştı.
+- `get_athlete_programs` `matches_training_group` uygulamıyordu (kullanıcı kararıyla bu partide
+  düzeltildi).
+- Wellness check-in tarihi UTC değil, **cihaz yerel saati** (`getLocalDateString`) — dokunulmadı.
+
+#### Değişiklikler
+- `supabase/migrations/20261027091923_program_tree_rls_performance.sql` (MCP sürümüyle hizalandı):
+  7 SECURITY DEFINER fonksiyon (`readable_{program,session,exercise}_ids`,
+  `writable_{program,session,exercise}_ids`, `can_write_program`), 8 politika → 16 (SELECT + ayrı
+  INSERT/UPDATE/DELETE), `get_athlete_programs` gövdesine `matches_training_group` (imza aynı,
+  grant'ler korundu: anon ✗ / authenticated ✓). Ayrıntı: CLAUDE.md §4.0.
+- `scripts/security/rls-visibility-snapshot.mjs` (kalıcı): kullanıcı başına transaction + ROLLBACK
+  (tek giriş noktası `withRollback`, COMMIT/END/BEGIN/çoklu ifade reddedilir), okumalar + yazma matrisi
+  + örnek bazlı INSERT/taşıma + `get_athlete_programs` ↔ RLS kontrolü + veri parmak izi; `--compare`.
+  Hatalar yalnızca SQLSTATE olarak kaydedilir. `pg` kök devDependency.
+- `packages/validators/date.ts` (+6 test): `todayInIstanbul`, `dayOfWeekInIstanbul`,
+  `istanbulDateOffset` (sabit UTC+3 — Intl `timeZone`'a bağımlı değil).
+- `packages/db/queries/programs.ts`: `getActiveAthletePrograms(client, athleteId, today)` =
+  `get_athlete_programs` → `isDateActive` → `sortAthletePrograms`; `getActiveProgramId` artık bunun
+  ilk elemanı, bugünü kapsayan hafta yoksa `null` (en ileri haftaya düşmez). Takımsız sporcuda
+  `team_id.eq.null` gizli hatası da böylece kalktı.
+- Mobil: sporcu ve koç hafta ekranları aynı kuraldan; koç gün ekranı `programId`'yi parametre olarak
+  alır; "Bugün" vurgusu ve geri bildirim penceresi İstanbul'a göre; Recovery `[bugün-7, bugün]`
+  (İstanbul); dört ekranda hata → "Program yüklenemedi" + "Tekrar dene"
+  (`components/LoadErrorState.tsx`), "Dinlenme Günü" yalnızca başarılı ve boş sonuçta; koç gün
+  ekranında "aktif program yok" ayrı.
+- **Web:** sporcu panosundaki "bugünün antrenmanı" artık bloğun en ileri haftasından değil, bugünü
+  (İstanbul) kapsayan haftanın İstanbul'a göre bugünkü gününden gelir.
+- `packages/db/types.ts` regenerate (yalnızca 7 fonksiyon eklendi), `pnpm docs:sync`.
+
+#### Doğrulama
+**Görünürlük eşdeğerliği** — snapshot önce (26 dk) / sonra (25 dk), 24 kimlik (anon + 17 sporcu +
+3 koç + 2 admin + 1 süper admin) × 4 tablo: `--compare` → **EŞDEĞER, fark yok** (okuma, toplu
+UPDATE/DELETE düz + RETURNING hash, 21 örnek satırda UPDATE/DELETE/INSERT/taşıma). Veri parmak izi iki
+koşu arasında değişmedi. `get_athlete_programs == RLS`: 17/17 sporcu (önce ve sonra — canlıda şu an
+grup kısıtlı program yok, kural yine de eklendi). Oturum açmış kullanıcılarda okuma/RPC hatası 0;
+anon her iki koşuda `ERR:42501`.
+
+**Performans** (`explain analyze`, 5 çalıştırma medyanı, ms; tek transaction, `set local role authenticated`):
+
+| Kimlik | Sorgu | Önce plan / çalışma | Sonra plan / çalışma |
+|---|---|---|---|
+| Demo sporcu | Gün sorgusu (iç içe json) | 150 / 163 | **0,3 / 5,1** |
+| | Yalnızca seanslar | 4 / 5 | 0,1 / 1,2 |
+| | Seans + egzersiz | 26 / 24 | 0,2 / 2,6 |
+| | Seans + egzersiz + set | 136 / 154 | 0,3 / 4,7 |
+| | `select id from training_programs` | 1 / 67 | 0,1 / 1,3 |
+| Demo koç | Gün sorgusu | 137 / 28 | 0,3 / 4,8 |
+| | programs | 1 / 68 | 0,1 / 1,2 |
+| TGF admin (süper admin) | Gün sorgusu | 137 / 17 | 0,3 / 6,2 |
+| KU admin | Gün sorgusu | 136 / 20 | 0,3 / 4,7 |
+| | programs | 1 / 65 | 0,1 / 1,2 |
+
+Plan: 825 satır / 184 SubPlan → 29 satır / 8 SubPlan. Hedef (< 50 ms) ✓.
+
+**Uçtan uca** (demo sporcu JWT'si, PostgREST, gerçek `getDaySessions`, 30 çağrı, 1 seans / 4 egzersiz / 12 set):
+
+| | Medyan | p95 | En uzun | En kısa | Hata |
+|---|---|---|---|---|---|
+| Önce | 3.630 ms | 8.668 ms | 8.780 ms | 932 ms | **2** (statement timeout) |
+| Sonra | **152 ms** | **404 ms** | 1.176 ms | 133 ms | **0** |
+
+Hedef (p95 < 500 ms, 0 hata) ✓.
+
+**RPC akışları** (demo koç, tek transaction + ROLLBACK, sonrasında kalan test programı 0):
+`create_program_with_weeks` (2 hafta) ✓, RLS ile ağaç okuma (1/2/3/3) ✓, `update_program_week` ✓,
+`propagate_week_to_future` (hafta 2 yeni içeriği aldı) ✓, `copy_program_block` ✓ + kopyanın ağacı ✓,
+istemci yolları: `publishProgram` ✓, `setBlockPublished` (2) ✓, `setProgramsArchived` (2) ✓,
+`deletePrograms` (2) ✓.
+
+**Advisors:** güvenlik — ERROR yok; `authenticated_security_definer_function_executable` 17 → 24
+(7 yeni fonksiyon, tasarım gereği). Performans — `auth_rls_initplan` 43 → 39,
+`multiple_permissive_policies` 96 → 72; **bu dört tablo için ikisi de 0** (önce 4 / 24).
+
+**Yerel:** validators testleri 261/261 ✓ (UTC 22:30 Pazar → İstanbul Pazartesi dahil), tip kontrolü
+db / mobil / web ✓, lint web 0 hata / mobil ✓, `expo export --platform ios` ✓ (7,15 MB). Mobil
+arayüz cihazda elle tıklanarak DOĞRULANMADI.
+
+#### Süreç notları
+- İlk `apply_migration` çağrısı MCP tarafında "Invalid or expired requestState" ile düştü; DB'de
+  hiçbir şey uygulanmamıştı (politikalar/fonksiyonlar/migration kaydı eski hâlinde doğrulandı),
+  ikinci çağrı başarılı.
+- 18P'nin ilk snapshot denemeleri: `SUPABASE_DB_URL` ayrıştırılamadı (düzeltildi, şifre yalnızca
+  harf/rakam); ardından anon okumalarındaki `42501` script'i düşürdü → okumalar da savepoint'li
+  `probe()`'a alındı.
+
 ### Parti 18D — App Review Demo Ortamı ✅ (2026-10-26)
 
 #### Kapsam
@@ -816,7 +920,9 @@ getirildi. Uygulama kodu, migration ve yeni bağımlılık YOK.
 - **Koç yanıtı** sporcu JWT'siyle okunuyor: 2 yanıt + 1 yanıtsız okundu.
 
 #### Bulunan ama bu partide düzeltilmeyen uygulama sorunları
-1. **Sporcu gün ekranı sorgusu yavaş, ara sıra timeout veriyor.** `getDaySessions`
+> Parti 18P'de kapatılanlar: **1, 2, 3, 7** (ve 1'in "Dinlenme Günü" kısmı). Açık kalanlar: 4, 5, 6, 8.
+
+1. **✅ 18P — Sporcu gün ekranı sorgusu yavaş, ara sıra timeout veriyor.** `getDaySessions`
    (`training_sessions → exercises → exercise_sets`) sporcu JWT'siyle medyan 1,3–3 sn,
    en uzun 12,2 sn; üç doğrulama koşusunda ~26 denemede 2 kez `statement timeout`. `[day].tsx` hatayı yutup
    "Dinlenme Günü" gösteriyor. EXPLAIN: planlama 405 ms, ~1060 alt plan. Politika alt
@@ -825,12 +931,12 @@ getirildi. Uygulama kodu, migration ve yeni bağımlılık YOK.
    seviyede `is_super_admin()`/`my_role()` yeniden çağrılıyor. Öneri:
    `can_access_annual_plan` gibi tek bir SECURITY DEFINER erişim helper'ı ile zinciri kırmak.
    **App Review öncesi en riskli bulgu.**
-2. **Mobil koç Program ekranları bugünün haftasını değil en ileri haftayı gösteriyor.**
+2. **✅ 18P — Mobil koç Program ekranları bugünün haftasını değil en ileri haftayı gösteriyor.**
    `my-athletes/[athleteId]/program/index.tsx:54-68,148` ve `getActiveProgramId`
    (`packages/db/queries/programs.ts:139`) tarih ve arşiv filtresi olmadan en büyük
    `start_date`'i seçiyor. Demo koç bloğun son haftasını (+6) "Aktif Program" olarak görüyor.
    Öneri: sporcu ekranındaki gibi `isDateActive`.
-3. **Mobil Recovery üst sınırsız 7 günlük pencere** (`recovery/index.tsx:101-105`,
+3. **✅ 18P — Mobil Recovery üst sınırsız 7 günlük pencere** (`recovery/index.tsx:101-105`,
    `my-athletes/[athleteId]/recovery.tsx:106-110`). Demo için Recovery tazeliği ~7 günle
    sınırlı.
 4. **Koç yanıtı sporcuya yalnızca içinde bulunulan haftada görünür.** Mobilde geçmiş
@@ -839,7 +945,7 @@ getirildi. Uygulama kodu, migration ve yeni bağımlılık YOK.
    `/feedback`'te görünüyor.
 6. **Mobil yarışma ekranları** `competition_stages`, `competition_results` ve
    `competition_entries` göstermiyor; org'un tüm yarışmalarını listeliyor.
-7. Sporcu program ekranı bugünü UTC'den alıyor (`program/index.tsx:67`); Türkiye saatiyle
+7. ✅ 18P — Sporcu program ekranı bugünü UTC'den alıyor (`program/index.tsx:67`); Türkiye saatiyle
    Pazartesi 00:00–03:00 arası önceki haftayı gösterir.
 8. WHOOP "Bağlantıyı Kes" sahte token'la **çökmüyor** (WHOOP 401 döner, yutulur); bağlantı
    pasife düşer ve Recovery "bağlı değil"e geçer. Yeniden seed bunu düzeltir.

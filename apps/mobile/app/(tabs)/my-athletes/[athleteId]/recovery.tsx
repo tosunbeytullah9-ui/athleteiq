@@ -12,6 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import type { Database } from "@athleteiq/db/types";
+import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 
 type WearableMetric =
   Database["public"]["Tables"]["wearable_daily_metrics"]["Row"];
@@ -98,15 +99,17 @@ export default function CoachRecoveryScreen() {
     setConnected((conn?.length ?? 0) > 0);
 
     // Son 7 günlük metrikler
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const since = sevenDaysAgo.toISOString().split("T")[0];
+    // İstanbul takvimiyle [bugün-7, bugün] — üst sınır olmadan ileri tarihli bir satır
+    // "son ölçüm" olarak görünürdü.
+    const today = todayInIstanbul();
+    const since = istanbulDateOffset(-7);
 
     const { data } = await supabase
       .from("wearable_daily_metrics")
       .select("*")
       .eq("athlete_id", athleteRowId)
       .gte("metric_date", since)
+      .lte("metric_date", today)
       .order("metric_date", { ascending: false });
 
     if (data) setMetrics(data);

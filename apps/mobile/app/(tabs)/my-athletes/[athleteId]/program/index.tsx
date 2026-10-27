@@ -11,14 +11,19 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
+import { LoadErrorState } from "@/components/LoadErrorState";
+import {
+  getActiveAthletePrograms,
+  getProgramSessionsSummary,
+} from "@athleteiq/db/queries/programs";
+import { dayOfWeekInIstanbul, todayInIstanbul } from "@athleteiq/validators/date";
 import type { Database } from "@athleteiq/db/types";
 
 type TrainingProgram = Database["public"]["Tables"]["training_programs"]["Row"];
-type TrainingSession = Database["public"]["Tables"]["training_sessions"]["Row"];
-
-type ProgramWithSessions = TrainingProgram & {
-  training_sessions: TrainingSession[];
-};
+type SessionSummary = Pick<
+  Database["public"]["Tables"]["training_sessions"]["Row"],
+  "id" | "day_of_week" | "session_type" | "title" | "duration_min" | "order_index"
+>;
 
 const DAY_LABELS: Record<number, string> = {
   1: "Pazartesi",
@@ -42,36 +47,30 @@ export default function CoachProgramScreen() {
   const { athleteId } = useLocalSearchParams<{ athleteId: string }>();
   const router = useRouter();
   const { athlete, loading: athleteLoading, notFound } = useCoachAthlete(athleteId);
-  const [programs, setPrograms] = useState<ProgramWithSessions[]>([]);
+  const [activeProgram, setActiveProgram] = useState<TrainingProgram | null>(null);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeConnected, setRealtimeConnected] = useState(false);
+  // Sorgu hatası ≠ aktif program yok.
+  const [loadError, setLoadError] = useState(false);
 
-  const fetchPrograms = useCallback(async (athleteRowId: string, teamId: string | null) => {
-    const orFilter = teamId
-      ? `athlete_id.eq.${athleteRowId},team_id.eq.${teamId}`
-      : `athlete_id.eq.${athleteRowId}`;
-
-    const { data, error } = await supabase
-      .from("training_programs")
-      .select(
-        `
-        *,
-        training_sessions (
-          id, day_of_week, session_type, title, duration_min, order_index
-        )
-      `
-      )
-      .or(orFilter)
-      .eq("is_published", true)
-      .order("start_date", { ascending: false })
-      .limit(5);
-
-    if (!error && data) {
-      setPrograms(data as ProgramWithSessions[]);
+  // Aktif hafta sporcunun kendi ekranıyla AYNI kuraldan: get_athlete_programs
+  // (yayınlanmış, arşivsiz, antrenman grubu eşleşen) → bugünü (İstanbul) kapsayan →
+  // sporcu-kapsamlı önce. Eskiden en büyük start_date seçiliyordu → bloğun son haftası.
+  const fetchPrograms = useCallback(async (athleteRowId: string) => {
+    try {
+      const [first] = await getActiveAthletePrograms(supabase, athleteRowId, todayInIstanbul());
+      const summary = first ? await getProgramSessionsSummary(supabase, first.id) : [];
+      setActiveProgram(first ?? null);
+      setSessions(summary);
+      setLoadError(false);
+    } catch {
+      setLoadError(true);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-    setLoading(false);
-    setRefreshing(false);
   }, []);
 
   useEffect(() => {
@@ -82,7 +81,7 @@ export default function CoachProgramScreen() {
 
     // Aynı desen: athlete/program/index.tsx ile birebir — filtresiz realtime abonelik,
     // is_published=eq.true filtresi unpublish (true→false) geçişini kaçırdığı için.
-    fetchPrograms(athlete.id, athlete.team_id);
+    fetchPrograms(athlete.id);
 
     const channel = supabase
       .channel(`coach-programs-athlete-${athlete.id}`)
@@ -94,7 +93,7 @@ export default function CoachProgramScreen() {
           table: "training_programs",
         },
         () => {
-          fetchPrograms(athlete.id, athlete.team_id);
+          fetchPrograms(athlete.id);
         }
       )
       .subscribe((status) => {
@@ -109,7 +108,7 @@ export default function CoachProgramScreen() {
   const onRefresh = useCallback(() => {
     if (!athlete) return;
     setRefreshing(true);
-    fetchPrograms(athlete.id, athlete.team_id);
+    fetchPrograms(athlete.id);
   }, [athlete, fetchPrograms]);
 
   if (athleteLoading || loading) {
@@ -145,8 +144,6 @@ export default function CoachProgramScreen() {
     );
   }
 
-  const activeProgram = programs[0] ?? null;
-
   return (
     <ScrollView
       className="flex-1 bg-gray-50"
@@ -179,7 +176,9 @@ export default function CoachProgramScreen() {
       </View>
 
       <View className="p-4">
-        {programs.length === 0 ? (
+        {loadError ? (
+          <LoadErrorState onRetry={onRefresh} />
+        ) : !activeProgram ? (
           <View className="bg-white rounded-2xl p-8 items-center mt-4">
             <Text className="text-4xl mb-3">📋</Text>
             <Text className="text-gray-900 font-semibold text-lg text-center">
@@ -222,25 +221,22 @@ export default function CoachProgramScreen() {
               Haftalık Program
             </Text>
             {Array.from({ length: 7 }, (_, i) => i + 1).map((dayNum) => {
-              const sessions = activeProgram
-                ? (activeProgram.training_sessions ?? [])
-                    .filter((s) => s.day_of_week === dayNum)
-                    .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0))
-                : [];
+              const daySessions = sessions
+                .filter((s) => s.day_of_week === dayNum)
+                .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
-              const isToday =
-                new Date().getDay() === (dayNum === 7 ? 0 : dayNum);
+              const isToday = dayOfWeekInIstanbul() === dayNum;
 
               return (
                 <TouchableOpacity
                   key={dayNum}
                   className={`mb-2 rounded-2xl overflow-hidden ${
-                    sessions.length === 0 ? "opacity-50" : ""
+                    daySessions.length === 0 ? "opacity-50" : ""
                   }`}
-                  disabled={sessions.length === 0}
+                  disabled={daySessions.length === 0}
                   onPress={() =>
                     router.push(
-                      `/(tabs)/my-athletes/${athleteId}/program/${dayNum}` as never
+                      `/(tabs)/my-athletes/${athleteId}/program/${dayNum}?programId=${activeProgram.id}` as never
                     )
                   }
                   activeOpacity={0.75}
@@ -264,7 +260,7 @@ export default function CoachProgramScreen() {
                     </View>
 
                     <View className="flex-1 ml-3">
-                      {sessions.length === 0 ? (
+                      {daySessions.length === 0 ? (
                         <Text
                           className={`text-sm ${
                             isToday ? "text-blue-200" : "text-gray-400"
@@ -274,7 +270,7 @@ export default function CoachProgramScreen() {
                         </Text>
                       ) : (
                         <View className="flex-row flex-wrap gap-1">
-                          {sessions.map((s) => {
+                          {daySessions.map((s) => {
                             const colorClass =
                               SESSION_TYPE_COLORS[s.session_type ?? ""] ??
                               "bg-gray-100 text-gray-600";
@@ -303,13 +299,13 @@ export default function CoachProgramScreen() {
                       )}
                     </View>
 
-                    {sessions.length > 0 && (
+                    {daySessions.length > 0 && (
                       <Text
                         className={`text-xs ${
                           isToday ? "text-blue-200" : "text-gray-400"
                         }`}
                       >
-                        {sessions.reduce(
+                        {daySessions.reduce(
                           (sum, s) => sum + (s.duration_min ?? 0),
                           0
                         )}{" "}
