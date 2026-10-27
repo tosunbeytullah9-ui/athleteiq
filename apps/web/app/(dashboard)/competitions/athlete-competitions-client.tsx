@@ -8,7 +8,8 @@ import type {
   getAthleteCompetitionEntries,
   getAthleteCompetitionResults,
 } from "@athleteiq/db/queries/competitions";
-import { daysUntil, toLocalDateString } from "@/lib/date";
+import { daysUntil } from "@/lib/date";
+import { todayInIstanbul } from "@athleteiq/validators/date";
 import {
   competitionLastDate,
   isCompetitionStage,
@@ -108,7 +109,7 @@ function lastDay(entry: CompetitionEntry): string | null {
 
 export function AthleteCompetitionsClient({ entries, results }: Props) {
   const [tab, setTab] = useState<Tab>("upcoming");
-  const today = toLocalDateString(new Date());
+  const today = todayInIstanbul();
 
   const sortedEntries = useMemo(
     () =>

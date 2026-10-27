@@ -52,6 +52,7 @@ import {
   StageTag,
   STAGE_TONE,
 } from "@/components/features/competitions/stage-badge";
+import { MONTHS_SHORT_TR, formatYmdTr, parseYmd, todayInIstanbul } from "@athleteiq/validators/date";
 
 type Competition = Tables<"competitions"> & {
   competition_results: (Tables<"competition_results"> & {
@@ -192,7 +193,7 @@ function CheckBox({ checked }: { checked: boolean }) {
 
 function isUpcoming(dateStr: string | null): boolean {
   if (!dateStr) return false;
-  return new Date(dateStr) >= new Date(new Date().toDateString());
+  return dateStr >= todayInIstanbul();
 }
 
 // Finali yarışma tarihinden sonraki bir güne düşen yarışma, final bitene kadar
@@ -955,15 +956,10 @@ export function CompetitionsClient({
                       {comp.competition_date ? (
                         <>
                           <span className="text-xs font-medium">
-                            {new Date(comp.competition_date).toLocaleDateString(
-                              "tr-TR",
-                              {
-                                month: "short",
-                              }
-                            )}
+                            {MONTHS_SHORT_TR[(parseYmd(comp.competition_date)?.m ?? 1) - 1]}
                           </span>
                           <span className="text-lg font-bold leading-none">
-                            {new Date(comp.competition_date).getDate()}
+                            {parseYmd(comp.competition_date)?.d}
                           </span>
                         </>
                       ) : (
@@ -1013,15 +1009,7 @@ export function CompetitionsClient({
                         {comp.competition_date && (
                           <span className="flex items-center gap-1">
                             <Calendar className="h-3.5 w-3.5" />
-                            {new Date(comp.competition_date).toLocaleDateString(
-                              "tr-TR",
-                              {
-                                weekday: "long",
-                                day: "numeric",
-                                month: "long",
-                                year: "numeric",
-                              }
-                            )}
+                            {formatYmdTr(comp.competition_date, { withWeekday: true })}
                           </span>
                         )}
                         {comp.location && (

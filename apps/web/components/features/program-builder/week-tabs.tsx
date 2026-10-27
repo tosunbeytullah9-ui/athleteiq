@@ -2,6 +2,7 @@
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@athleteiq/ui/components/badge";
+import { formatYmdTr } from "@athleteiq/validators/date";
 
 export interface WeekTabInfo {
   id: string;
@@ -46,8 +47,8 @@ export function WeekTabs({ weeks, activeId, dirtyIds, disabled, onRequestSwitch 
               )}
             </span>
             <span className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
-              {week.start_date ? new Date(week.start_date).toLocaleDateString("tr-TR") : "—"}
-              {week.end_date && ` — ${new Date(week.end_date).toLocaleDateString("tr-TR")}`}
+              {week.start_date ? formatYmdTr(week.start_date, { style: "numeric" }) : "—"}
+              {week.end_date && ` — ${formatYmdTr(week.end_date, { style: "numeric" })}`}
               <Badge variant={week.is_published ? "default" : "secondary"} className="text-[10px] px-1.5 py-0">
                 {week.is_published ? "Yayında" : "Taslak"}
               </Badge>

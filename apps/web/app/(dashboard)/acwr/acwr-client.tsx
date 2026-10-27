@@ -26,6 +26,7 @@ import { acwrLogSchema, type AcwrLogInput } from "@athleteiq/validators/acwr";
 import type { Tables } from "@athleteiq/db/types";
 import type { LatestAcwrRow } from "@athleteiq/db/queries/acwr";
 import { getAcwrColor, getAcwrLabel, getAcwrBadgeVariant } from "@/lib/acwr";
+import { addDaysYmd, formatYmdTr, istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 
 type AcwrLog = Tables<"acwr_logs">;
 type Athlete = { id: string; full_name: string; team_id: string | null };
@@ -35,13 +36,12 @@ interface Props {
   latestAcwr: LatestAcwrRow[];
 }
 
-const today = new Date().toISOString().split("T")[0]!;
+// İstanbul takvimi — toISOString() (UTC) Türkiye'de 00:00–03:00 arası dünü verirdi.
+const today = todayInIstanbul();
 const RANGE_OPTIONS = [30, 40, 50, 60] as const;
 
 function daysAgo(days: number): string {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-    .toISOString()
-    .split("T")[0]!;
+  return istanbulDateOffset(-days);
 }
 
 export function AcwrClient({ athletes, latestAcwr: orgAcwr }: Props) {
@@ -117,13 +117,12 @@ export function AcwrClient({ athletes, latestAcwr: orgAcwr }: Props) {
       const existingLogs = (allLogsResult.data ?? []) as LogEntry[];
       const sessionLoad = data.session_rpe * data.duration_min;
 
-      const logDate = new Date(data.log_date);
 
       function avgLoad(days: number): number {
-        const cutoff = new Date(logDate.getTime() - days * 24 * 60 * 60 * 1000);
+        const cutoff = addDaysYmd(data.log_date, -days);
         const relevant = existingLogs.filter((l) => {
-          const d = new Date(l.log_date ?? "");
-          return d >= cutoff && d < logDate;
+          const d = l.log_date ?? "";
+          return d >= cutoff && d < data.log_date;
         });
         // include current session in average
         const total =
@@ -159,10 +158,7 @@ export function AcwrClient({ athletes, latestAcwr: orgAcwr }: Props) {
   }
 
   const chartData = logs.map((l) => ({
-    date: new Date(l.log_date ?? "").toLocaleDateString("tr-TR", {
-      day: "2-digit",
-      month: "2-digit",
-    }),
+    date: formatYmdTr(l.log_date, { style: "numeric", withYear: false }),
     acwr: l.acwr_ratio ? Number(Number(l.acwr_ratio).toFixed(2)) : null,
     sessionLoad: Number(l.session_load) || null,
     acuteLoad: l.acute_load ? Number(Number(l.acute_load).toFixed(1)) : null,
@@ -580,7 +576,7 @@ export function AcwrClient({ athletes, latestAcwr: orgAcwr }: Props) {
                       <tr key={log.id} className="border-b last:border-0">
                         <td className="py-2 pr-4">
                           <span className="flex items-center gap-1.5">
-                            {new Date(log.log_date ?? "").toLocaleDateString("tr-TR")}
+                            {formatYmdTr(log.log_date, { style: "numeric" })}
                             {/* session_feedback'ten otomatik türetilmiş satır — koç
                                 elle mi girdi, sporcu mu bildirdi ayırt edilebilsin
                                 (bkz. acwr_logs.source). */}

@@ -15,7 +15,7 @@ import {
   SESSION_FEEDBACK_STATUS_LABELS,
   type SessionFeedbackStatus,
 } from "@athleteiq/validators/session-feedback";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { todayInIstanbul } from "@athleteiq/validators/date";
 import type { Tables } from "@athleteiq/db/types";
 
 type FeedbackRow = Tables<"session_feedback">;
@@ -50,7 +50,7 @@ export function AthleteFeedbackCard({
   initial: FeedbackRow | null;
   onSaved: (row: FeedbackRow) => void;
 }) {
-  const editable = isFeedbackEditable(sessionDate, getLocalDateString());
+  const editable = isFeedbackEditable(sessionDate, todayInIstanbul());
   const [open, setOpen] = useState(false);
   const [row, setRow] = useState<FeedbackRow | null>(initial);
 

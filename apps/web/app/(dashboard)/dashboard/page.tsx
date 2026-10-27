@@ -24,9 +24,13 @@ import { getAthleteCompetitionEntries } from "@athleteiq/db/queries/competitions
 import { getWearableConnection, getWearableMetrics } from "@athleteiq/db/queries/wearables";
 import { getAthleteCoachReplies } from "@athleteiq/db/queries/session-feedback";
 import { getExerciseDemoLinks } from "@athleteiq/db/queries/exercises";
-import { getLocalDateString, computeCheckinStreak } from "@athleteiq/validators/wellness";
-import { dayOfWeekInIstanbul, todayInIstanbul } from "@athleteiq/validators/date";
-import { getTodayDayOfWeek, getWeekRange } from "@/lib/date";
+import { computeCheckinStreak } from "@athleteiq/validators/wellness";
+import {
+  dayOfWeekInIstanbul,
+  istanbulDateOffset,
+  todayInIstanbul,
+} from "@athleteiq/validators/date";
+import { getWeekRange } from "@/lib/date";
 import { AthleteDashboardClient } from "./athlete-dashboard-client";
 import { AdminDashboardWidgets } from "./admin-dashboard-widgets";
 
@@ -44,7 +48,8 @@ export default async function DashboardPage() {
     return <AthleteDashboardSection />;
   }
 
-  const today = getLocalDateString();
+  // İstanbul takvimi (sunucu Vercel'de UTC) — Parti 18T.
+  const today = todayInIstanbul();
 
   const [
     athletesRes,
@@ -74,7 +79,7 @@ export default async function DashboardPage() {
       .from("competitions")
       .select("id", { count: "exact", head: true })
       .eq("org_id", orgId),
-    getTodaySessions(supabase, orgId, getTodayDayOfWeek(), today),
+    getTodaySessions(supabase, orgId, dayOfWeekInIstanbul(), today),
     supabase
       .from("competitions")
       .select("id, name, competition_date, location")
@@ -221,16 +226,14 @@ async function AthleteDashboardSection() {
     );
   }
 
-  const today = getLocalDateString();
-  // Aktif hafta ve günün seansları İstanbul takvimiyle (sunucu Vercel'de UTC) — mobil
-  // sporcu/koç ekranlarıyla aynı kural (getActiveAthletePrograms).
+  // Web'in "bugün"ü İstanbul takvimi (sunucu Vercel'de UTC) — aktif hafta, günün
+  // seansları, bugünkü check-in, geçmiş ve yaklaşan yarışmalar aynı günü görür.
+  const today = todayInIstanbul();
   const todayDow = dayOfWeekInIstanbul();
   const week = getWeekRange();
-  const historyFrom = getLocalDateString(
-    new Date(Date.now() - 13 * 24 * 60 * 60 * 1000)
-  );
+  const historyFrom = istanbulDateOffset(-13);
 
-  const activeProgramId = await getActiveProgramId(supabase, athlete.id, todayInIstanbul());
+  const activeProgramId = await getActiveProgramId(supabase, athlete.id, today);
 
   const [
     todaySessions,

@@ -1,4 +1,5 @@
 import type { DbClient } from "./_client";
+import { EditWindowExpiredError, isEditWindowRejection } from "./_edit-window";
 import type { TablesInsert } from "../types";
 
 // wellness_total is a Postgres generated column (see supabase/migrations/012_wellness.sql) —
@@ -57,6 +58,7 @@ export async function upsertWellnessCheckin(
     .select()
     .single();
 
+  if (isEditWindowRejection(error)) throw new EditWindowExpiredError();
   if (error) throw error;
   return data;
 }

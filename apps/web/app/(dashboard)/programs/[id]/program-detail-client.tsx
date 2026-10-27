@@ -64,6 +64,7 @@ import {
   SESSION_TYPE_LABELS,
   DAY_LABELS,
 } from "@/lib/exercise-format";
+import { formatYmdTr } from "@athleteiq/validators/date";
 
 type Program = Tables<"training_programs"> & {
   training_sessions: (Tables<"training_sessions"> & {
@@ -573,9 +574,9 @@ export function ProgramDetailClient({
                 )}
                 {program.start_date && (
                   <span>
-                    {new Date(program.start_date).toLocaleDateString("tr-TR")}
+                    {formatYmdTr(program.start_date, { style: "numeric" })}
                     {program.end_date &&
-                      ` — ${new Date(program.end_date).toLocaleDateString("tr-TR")}`}
+                      ` — ${formatYmdTr(program.end_date, { style: "numeric" })}`}
                   </span>
                 )}
                 <span>{program.training_sessions.length} seans</span>

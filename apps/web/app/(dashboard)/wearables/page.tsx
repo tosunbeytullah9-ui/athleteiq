@@ -5,7 +5,7 @@ import {
   getWearableConnections,
   getWearableMetrics,
 } from "@athleteiq/db/queries/wearables";
-import { toLocalDateString } from "@/lib/date";
+import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 import { WearablesClient } from "./wearables-client";
 import { AthleteWearableClient } from "./athlete-wearable-client";
 
@@ -51,8 +51,8 @@ export default async function WearablesPage({ searchParams }: PageProps) {
       );
     }
 
-    const today = toLocalDateString(new Date());
-    const weekAgo = toLocalDateString(new Date(Date.now() - 6 * 24 * 60 * 60 * 1000));
+    const today = todayInIstanbul();
+    const weekAgo = istanbulDateOffset(-6);
 
     const [whoopConnection, polarConnection, fitbitConnection] = await Promise.all([
       getWearableConnection(supabase, athlete.id, "whoop"),

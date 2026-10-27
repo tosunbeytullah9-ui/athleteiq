@@ -18,6 +18,7 @@ import {
 import type { Tables } from "@athleteiq/db/types";
 import { WeekDetailDialog } from "./week-detail-dialog";
 import { MethodsDialog } from "./methods-dialog";
+import { todayInIstanbul } from "@athleteiq/validators/date";
 
 type Method = Tables<"annual_plan_methods">;
 type WeekRow = Tables<"annual_plan_weeks">;
@@ -147,7 +148,7 @@ export function AnnualPlanGrid({
       weekIndexForDate(
         plan.season_start,
         plan.total_weeks,
-        new Date().toISOString().slice(0, 10)
+        todayInIstanbul()
       ),
     [plan.season_start, plan.total_weeks]
   );

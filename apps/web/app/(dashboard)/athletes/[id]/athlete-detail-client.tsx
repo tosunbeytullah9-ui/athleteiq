@@ -33,6 +33,7 @@ import {
   stagesForEntry,
 } from "@athleteiq/validators/competition";
 import { StageBadge } from "@/components/features/competitions/stage-badge";
+import { formatYmdTr, todayInIstanbul } from "@athleteiq/validators/date";
 
 type Athlete = Tables<"athletes">;
 type CompetitionEntry = Awaited<ReturnType<typeof getAthleteCompetitionEntries>>[number];
@@ -116,7 +117,7 @@ export function AthleteDetailClient({
   const team = teams.find((t) => t.id === athlete.team_id) ?? null;
   const latestAcwr = acwrLogs[0];
   const chartData = [...acwrLogs].reverse().map((log) => ({
-    date: new Date(log.log_date).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit" }),
+    date: formatYmdTr(log.log_date, { style: "numeric", withYear: false }),
     acwr: log.acwr_ratio != null ? Number(log.acwr_ratio.toFixed(2)) : null,
   }));
   const initials = athlete.full_name
@@ -181,7 +182,7 @@ export function AthleteDetailClient({
                 {athlete.birth_date && (
                   <div>
                     <span className="text-muted-foreground">Doğum: </span>
-                    {new Date(athlete.birth_date).toLocaleDateString("tr-TR")}
+                    {formatYmdTr(athlete.birth_date, { style: "numeric" })}
                   </div>
                 )}
                 {athlete.gender && (
@@ -212,7 +213,7 @@ export function AthleteDetailClient({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {latestAcwr.log_date
-                    ? new Date(latestAcwr.log_date).toLocaleDateString("tr-TR")
+                    ? formatYmdTr(latestAcwr.log_date, { style: "numeric" })
                     : ""}
                 </p>
               </div>
@@ -293,7 +294,7 @@ export function AthleteDetailClient({
                     <div>
                       <p className="text-sm font-medium">{t.test_type}</p>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(t.test_date).toLocaleDateString("tr-TR")}
+                        {formatYmdTr(t.test_date, { style: "numeric" })}
                       </p>
                     </div>
                     <span className="text-sm font-semibold">
@@ -342,7 +343,7 @@ export function AthleteDetailClient({
                   defined.map((st) => st.stage_date)
                 );
                 const upcoming = lastDay
-                  ? new Date(lastDay) >= new Date(new Date().toDateString())
+                  ? lastDay >= todayInIstanbul()
                   : false;
                 return (
                   <li
@@ -353,7 +354,7 @@ export function AthleteDetailClient({
                       <p className="text-sm font-medium">{comp.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {comp.competition_date
-                          ? new Date(comp.competition_date).toLocaleDateString("tr-TR")
+                          ? formatYmdTr(comp.competition_date, { style: "numeric" })
                           : ""}
                         {comp.location ? ` · ${comp.location}` : ""}
                       </p>
@@ -428,7 +429,7 @@ export function AthleteDetailClient({
                   {acwrLogs.map((log) => (
                     <tr key={log.log_date} className="border-b last:border-0">
                       <td className="px-3 py-2">
-                        {new Date(log.log_date).toLocaleDateString("tr-TR")}
+                        {formatYmdTr(log.log_date, { style: "numeric" })}
                       </td>
                       <td className="px-3 py-2 text-right">{log.session_load ?? "—"}</td>
                       <td className="px-3 py-2 text-right">{log.acute_load?.toFixed(0) ?? "—"}</td>

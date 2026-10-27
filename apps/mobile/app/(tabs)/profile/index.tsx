@@ -13,6 +13,7 @@ import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import { revokeWhoopAccess } from "@/lib/wearables";
 import { AccountDeletionSection } from "@/components/AccountDeletionSection";
 import type { Database } from "@athleteiq/db/types";
+import { formatYmdTr } from "@athleteiq/validators/date";
 
 type WearableConnection =
   Database["public"]["Tables"]["wearable_connections"]["Row"];
@@ -181,7 +182,7 @@ export default function ProfileScreen() {
               <View className="flex-row justify-between items-center py-3 border-b border-gray-50">
                 <Text className="text-gray-500 text-sm">Doğum Tarihi</Text>
                 <Text className="text-gray-900 text-sm font-medium">
-                  {new Date(athlete.birth_date).toLocaleDateString("tr-TR")}
+                  {formatYmdTr(athlete.birth_date, { style: "numeric" })}
                 </Text>
               </View>
             )}

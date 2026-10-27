@@ -21,7 +21,7 @@ import {
   type DrillDiagramRecord,
 } from "@athleteiq/db/queries/drills";
 import { getActiveProgramId, getDaySessions } from "@athleteiq/db/queries/programs";
-import { todayInIstanbul } from "@athleteiq/validators/date";
+import { todayLocal } from "@athleteiq/validators/date";
 import { LoadErrorState } from "@/components/LoadErrorState";
 import {
   getAthleteMaxes,
@@ -81,7 +81,7 @@ export default function CoachProgramDayScreen() {
         // Hafta ekranının seçtiği program; derin bağlantıda yoksa aynı kuralla
         // (bugünü İstanbul takvimiyle kapsayan hafta) yeniden çözülür.
         const programId =
-          programIdParam ?? (await getActiveProgramId(supabase, athlete!.id, todayInIstanbul()));
+          programIdParam ?? (await getActiveProgramId(supabase, athlete!.id, todayLocal()));
 
         if (!programId) {
           setSessions([]);

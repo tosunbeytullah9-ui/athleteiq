@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import type { Database } from "@athleteiq/db/types";
-import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
+import { addDaysYmd, formatYmdTr, todayInIstanbul, todayLocal } from "@athleteiq/validators/date";
 
 type WearableMetric =
   Database["public"]["Tables"]["wearable_daily_metrics"]["Row"];
@@ -72,10 +72,8 @@ function MetricRow({
 }
 
 function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "long",
-  });
+  // metric_date saatsiz takvim günü — new Date(str) UTC gece yarısı olurdu (Parti 18T).
+  return formatYmdTr(dateStr, { withYear: false });
 }
 
 export default function CoachRecoveryScreen() {
@@ -99,10 +97,14 @@ export default function CoachRecoveryScreen() {
     setConnected((conn?.length ?? 0) > 0);
 
     // Son 7 günlük metrikler
-    // İstanbul takvimiyle [bugün-7, bugün] — üst sınır olmadan ileri tarihli bir satır
-    // "son ölçüm" olarak görünürdü.
-    const today = todayInIstanbul();
-    const since = istanbulDateOffset(-7);
+    // [bugün-7, bugün] — "bugün" telefonun takvim günü (todayLocal). Üst sınır olmadan
+    // ileri tarihli bir satır "son ölçüm" olarak görünürdü; ancak metric_date sağlayıcının
+    // (UTC/İstanbul) gününden türediği için üst sınır ikisinden ilerideki olur — aksi
+    // halde ABD'deki bir telefonda akşam saatlerinde en yeni ölçüm gizlenirdi.
+    const local = todayLocal();
+    const istanbul = todayInIstanbul();
+    const today = istanbul > local ? istanbul : local;
+    const since = addDaysYmd(local, -7);
 
     const { data } = await supabase
       .from("wearable_daily_metrics")

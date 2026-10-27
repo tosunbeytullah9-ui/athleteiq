@@ -19,10 +19,10 @@ import {
 } from "@athleteiq/db/queries/wellness";
 import {
   computeWellnessTotal,
-  getLocalDateString,
   wellnessCheckinSchema,
 } from "@athleteiq/validators/wellness";
 import type { Tables } from "@athleteiq/db/types";
+import { addDaysYmd, todayLocal as todayLocalYmd } from "@athleteiq/validators/date";
 
 type WellnessRow = Tables<"wellness_checkins">;
 type ScaleField = "sleep_quality" | "soreness" | "stress" | "fatigue" | "mood";
@@ -117,7 +117,8 @@ export default function CheckinScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const { athlete, loading: athleteLoading } = useAthleteProfile();
-  const todayLocal = useMemo(() => getLocalDateString(), []);
+  // Telefonun takvim günü (Parti 18T) — program ekranının "bugün"üyle aynı kaynak.
+  const todayLocal = useMemo(() => todayLocalYmd(), []);
   const scrollRef = useRef<ScrollView>(null);
 
   const [values, setValues] = useState<Partial<Record<ScaleField, number>>>({});
@@ -134,15 +135,12 @@ export default function CheckinScreen() {
     }
 
     async function load() {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
       const [today, hist] = await Promise.all([
         getWellnessCheckin(supabase, athlete!.id, todayLocal),
         getAthleteWellnessHistory(
           supabase,
           athlete!.id,
-          getLocalDateString(sevenDaysAgo),
+          addDaysYmd(todayLocal, -7),
           todayLocal
         ),
       ]);

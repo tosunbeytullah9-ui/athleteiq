@@ -9,6 +9,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import type { Database } from "@athleteiq/db/types";
+import { daysBetweenYmd, formatYmdTr, parseYmd, todayLocal } from "@athleteiq/validators/date";
 
 type Competition = Database["public"]["Tables"]["competitions"]["Row"];
 
@@ -26,23 +27,16 @@ const LEVEL_COLORS: Record<string, string> = {
   local: "bg-gray-100 text-gray-600",
 };
 
+// competition_date saatsiz takvim günüdür — new Date(str) UTC gece yarısı olur ve
+// UTC'nin batısındaki bir telefonda bir gün önceyi gösterirdi (Parti 18T). "Bugün"
+// telefonun yerel takvim günü (todayLocal): yurt dışındaki sporcu kendi gününü görür.
 function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "";
-  const d = new Date(dateStr);
-  return d.toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  return formatYmdTr(dateStr);
 }
 
 function daysUntil(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const comp = new Date(dateStr);
-  comp.setHours(0, 0, 0, 0);
-  return Math.ceil((comp.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (!dateStr || !parseYmd(dateStr)) return null;
+  return daysBetweenYmd(todayLocal(), dateStr);
 }
 
 function CountdownBadge({ dateStr }: { dateStr: string | null }) {
@@ -116,16 +110,16 @@ export default function CompetitionsScreen() {
     fetchCompetitions(athlete.org_id);
   };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  // String karşılaştırma — bugünkü yarışma "yaklaşan"da kalır.
+  const today = todayLocal();
 
   const upcoming = competitions.filter((c) => {
     if (!c.competition_date) return true;
-    return new Date(c.competition_date) >= today;
+    return c.competition_date >= today;
   });
   const past = competitions.filter((c) => {
     if (!c.competition_date) return false;
-    return new Date(c.competition_date) < today;
+    return c.competition_date < today;
   });
 
   if (athleteLoading || loading) {

@@ -37,7 +37,8 @@ import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import type { Tables } from "@athleteiq/db/types";
 import { getAcwrBadgeVariant, getAcwrLabel } from "@/lib/acwr";
 import { formatSetLoad, formatSetReps, SESSION_TYPE_LABELS } from "@/lib/exercise-format";
-import { daysUntil, toLocalDateString } from "@/lib/date";
+import { daysUntil } from "@/lib/date";
+import { addDaysYmd, dayOfWeekYmd } from "@athleteiq/validators/date";
 
 // getDaySessions'ın çıkarım tipine güvenmek yerine (DbClient.from() `any`
 // döndürüyor — bkz. packages/db/queries/_client.ts — bu yüzden çıkarım
@@ -134,10 +135,7 @@ export function AthleteDashboardClient({
   const weekBars = useMemo(() => {
     const byDate = new Map(weeklyAcwrLogs.map((l) => [l.log_date, l]));
     return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(today + "T00:00:00");
-      const currentDow = d.getDay() === 0 ? 7 : d.getDay();
-      d.setDate(d.getDate() - (currentDow - 1) + i);
-      const iso = toLocalDateString(d);
+      const iso = addDaysYmd(today, i - (dayOfWeekYmd(today) - 1));
       const log = byDate.get(iso);
       return {
         label: DOW_LABELS[i],

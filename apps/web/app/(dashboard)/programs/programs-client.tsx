@@ -30,6 +30,7 @@ import type { Tables } from "@athleteiq/db/types";
 import { AthleteProgramView } from "./athlete-program-view";
 import { GroupedPrograms } from "./grouped-programs";
 import { groupPrograms, filterGroups, type BlockRow } from "@/lib/program-grouping";
+import { formatYmdTr, todayInIstanbul } from "@athleteiq/validators/date";
 
 const VIEW_STORAGE_KEY = "aiq_programs_view";
 
@@ -158,9 +159,7 @@ export function ProgramsClient({
   // Gruplama, filtrelenmiş haftalar üzerinden çalışır — böylece Tümü/Yayında/
   // Taslak/Arşiv seçimleri gruplu görünümde de aynen geçerli olur.
   const groups = useMemo(() => {
-    const todayISO = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(
-      new Date()
-    );
+    const todayISO = todayInIstanbul();
     const all = groupPrograms({
       programs: filtered,
       blocks,
@@ -425,9 +424,9 @@ export function ProgramsClient({
                     </div>
                     {program.start_date && (
                       <div>
-                        {new Date(program.start_date).toLocaleDateString("tr-TR")}
+                        {formatYmdTr(program.start_date, { style: "numeric" })}
                         {program.end_date &&
-                          ` — ${new Date(program.end_date).toLocaleDateString("tr-TR")}`}
+                          ` — ${formatYmdTr(program.end_date, { style: "numeric" })}`}
                       </div>
                     )}
                   </div>

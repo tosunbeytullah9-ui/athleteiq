@@ -363,11 +363,23 @@
 
 ## Düşük (kozmetik / tamamlanmamış)
 
-- **⚪ AÇIK — bulundu: 2026-10-27, Parti 18P** — **Mobil yarışma ekranları yarışma tarihini UTC gece yarısı olarak yorumluyor** (`apps/mobile/app/(tabs)/competitions/index.tsx:41-46,119-128`, koç ikizi `my-athletes/[athleteId]/competitions.tsx:44-49,124-133`)
+- **⚪ AÇIK — bulundu: 2026-10-27, Parti 18T** — **Mobil yarışma ekranları aşamaları (`competition_stages`) okumuyor** (`apps/mobile/app/(tabs)/competitions/index.tsx`, koç ikizi `my-athletes/[athleteId]/competitions.tsx`)
+  - Web bir yarışmayı son final gününe kadar "yaklaşan" sayıyor; mobil yalnızca `competition_date`'e bakıyor → finali sonraki güne düşen yarışma mobilde bir gün erken "geçmiş"e düşer. Aşama gösterimi 18T kapsamı dışıydı.
+
+- **⚪ AÇIK — bulundu: 2026-10-27, Parti 18T** — **Mobil sporcu yarışma ekranı kurumun TÜM yarışmalarını listeliyor** (`apps/mobile/app/(tabs)/competitions/index.tsx` — `competitions` `.eq("org_id", …)`)
+  - Web sporcu görünümü yalnızca sporcunun kayıtlı olduğu yarışmaları (`competition_entries`) gösteriyor (2026-09-11). Mobil bu filtreyi uygulamıyor; bireysel branşta sporcu gitmeyeceği yarışmalar için geri sayım görür. Davranış değişikliği olduğu için 18T'de dokunulmadı.
+
+- **⚪ AÇIK — bulundu: 2026-10-27, Parti 18T** — **ACWR ve yoklama formlarının "bugün"ü modül yüklenirken bir kez hesaplanıyor** (`acwr-client.tsx`, `attendance-client.tsx` — dosya düzeyinde `const today`)
+  - 18T'de İstanbul takvimine geçti; ancak sekme gece yarısını geçerek açık kalırsa varsayılan tarih önceki günde kalır (sayfa yenilenince düzelir). Etkisi düşük.
+
+- **⚪ BİLİNÇLİ (Parti 18T)** — **`+"T00:00:00"` ile okunan ~15 gösterim noktası değiştirilmedi** (feedback, wellness, admin/sporcu panosu, stage-badge, wearables metric_date, readiness detayı, copy-block-dialog, one-rm-records-tab)
+  - Yerel gece yarısı olarak okundukları için her saat diliminde doğru günü gösterirler (Faz 1'de "doğru, dokunma"). Yeni kodda `formatYmdTr` kullanılır (CLAUDE.md §1 tarih kuralı); bunlar dokunulduklarında taşınabilir.
+
+- **✅ KAPANDI (Parti 18T, 2026-10-27 — `formatYmdTr` / `daysBetweenYmd(todayLocal(), …)` / string karşılaştırma; mobilde "bugün" telefonun takvim günü, bugünkü yarışma "yaklaşan"da kalır) — ~~AÇIK, Parti 18P~~** — **Mobil yarışma ekranları yarışma tarihini UTC gece yarısı olarak yorumluyor** (`apps/mobile/app/(tabs)/competitions/index.tsx:41-46,119-128`, koç ikizi `my-athletes/[athleteId]/competitions.tsx:44-49,124-133`)
   - `new Date("YYYY-MM-DD")` UTC 00:00 üretir. Türkiye'de (UTC+3) doğru çalışır; negatif ofsetli bir cihazda (ör. ABD'deki App Review cihazı) yarışma günü "geçmiş" listesine düşer ve geri sayım bir gün kayar.
   - Düzeltme: karşılaştırmayı `todayInIstanbul()` ile string olarak yapmak (`packages/validators/date.ts`). 18P kapsamı dışında bırakıldı.
 
-- **⚪ AÇIK — bulundu: 2026-10-27, Parti 18P** — **Web sporcu panosunun diğer "bugün" hesapları sunucu saatinden** (`apps/web/app/(dashboard)/dashboard/page.tsx` — `getLocalDateString()` Vercel'de UTC)
+- **✅ KAPANDI (Parti 18T, 2026-10-27 — pano, wellness, programlar, geri bildirim, wearables ve Fitbit senkronu `todayInIstanbul()` / `istanbulDateOffset()`; koç panosunun `getTodaySessions` günü `dayOfWeekInIstanbul()`) — ~~AÇIK, Parti 18P~~** — **Web sporcu panosunun diğer "bugün" hesapları sunucu saatinden** (`apps/web/app/(dashboard)/dashboard/page.tsx` — `getLocalDateString()` Vercel'de UTC)
   - Program haftası ve günü 18P'de İstanbul'a geçti; ancak aynı sayfadaki bugünkü wellness kaydı, 14 günlük geçmiş, yaklaşan yarışma filtresi ve koç/admin panosunun "Bugünün Programı" (`getTodaySessions`) hâlâ sunucu tarihini kullanıyor → Türkiye'de 00:00–03:00 arası önceki gün görünür.
   - Düzeltme: sunucu bileşenlerinde `todayInIstanbul()` / `dayOfWeekInIstanbul()`. 18P'de yalnızca aktif hafta istendiği için dokunulmadı.
 

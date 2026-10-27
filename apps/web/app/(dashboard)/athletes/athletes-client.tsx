@@ -18,6 +18,7 @@ import { toast } from "@/components/ui/use-toast";
 import type { Tables } from "@athleteiq/db/types";
 import type { LatestAcwrRow } from "@athleteiq/db/queries/acwr";
 import { getAcwrColor, getAcwrLabel } from "@/lib/acwr";
+import { ageOnYmd, todayInIstanbul } from "@athleteiq/validators/date";
 
 type Athlete = Tables<"athletes">;
 type Team = { id: string; name: string; discipline: string | null };
@@ -31,10 +32,8 @@ interface Props {
 
 function calculateAge(birthDate: string | null): string {
   if (!birthDate) return "—";
-  const age = Math.floor(
-    (Date.now() - new Date(birthDate).getTime()) / (1000 * 60 * 60 * 24 * 365.25)
-  );
-  return `${age} yaş`;
+  const age = ageOnYmd(birthDate, todayInIstanbul());
+  return age == null ? "—" : `${age} yaş`;
 }
 
 export function AthletesClient({ athletes: initialAthletes, teams, orgId, latestAcwr }: Props) {

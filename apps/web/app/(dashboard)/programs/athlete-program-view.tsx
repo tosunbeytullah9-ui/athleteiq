@@ -21,7 +21,12 @@ import {
   DAY_LABELS,
 } from "@/lib/exercise-format";
 import { groupExercisesForRender, SUPERSET_COLORS } from "@/lib/supersetGroups";
-import { getTodayDayOfWeek, toLocalDateString } from "@/lib/date";
+import {
+  addDaysYmd,
+  dayOfWeekInIstanbul,
+  parseYmd,
+  todayInIstanbul,
+} from "@athleteiq/validators/date";
 import { AthleteFeedbackCard } from "@/components/features/session-feedback/athlete-feedback-card";
 import { EnduranceSessionCard } from "@/components/features/program-builder/endurance-session-card";
 import { resolveSessionDate } from "@athleteiq/validators/session-feedback";
@@ -181,12 +186,10 @@ function WodSessionCard({
   );
 }
 
-function dayDate(startDate: string | null, dayOfWeek: number): Date | null {
-  if (!startDate) return null;
+function dayDate(startDate: string | null, dayOfWeek: number): string | null {
+  if (!startDate || !parseYmd(startDate)) return null;
   // start_date programın Pazartesi'si kabul edilir (haftalık program modeli).
-  const d = new Date(startDate + "T00:00:00");
-  d.setDate(d.getDate() + (dayOfWeek - 1));
-  return d;
+  return addDaysYmd(startDate, dayOfWeek - 1);
 }
 
 export function AthleteProgramView({
@@ -205,8 +208,9 @@ export function AthleteProgramView({
     () => buildMaxHistoryLookup(maxHistory, ratios),
     [maxHistory, ratios]
   );
-  const todayIso = toLocalDateString(new Date());
-  const todayDow = getTodayDayOfWeek();
+  // Web'in "bugün"ü İstanbul takvimi (Parti 18T) — sunucunun seçtiği aktif haftayla aynı.
+  const todayIso = todayInIstanbul();
+  const todayDow = dayOfWeekInIstanbul();
 
   const sorted = useMemo(() => sortAthletePrograms(programs) as Program[], [programs]);
 
@@ -300,7 +304,7 @@ export function AthleteProgramView({
                 const date = dayDate(currentProgram.start_date, dow);
                 const isSelected = dow === selectedDay;
                 const isToday = currentProgram.start_date
-                  ? date && toLocalDateString(date) === todayIso
+                  ? date === todayIso
                   : dow === todayDow;
                 return (
                   <button
@@ -317,7 +321,7 @@ export function AthleteProgramView({
                     <p className="text-[10px] font-semibold uppercase text-muted-foreground">
                       {DOW_SHORT[dow - 1]}
                     </p>
-                    {date && <p className="text-sm font-bold mt-0.5">{date.getDate()}</p>}
+                    {date && <p className="text-sm font-bold mt-0.5">{parseYmd(date)?.d}</p>}
                     <span
                       className={`mx-auto mt-1.5 block h-1.5 w-1.5 rounded-full ${
                         dominant ? SESSION_TYPE_COLORS[dominant] ?? "bg-muted-foreground" : "bg-border"

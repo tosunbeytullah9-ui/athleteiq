@@ -113,6 +113,15 @@ Playwright (E2E testler)
 > build` ile 49/49 sayfa temiz, `run lint` ile 0 hata veriyor. Bu sahte hata gerçek bir build
 > arızası sanılıp boşuna teşhis yapıldı; komutu doğru çalıştırmak tek çözümdür.
 
+> **Tarih kuralı (Parti 18T, kalıcı):** Saatsiz tarih (YYYY-MM-DD) asla `new Date(str)` ile
+> okunmaz — UTC gece yarısı olur ve UTC'nin batısında bir gün kayar. 'Bugün': mobilde
+> `todayLocal()` (cihazın yerel takvim günü — yurt dışındaki sporcu kendi gününü görür), web ve
+> sunucuda `todayInIstanbul()` (sabit UTC+3). Sunucunun kuralını taklit eden pencere hesapları
+> (geri bildirim/wellness düzenleme) mobilde de `todayInIstanbul()` kullanır. `toISOString()`
+> asla 'bugün' için kullanılmaz. Gösterim `formatYmdTr`, karşılaştırma string, gün farkı
+> `daysBetweenYmd`, gün ekleme `addDaysYmd` (hepsi `packages/validators/date.ts`). SQL'de
+> `current_date` yerine `(now() at time zone 'Europe/Istanbul')::date`.
+
 ---
 
 ## 2. MONOREPO KLASÖR YAPISI
@@ -351,7 +360,8 @@ AthleteIQ/
 │   │   ├── 20261026185610_account_deletion_requests.sql
 │   │   ├── 20261026201410_function_default_privileges_hardening.sql
 │   │   ├── 20261026201424_account_deletion_requests_notified_at.sql
-│   │   └── 20261027091923_program_tree_rls_performance.sql
+│   │   ├── 20261027091923_program_tree_rls_performance.sql
+│   │   └── 20261027110705_istanbul_calendar_defaults.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -611,7 +621,8 @@ timeout veriyordu. Yeni desen:
   döndürdüğü küme, o sporcunun RLS ile gördüğü arşivlenmemiş programlarla aynıdır (snapshot'ta her
   sporcu için kontrol edilir). Mobil sporcu/koç program ekranları ve web sporcu panosu aktif haftayı
   bu RPC + `isDateActive` + `sortAthletePrograms` (`getActiveAthletePrograms`, `packages/db/queries/programs.ts`)
-  ve İstanbul takvimi (`todayInIstanbul`, `packages/validators/date.ts`) ile seçer.
+  ve "bugün" ile seçer — mobilde telefonun takvim günü (`todayLocal`), web'de İstanbul takvimi
+  (`todayInIstanbul`), ikisi de `packages/validators/date.ts` (Parti 18T, bkz. §1 tarih kuralı).
 
 ### 4.1 Güvenlik Konvansiyonları
 
@@ -2182,6 +2193,7 @@ Son otomatik senkron: 2026-10-27
 - 20261026201410_function_default_privileges_hardening.sql
 - 20261026201424_account_deletion_requests_notified_at.sql
 - 20261027091923_program_tree_rls_performance.sql
+- 20261027110705_istanbul_calendar_defaults.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { addDaysYmd, parseYmd } from "./date";
 
 /**
  * Sporcu → koç seans geri bildirimi (supabase/migrations/20260917072700_session_feedback.sql).
@@ -119,19 +120,19 @@ export function resolveSessionDate(
   programStartDate: string | null | undefined,
   dayOfWeek: number | null | undefined
 ): string | null {
-  if (!programStartDate) return null;
-  const d = new Date(programStartDate + "T00:00:00");
-  d.setDate(d.getDate() + ((dayOfWeek ?? 1) - 1));
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  if (!programStartDate || !parseYmd(programStartDate)) return null;
+  return addDaysYmd(programStartDate, (dayOfWeek ?? 1) - 1);
 }
 
 /**
  * RLS `session_feedback_update_athlete` politikası düzenlemeyi
- * `session_date >= current_date - 7` ile sınırlar. Kaydedilemeyecek bir formu
- * hiç açmamak için istemci de aynı pencereyi bilir.
+ * `session_date >= current_date - 7` ile sınırlar (current_date = UTC). Kaydedilemeyecek
+ * bir formu hiç açmamak için istemci de aynı pencereyi bilir.
+ *
+ * `today` HER ZAMAN `todayInIstanbul()` olmalı — mobilde de (`todayLocal()` DEĞİL):
+ * İstanbul tarihi UTC tarihinden hiçbir zaman geride değildir, dolayısıyla bu pencere
+ * DB'ninkinden asla geniş olmaz. Cihaz tarihiyle hesaplansaydı ABD'de akşam saatlerinde
+ * form 7. günü "düzenlenebilir" gösterir, DB ise UPDATE'i sessizce 0 satıra düşürürdü.
  */
 export const FEEDBACK_EDIT_WINDOW_DAYS = 7;
 
@@ -140,7 +141,5 @@ export function isFeedbackEditable(
   today: string
 ): boolean {
   if (!sessionDate) return true; // tarih çözülemediyse DB bugüne atar → düzenlenebilir
-  const limit = new Date(today + "T00:00:00");
-  limit.setDate(limit.getDate() - FEEDBACK_EDIT_WINDOW_DAYS);
-  return new Date(sessionDate + "T00:00:00") >= limit;
+  return sessionDate >= addDaysYmd(today, -FEEDBACK_EDIT_WINDOW_DAYS);
 }

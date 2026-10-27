@@ -134,6 +134,9 @@ export default function ProgramDayScreen() {
   }, [athlete, dayNum, programId, reloadKey]);
 
   const sessionDate = resolveSessionDate(programStart, dayNum);
+  // Bilinçli olarak todayLocal() DEĞİL: pencere sunucunun RLS kuralını (UTC current_date)
+  // taklit eder; İstanbul tarihi UTC'den hiç geride olmadığı için form, DB'nin
+  // reddedeceği bir kaydı "düzenlenebilir" göstermez (Parti 18T).
   const feedbackEditable = isFeedbackEditable(sessionDate, todayInIstanbul());
   const sheetSession = sessions.find((s) => s.id === sheetSessionId) ?? null;
 

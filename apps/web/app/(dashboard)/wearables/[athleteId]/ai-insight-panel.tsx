@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 import { Sparkles, ChevronDown, ChevronRight } from "lucide-react";
 import type { Tables } from "@athleteiq/db/types";
+import { todayInIstanbul } from "@athleteiq/validators/date";
 
 type AthleteAiInsightRow = Tables<"athlete_ai_insights">;
 
@@ -46,7 +47,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 const DEFAULT_ERROR_MESSAGE = "Analiz oluşturulamadı, daha sonra tekrar deneyin.";
 
 function todayIstanbul(): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Istanbul" }).format(new Date());
+  return todayInIstanbul();
 }
 
 function confidenceVariant(confidence: string | null): "default" | "secondary" | "outline" {

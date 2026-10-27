@@ -20,6 +20,7 @@ import {
 import { Badge } from "@athleteiq/ui/components/badge";
 import { Card, CardContent } from "@athleteiq/ui/components/card";
 import type { ProgramGroupItem, TargetGroup, WeekItem } from "@/lib/program-grouping";
+import { formatYmdTr } from "@athleteiq/validators/date";
 
 const PHASE_LABELS: Record<string, string> = {
   preparation: "Hazırlık",
@@ -36,7 +37,7 @@ const PHASE_COLORS: Record<string, string> = {
 };
 
 function formatDate(d: string): string {
-  return new Date(d).toLocaleDateString("tr-TR", { day: "2-digit", month: "short" });
+  return formatYmdTr(d, { style: "short", withYear: false, padDay: true });
 }
 
 function formatSpan(start: string | null, end: string | null): string | null {

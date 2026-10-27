@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@athleteiq/ui/components/card";
 import { cn } from "@/lib/utils";
+import { daysBetweenYmd, formatYmdTr, todayInIstanbul } from "@athleteiq/validators/date";
 
 // =============================================
 // Test sayfasının panel görünümü — saf gösterim bileşenleri.
@@ -36,16 +37,12 @@ export function formatNumber(n: number, digits = 2): string {
 }
 
 export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("tr-TR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  // test_date saatsiz takvim günü — new Date(str) UTC gece yarısı olur (Parti 18T).
+  return formatYmdTr(iso, { style: "short" });
 }
 
 export function daysSince(iso: string): number {
-  const ms = Date.now() - new Date(iso).getTime();
-  return Math.max(0, Math.floor(ms / 86_400_000));
+  return Math.max(0, daysBetweenYmd(iso, todayInIstanbul()));
 }
 
 export function relativeDays(iso: string): string {

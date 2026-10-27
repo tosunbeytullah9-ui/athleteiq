@@ -58,6 +58,7 @@ import {
   type LeaderboardEntry,
   type MatrixRow,
 } from "./test-dashboard";
+import { formatYmdTr, todayInIstanbul } from "@athleteiq/validators/date";
 
 export type TestRow = Tables<"test_results"> & {
   athletes: { id: string; full_name: string; org_id: string } | null;
@@ -254,7 +255,7 @@ const testSchema = z.object({
 type TestForm = z.input<typeof testSchema>;
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayInIstanbul();
 }
 
 // =============================================
@@ -766,7 +767,7 @@ export function TestsClient({
           value={latestDate ? relativeDays(latestDate) : "—"}
           sub={
             latestDate
-              ? new Date(latestDate).toLocaleDateString("tr-TR")
+              ? formatYmdTr(latestDate, { style: "numeric" })
               : "Henüz ölçüm yok"
           }
           icon={CalendarClock}
@@ -1054,7 +1055,7 @@ export function TestsClient({
                     return (
                       <TableRow key={t.id}>
                         <TableCell className="whitespace-nowrap">
-                          {new Date(t.test_date).toLocaleDateString("tr-TR")}
+                          {formatYmdTr(t.test_date, { style: "numeric" })}
                         </TableCell>
                         <TableCell className="font-medium">
                           {t.athletes?.full_name ?? "—"}
@@ -1327,7 +1328,7 @@ export function TestsClient({
                         {m.weight_kg} kg
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-muted-foreground">
-                        {new Date(m.test_date).toLocaleDateString("tr-TR")}
+                        {formatYmdTr(m.test_date, { style: "numeric" })}
                       </TableCell>
                     </TableRow>
                   ))}

@@ -16,7 +16,7 @@ import {
   getActiveAthletePrograms,
   getProgramSessionsSummary,
 } from "@athleteiq/db/queries/programs";
-import { dayOfWeekInIstanbul, todayInIstanbul } from "@athleteiq/validators/date";
+import { dayOfWeekLocal, todayLocal } from "@athleteiq/validators/date";
 import type { Database } from "@athleteiq/db/types";
 
 type TrainingProgram = Database["public"]["Tables"]["training_programs"]["Row"];
@@ -60,7 +60,7 @@ export default function CoachProgramScreen() {
   // sporcu-kapsamlı önce. Eskiden en büyük start_date seçiliyordu → bloğun son haftası.
   const fetchPrograms = useCallback(async (athleteRowId: string) => {
     try {
-      const [first] = await getActiveAthletePrograms(supabase, athleteRowId, todayInIstanbul());
+      const [first] = await getActiveAthletePrograms(supabase, athleteRowId, todayLocal());
       const summary = first ? await getProgramSessionsSummary(supabase, first.id) : [];
       setActiveProgram(first ?? null);
       setSessions(summary);
@@ -225,7 +225,7 @@ export default function CoachProgramScreen() {
                 .filter((s) => s.day_of_week === dayNum)
                 .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
-              const isToday = dayOfWeekInIstanbul() === dayNum;
+              const isToday = dayOfWeekLocal() === dayNum;
 
               return (
                 <TouchableOpacity

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { addDaysYmd } from "./date";
 
 export const wellnessCheckinSchema = z.object({
   sleep_quality: z.number().int().min(1).max(5),
@@ -28,37 +29,21 @@ export function computeWellnessTotal(items: {
   );
 }
 
-// checkin_date must always be the device/browser's LOCAL calendar date, never the
-// DB default (CURRENT_DATE, which is UTC) — Turkey is UTC+3, so a submission made
-// after midnight local time but before UTC midnight would otherwise land on the
-// wrong day. Uses local Date components, never toISOString() (that's UTC).
-export function getLocalDateString(date: Date = new Date()): string {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+// checkin_date istemciden HER ZAMAN açıkça gönderilir (DB varsayılanına bırakılmaz):
+// mobil `todayLocal()` (telefonun takvim günü), web `todayInIstanbul()` — bkz.
+// packages/validators/date.ts. toISOString() (UTC) asla "bugün" için kullanılmaz.
 
 // Bugünden geriye, ardışık günlerde check-in yapılmış gün sayısı — sporcu
 // Ana Sayfa'daki "streak" rozeti için. checkinDates sırasız (Set) verilebilir;
 // bugün henüz check-in yapılmamışsa dünden geriye sayılır (bugünün henüz
-// bitmemiş olması seriyi bozmaz).
-export function computeCheckinStreak(
-  checkinDates: Iterable<string>,
-  today: string = getLocalDateString()
-): number {
+// bitmemiş olması seriyi bozmaz). `today` YYYY-MM-DD, çağıran verir.
+export function computeCheckinStreak(checkinDates: Iterable<string>, today: string): number {
   const dates = new Set(checkinDates);
   let streak = 0;
-  const cursor = new Date(today + "T00:00:00");
-  if (!dates.has(today)) {
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  // eslint-disable-next-line no-constant-condition
-  while (true) {
-    const cursorStr = getLocalDateString(cursor);
-    if (!dates.has(cursorStr)) break;
+  let cursor = dates.has(today) ? today : addDaysYmd(today, -1);
+  while (dates.has(cursor)) {
     streak++;
-    cursor.setDate(cursor.getDate() - 1);
+    cursor = addDaysYmd(cursor, -1);
   }
   return streak;
 }

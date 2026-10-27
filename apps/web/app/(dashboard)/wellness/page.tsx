@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { getWellnessCheckin, getAthleteWellnessHistory } from "@athleteiq/db/queries/wellness";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 import { WellnessClient } from "./wellness-client";
 
 export default async function WellnessPage() {
@@ -34,13 +34,13 @@ export default async function WellnessPage() {
     );
   }
 
-  const today = getLocalDateString();
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  // İstanbul takvimi — sunucu (Vercel) UTC'de çalışır; yerel/UTC tarih Türkiye'de
+  // 00:00–03:00 arası check-in'i önceki güne yazıyordu (Parti 18T).
+  const today = todayInIstanbul();
 
   const [todayCheckin, history] = await Promise.all([
     getWellnessCheckin(supabase, athlete.id, today),
-    getAthleteWellnessHistory(supabase, athlete.id, getLocalDateString(sevenDaysAgo), today),
+    getAthleteWellnessHistory(supabase, athlete.id, istanbulDateOffset(-7), today),
   ]);
 
   return (

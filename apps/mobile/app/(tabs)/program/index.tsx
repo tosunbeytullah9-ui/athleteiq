@@ -16,9 +16,8 @@ import {
   getProgramSessionsSummary,
 } from "@athleteiq/db/queries/programs";
 import { getWellnessCheckin } from "@athleteiq/db/queries/wellness";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
 import { getTimeGreeting } from "@athleteiq/validators/greeting";
-import { dayOfWeekInIstanbul, todayInIstanbul } from "@athleteiq/validators/date";
+import { dayOfWeekLocal, todayLocal } from "@athleteiq/validators/date";
 import { ProgramTabStrip } from "@/components/ProgramTabStrip";
 import { LoadErrorState } from "@/components/LoadErrorState";
 import type { Tables } from "@athleteiq/db/types";
@@ -63,8 +62,9 @@ export default function ProgramScreen() {
 
   const fetchPrograms = useCallback(async (athleteId: string) => {
     try {
-      // Aktif hafta İstanbul takvimiyle (UTC'de Pazartesi 00:00–03:00 önceki haftaydı).
-      const active = await getActiveAthletePrograms(supabase, athleteId, todayInIstanbul());
+      // Aktif hafta telefonun takvim günüyle (todayLocal, Parti 18T) — yurt dışındaki
+      // sporcu kendi gününün haftasını görür; wellness kartı da aynı günü kullanır.
+      const active = await getActiveAthletePrograms(supabase, athleteId, todayLocal());
       setActivePrograms(active);
       setActiveTabIndex((prev) => (prev < active.length ? prev : 0));
       setLoadError(false);
@@ -121,7 +121,7 @@ export default function ProgramScreen() {
   }, [athlete, fetchPrograms]);
 
   const fetchTodayWellness = useCallback(async (athleteId: string) => {
-    const data = await getWellnessCheckin(supabase, athleteId, getLocalDateString());
+    const data = await getWellnessCheckin(supabase, athleteId, todayLocal());
     setTodayWellness(data);
   }, []);
 
@@ -284,7 +284,7 @@ export default function ProgramScreen() {
                 .filter((s) => s.day_of_week === dayNum)
                 .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
-              const isToday = dayOfWeekInIstanbul() === dayNum;
+              const isToday = dayOfWeekLocal() === dayNum;
 
               return (
                 <TouchableOpacity

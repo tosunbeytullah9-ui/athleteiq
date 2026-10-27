@@ -759,6 +759,81 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18T — Tarih / Saat Dilimi Düzeltmeleri ✅ (2026-10-27)
+
+#### Kapsam
+App Review öncesi: saatsiz tarihlerin (`YYYY-MM-DD`) `new Date(str)` ile UTC gece yarısı olarak
+okunması (UTC'nin batısında bir gün kayma) ve "bugün"ün UTC / sunucu saatinden alınması
+(Türkiye'de 00:00–03:00 arası dün). Kaynak: Parti 18T görev belgesi (Faz 1 keşif → onay → Faz 2–3).
+
+#### Faz 1 bulguları
+- `todayInIstanbul()` zaten sabit UTC+3 (Intl yok) — değişmedi.
+- Mobil yarışma ekranları Türkiye'de doğru (yerel gece yarısıyla karşılaştırıyordu); hata yalnızca
+  UTC'nin batısında: ABD'de tarih bir gün önce, geri sayım bir gün kayık, bugünkü yarışma "geçmiş".
+- **Gerçek Türkiye hatası:** web wellness sayfası (`wellness/page.tsx`, sunucu = UTC) 00:00–03:00
+  check-in'ini önceki güne yazıyordu; aynı sınıfta pano, ACWR/yoklama/test/1RM/yıllık plan
+  formlarının varsayılan tarihi.
+- DB (canlı, saat dilimi UTC): `wellness_insert`'te tarih koşulu YOK → gece check-in'i reddedilmiyor.
+  `wellness_update` / `session_feedback_update_athlete` `current_date` pencereleri İstanbul'dan hiç
+  dar değil (en fazla 1 gün geniş). `set_session_feedback_date()` yedek dalı ve
+  `wellness_checkins.checkin_date` varsayılanı `current_date`.
+- Mobil `competition_stages` okumuyor; sporcu ekranı tüm org yarışmalarını listeliyor (BUGS.md'ye).
+
+#### Ürün kararı — iki "bugün"
+- **Mobil:** telefonun yerel takvim günü (`todayLocal()` / `dayOfWeekLocal()`) — yurt dışındaki
+  sporcu (Tokyo'da Pazartesi sabahı) kendi gününün seansını görür. Program haftası/günü (18P'de
+  İstanbul'a bağlanan yerler dahil), "Bugün" vurgusu, wellness check-in tarihi, yarışma ayrımı ve
+  geri sayım. Wellness ile program artık AYNI günü kullanır.
+- **Web ve sunucu:** `todayInIstanbul()`.
+- **Sunucu kuralını taklit eden pencereler** (geri bildirim düzenleme) mobilde de
+  `todayInIstanbul()` — istemci, DB'nin reddedeceği kaydı "düzenlenebilir" göstermez.
+
+#### Değişiklikler
+- `packages/validators/date.ts` (+14 test, toplam 20): `todayLocal`, `dayOfWeekLocal`, `parseYmd`,
+  `addDaysYmd`, `daysBetweenYmd`, `dayOfWeekYmd`, `compareYmd`, `ageOnYmd`, `formatYmdTr`
+  (`long` "15 Kasım 2026" / `short` "15 Kas" / `numeric` "15.11.2026", `withYear`, `withWeekday`,
+  `padDay` — sabit Türkçe ay/gün dizileri, Intl yok), `MONTHS_SHORT_TR`. `istanbulDateOffset`
+  takvim aritmetiğine indirildi.
+- `getLocalDateString` (validators/wellness) ve `toLocalDateString` / `getTodayDayOfWeek`
+  (web `lib/date.ts`) **kaldırıldı** — mobil `todayLocal()`, web `todayInIstanbul()`.
+  `computeCheckinStreak` `today`'i zorunlu alır, `addDaysYmd` ile sayar. `resolveSessionDate` /
+  `isFeedbackEditable` string + `addDaysYmd`. Web `lib/date.ts` (`getWeekRange`, `daysUntil`)
+  İstanbul takvimiyle.
+- **Mobil:** yarışma ekranları (sporcu + koç) `formatYmdTr` / `daysBetweenYmd(todayLocal(), …)` /
+  string karşılaştırma; Recovery etiketleri `formatYmdTr`, penceresi `[todayLocal-7, max(todayLocal,
+  todayInIstanbul)]` (metric_date sağlayıcının gününden — ABD'de akşam en yeni ölçüm gizlenmesin);
+  profil doğum tarihi; program/koç program ekranları ve check-in `todayLocal`.
+- **Web:** B grubu (sunucu + istemci "bugün") `todayInIstanbul` / `istanbulDateOffset` /
+  `dayOfWeekInIstanbul`; C grubu gösterimler `formatYmdTr` (mevcut sayısal görünüm korunarak),
+  yaklaşan yarışma kontrolleri string, yaş hesapları `ageOnYmd`; wearables antrenman sınırları
+  `+03:00`; iki Intl `timeZone` kullanımı `todayInIstanbul()`'a indirildi.
+- `packages/db/queries/_edit-window.ts`: geri bildirim/wellness upsert'ü düzenleme penceresi
+  dışındaysa (RLS `42501 … USING expression` ya da `PGRST116`) "Düzenleme süresi doldu — bu kayıt
+  artık değiştirilemez." mesajlı `EditWindowExpiredError` — ham İngilizce hata yerine (mobil +
+  web zaten `e.message` gösteriyor). Canlıda doğrulandı: pencere dışı upsert sessiz 0 satır değil
+  `42501 … (USING expression)` döndürüyor.
+- `supabase/migrations/20261027110705_istanbul_calendar_defaults.sql` (MCP sürümüyle):
+  `set_session_feedback_date()` yedeği ve `wellness_checkins.checkin_date` varsayılanı
+  `(now() at time zone 'Europe/Istanbul')::date`. İmza aynı, grant'ler değişmedi. **RLS
+  politikalarına dokunulmadı** (haksız ret üretmiyorlar).
+- CLAUDE.md §1'e kalıcı tarih kuralı; §4.0'daki aktif hafta cümlesi güncellendi.
+
+#### Dokunulmayan veri
+- Canlıda gece 00:00–03:00 (İstanbul) girilip önceki güne yazılmış **1** wellness check-in'i var
+  (`submitted_at` İstanbul günü ≠ `checkin_date`). Kullanıcı kararıyla düzeltilmedi.
+
+#### Doğrulama
+- validators: 275/275 — `TZ=America/Los_Angeles`, `Europe/Istanbul`, `Asia/Tokyo`, `UTC` (PowerShell
+  `$env:TZ`; Git Bash `TZ=` Node'a ulaşmıyor). Tokyo Pazartesi 05:00 → `todayLocal` Pazartesi,
+  `todayInIstanbul` Pazar (bilinçli fark).
+- Yarışma simülasyonu (demo sporcu, an = 2026-10-27 06:00Z): Los Angeles'ta ESKİ kod "14 Kasım",
+  "25 Aralık" → "24 Aralık", bugünkü yarışma "-1 gün / geçmiş"; YENİ "15 Kasım 2026", bugünkü
+  "0 gün / yaklaşan". İstanbul ve Tokyo'da eski = yeni.
+- DB (ROLLBACK): `(timestamptz '2026-10-27 22:30+00' at time zone 'Europe/Istanbul')::date =
+  '2026-10-28'` → true; fonksiyon tanımında `current_date` yok; demo sporcu kimliğiyle bugünün
+  İstanbul tarihli check-in'i kabul; kalıcı satır sızmadı.
+- Web tsc + lint (0 hata) + build (57/57); mobil tsc + lint + `expo export --platform ios`.
+
 ### Parti 18P — Program RLS Performansı + Mobil Doğruluk ✅ (2026-10-27)
 
 #### Kapsam

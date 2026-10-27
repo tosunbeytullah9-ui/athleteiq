@@ -142,7 +142,8 @@ export async function updateProgram(
   return data;
 }
 
-/** Sporcunun bugün (todayISODate, İstanbul takvimi — bkz. todayInIstanbul) tarih olarak
+/** Sporcunun bugün (todayISODate — çağıran verir: mobil todayLocal(), web/sunucu
+ * todayInIstanbul(); bkz. packages/validators/date.ts) tarih olarak
  * aktif programları, sporcu ekranının gösterdiği sırayla: get_athlete_programs
  * (yayınlanmış + arşivlenmemiş + antrenman grubu eşleşen) → isDateActive →
  * sortAthletePrograms. Sporcu, koç (mobil) ve web panosu bu TEK kuralı kullanır. */

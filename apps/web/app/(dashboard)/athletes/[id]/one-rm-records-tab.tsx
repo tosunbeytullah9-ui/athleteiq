@@ -17,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { daysBetweenYmd, todayInIstanbul } from "@athleteiq/validators/date";
 import { normalizeExerciseName } from "@athleteiq/validators/exercise";
 import { createClient } from "@/lib/supabase/client";
 import { useUserContext } from "@/lib/hooks/useUserContext";
@@ -51,18 +51,14 @@ const oneRmFormSchema = z.object({
   test_date: z
     .string()
     .min(1, "Tarih zorunludur")
-    .refine((v) => v <= getLocalDateString(), "Gelecek tarih girilemez"),
+    .refine((v) => v <= todayInIstanbul(), "Gelecek tarih girilemez"),
   notes: z.string().optional(),
 });
 
 type OneRmForm = z.input<typeof oneRmFormSchema>;
 
 function daysAgoLabel(testDate: string): string {
-  const [y, m, d] = testDate.split("-").map(Number);
-  const testUtc = Date.UTC(y!, m! - 1, d!);
-  const [ty, tm, td] = getLocalDateString().split("-").map(Number);
-  const todayUtc = Date.UTC(ty!, tm! - 1, td!);
-  const diff = Math.round((todayUtc - testUtc) / 86400000);
+  const diff = daysBetweenYmd(testDate, todayInIstanbul());
   if (diff <= 0) return "Bugün";
   if (diff === 1) return "1 gün önce";
   return `${diff} gün önce`;
@@ -104,7 +100,7 @@ export function OneRmRecordsTab({
     formState: { errors, isSubmitting },
   } = useForm<OneRmForm>({
     resolver: zodResolver(oneRmFormSchema),
-    defaultValues: { test_date: getLocalDateString() },
+    defaultValues: { test_date: todayInIstanbul() },
   });
 
   const watchedTestDate = watch("test_date");
@@ -145,7 +141,7 @@ export function OneRmRecordsTab({
         notes: data.notes?.trim() ? data.notes.trim() : null,
       });
       setHistory((prev) => [created, ...prev]);
-      reset({ test_date: getLocalDateString() });
+      reset({ test_date: todayInIstanbul() });
       setPickedExercise(null);
       setShowForm(false);
     } catch (err: unknown) {
@@ -165,7 +161,7 @@ export function OneRmRecordsTab({
   async function saveEdit(id: string) {
     const weight = Number(editValues.weight_kg);
     if (!Number.isFinite(weight) || weight <= 0) return;
-    if (editValues.test_date > getLocalDateString()) return;
+    if (editValues.test_date > todayInIstanbul()) return;
     try {
       const supabase = createClient();
       const updated = await updateAthlete1RMRecord(supabase, id, {
@@ -260,7 +256,7 @@ export function OneRmRecordsTab({
                   <Input
                     id="rm-date"
                     type="date"
-                    max={getLocalDateString()}
+                    max={todayInIstanbul()}
                     {...register("test_date")}
                   />
                   {errors.test_date && (
@@ -383,7 +379,7 @@ export function OneRmRecordsTab({
                               {editingId === h.id ? (
                                 <Input
                                   type="date"
-                                  max={getLocalDateString()}
+                                  max={todayInIstanbul()}
                                   value={editValues.test_date}
                                   onChange={(e) =>
                                     setEditValues((v) => ({ ...v, test_date: e.target.value }))

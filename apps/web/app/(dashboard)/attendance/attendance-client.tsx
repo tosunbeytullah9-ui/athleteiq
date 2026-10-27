@@ -15,6 +15,7 @@ import {
 } from "@athleteiq/db/queries/attendance";
 import { ATTENDANCE_STATUSES, type AttendanceStatus } from "@athleteiq/validators/attendance";
 import type { Tables } from "@athleteiq/db/types";
+import { formatYmdTr, istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 
 type AttendanceRecord = Tables<"attendance_records">;
 type Team = { id: string; name: string };
@@ -41,10 +42,11 @@ const STATUS_META: Record<
   absent: { label: "Yok", icon: X, activeClass: "bg-red-600 text-white border-red-600" },
 };
 
-const today = new Date().toISOString().split("T")[0]!;
+// İstanbul takvimi — toISOString() (UTC) Türkiye'de 00:00–03:00 arası dünü verirdi.
+const today = todayInIstanbul();
 
 function daysAgo(days: number): string {
-  return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0]!;
+  return istanbulDateOffset(-days);
 }
 
 export function AttendanceClient({ orgId, teams, athletes, defaultTeamId }: Props) {
@@ -202,11 +204,7 @@ export function AttendanceClient({ orgId, teams, athletes, defaultTeamId }: Prop
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
-            {new Date(selectedDate).toLocaleDateString("tr-TR", {
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            })}
+            {formatYmdTr(selectedDate, { padDay: true })}
           </CardTitle>
         </CardHeader>
         <CardContent>

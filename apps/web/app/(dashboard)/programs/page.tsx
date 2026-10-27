@@ -7,7 +7,7 @@ import {
   getExerciseDemoLinks,
 } from "@athleteiq/db/queries/exercises";
 import { getAthleteFeedbackHistory } from "@athleteiq/db/queries/session-feedback";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 import type { Tables } from "@athleteiq/db/types";
 import { ProgramsClient } from "./programs-client";
 
@@ -61,16 +61,14 @@ export default async function ProgramsPage() {
       athleteId = athlete.id;
       // 60 gün: düzenleme penceresi 7 gün ama geçmiş seansların koç yanıtları
       // da görünsün (salt-okunur).
-      const to = getLocalDateString();
-      const fromDate = new Date();
-      fromDate.setDate(fromDate.getDate() - 60);
+      const to = todayInIstanbul();
       [athleteMaxHistory, ratios, feedback, demoLinks] = await Promise.all([
         getAthleteMaxHistory(supabase, athlete.id),
         getExercise1RMRatios(supabase),
         getAthleteFeedbackHistory(
           supabase,
           athlete.id,
-          getLocalDateString(fromDate),
+          istanbulDateOffset(-60),
           to
         ) as Promise<Tables<"session_feedback">[]>,
         // Egzersiz demo linkleri — kütüphaneden isimle çözülür (bkz. getExerciseDemoLinks).

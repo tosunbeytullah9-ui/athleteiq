@@ -6,7 +6,7 @@ import {
 } from "@athleteiq/integrations/fitbit";
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { toLocalDateString } from "@/lib/date";
+import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 
 // Fitbit'te WHOOP gibi access token'lar sona eriyor (8sa) — Polar'ın aksine
 // burada ensureFreshToken gerekli. Sporcu (kendi /wearables sayfasından) veya
@@ -106,9 +106,9 @@ export async function POST(request: Request) {
   }
 
   const client = new FitbitClient();
-  const today = toLocalDateString(new Date());
-  const rangeStart = toLocalDateString(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000));
-  const tomorrow = toLocalDateString(new Date(Date.now() + 24 * 60 * 60 * 1000));
+  const today = todayInIstanbul();
+  const rangeStart = istanbulDateOffset(-13);
+  const tomorrow = istanbulDateOffset(1);
 
   let metricsSynced = 0;
   let activitiesSynced = 0;

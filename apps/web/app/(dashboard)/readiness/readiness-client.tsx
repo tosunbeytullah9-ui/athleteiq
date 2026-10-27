@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "@/components/ui/use-toast";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { todayInIstanbul } from "@athleteiq/validators/date";
 import type { OrgWellnessCheckinRow } from "@athleteiq/db/queries/wellness";
 
 type Athlete = { id: string; full_name: string };
@@ -26,8 +26,8 @@ interface Props {
 
 export function ReadinessClient({ athletes, checkins }: Props) {
   const router = useRouter();
-  // "Bugün" tarayıcının yerel saatiyle hesaplanır, sunucunun (UTC'ye yakın)
-  // saatiyle değil — aksi halde bu Parti'nin çözdüğü aynı UTC/TR kayması
+  // "Bugün" İstanbul takvimiyle hesaplanır (todayInIstanbul, Parti 18T), sunucunun
+  // (UTC) ya da tarayıcının yerel saatiyle değil — aksi halde bu Parti'nin çözdüğü aynı UTC/TR kayması
   // burada, render katmanında yeniden ortaya çıkar. Bir Client Component da
   // hydration öncesi bir kez sunucuda render edilir, bu yüzden hesaplama
   // doğrudan render gövdesinde değil, yalnızca client'ta çalışan bir
@@ -35,7 +35,7 @@ export function ReadinessClient({ athletes, checkins }: Props) {
   const [todayLocal, setTodayLocal] = useState<string | null>(null);
 
   useEffect(() => {
-    setTodayLocal(getLocalDateString());
+    setTodayLocal(todayInIstanbul());
   }, []);
 
   useEffect(() => {

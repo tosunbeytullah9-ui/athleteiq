@@ -8,7 +8,7 @@ import {
   getWorkouts,
 } from "@athleteiq/db/queries/wearables";
 import { getAthleteAiInsightHistory } from "@athleteiq/db/queries/ai-insights";
-import { toLocalDateString } from "@/lib/date";
+import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 import { AthleteWearableDetailClient } from "./athlete-wearable-detail-client";
 
 interface PageProps {
@@ -37,10 +37,12 @@ export default async function AthleteWearableDetailPage({ params }: PageProps) {
     ? await getAthleteAiInsightHistory(supabase, athlete.id, 10)
     : [];
 
-  const today = toLocalDateString(new Date());
-  const rangeStart = toLocalDateString(new Date(Date.now() - 13 * 24 * 60 * 60 * 1000));
-  const rangeStartIso = `${rangeStart}T00:00:00`;
-  const rangeEndIso = `${today}T23:59:59`;
+  // İstanbul takvimi (sunucu Vercel'de UTC); antrenman zaman damgası sınırları da
+  // İstanbul günü olarak (+03:00) verilir.
+  const today = todayInIstanbul();
+  const rangeStart = istanbulDateOffset(-13);
+  const rangeStartIso = `${rangeStart}T00:00:00+03:00`;
+  const rangeEndIso = `${today}T23:59:59+03:00`;
 
   const [
     whoopConnection,

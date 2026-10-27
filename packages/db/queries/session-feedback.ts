@@ -1,4 +1,5 @@
 import type { DbClient } from "./_client";
+import { EditWindowExpiredError, isEditWindowRejection } from "./_edit-window";
 import type { TablesInsert } from "../types";
 
 // Metot kısayolu (property değil) bilinçli: supabase-js'in rpc() imzası fonksiyon
@@ -64,6 +65,7 @@ export async function upsertSessionFeedback(
     .select()
     .single();
 
+  if (isEditWindowRejection(error)) throw new EditWindowExpiredError();
   if (error) throw error;
   return data;
 }

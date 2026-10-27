@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@athleteiq/ui/componen
 import type { Athlete1RMRecord } from "@athleteiq/db/queries/exercises";
 import type { Tables } from "@athleteiq/db/types";
 import { signOut } from "@/lib/auth-client";
+import { ageOnYmd, formatYmdTr, todayInIstanbul } from "@athleteiq/validators/date";
 
 type AthleteProfile = Tables<"athletes"> & {
   teams: { name: string; discipline: string | null } | null;
@@ -19,15 +20,8 @@ const GENDER_LABELS: Record<string, string> = {
   other: "Diğer",
 };
 
-function calculateAge(birthDate: string): number {
-  const today = new Date();
-  const birth = new Date(birthDate);
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birth.getDate())) {
-    age--;
-  }
-  return age;
+function calculateAge(birthDate: string): number | null {
+  return ageOnYmd(birthDate, todayInIstanbul());
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
@@ -101,7 +95,7 @@ export function ProfileClient({ athlete, maxes, latestTests }: Props) {
                 label="Doğum Tarihi"
                 value={
                   athlete.birth_date
-                    ? `${new Date(athlete.birth_date).toLocaleDateString("tr-TR")} (${calculateAge(athlete.birth_date)})`
+                    ? `${formatYmdTr(athlete.birth_date, { style: "numeric" })} (${calculateAge(athlete.birth_date)})`
                     : "—"
                 }
               />

@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { getOrgSessionFeedback } from "@athleteiq/db/queries/session-feedback";
-import { getLocalDateString } from "@athleteiq/validators/wellness";
+import { istanbulDateOffset, todayInIstanbul } from "@athleteiq/validators/date";
 import { FeedbackClient } from "./feedback-client";
 
 /**
@@ -28,10 +28,8 @@ export default async function FeedbackPage() {
     );
   }
 
-  const today = getLocalDateString();
-  const from = new Date();
-  from.setDate(from.getDate() - 30);
-  const fromDate = getLocalDateString(from);
+  const today = todayInIstanbul();
+  const fromDate = istanbulDateOffset(-30);
 
   const rows = await getOrgSessionFeedback(supabase, orgId, fromDate, today).catch(() => []);
 

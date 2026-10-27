@@ -17,6 +17,7 @@ import {
   type ExerciseSource,
   type OneRmImportRow,
 } from "@athleteiq/validators/one-rm-import";
+import { todayInIstanbul } from "@athleteiq/validators/date";
 
 interface Props {
   athletes: { id: string; full_name: string; team_id: string | null }[];
@@ -26,7 +27,7 @@ interface Props {
 }
 
 function today(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayInIstanbul();
 }
 
 export function OneRmImportClient({ athletes, teams, exercises, existingRecords }: Props) {
