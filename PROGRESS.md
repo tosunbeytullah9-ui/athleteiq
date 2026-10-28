@@ -759,6 +759,55 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18C — Gizlilik Politikası + Destek Sayfası (Loadwell) ✅ (2026-10-28)
+
+#### Kapsam
+App Store Connect'in zorunlu iki URL'si: `https://loadwell.app/privacy` (yeniden yazıldı) ve
+`https://loadwell.app/support` (yeni). Ürün adı bu iki sayfada **Loadwell**; ürünün geri kalanındaki
+isim değişikliği, bundle ID ve ikon Parti 18E'ye kaldı. DB / migration / Edge Function değişikliği YOK.
+
+#### Keşif bulguları
+- Web ve mobilde analitik / izleme / çökme raporu SDK'sı YOK (Vercel Analytics, Speed Insights, GA,
+  PostHog, Sentry, Firebase vb. aranıp bulunamadı). `next/font/google` build sırasında self-host
+  eder, çalışma anında Google'a istek yok. Fotoğraf/medya yükleme yok (tek `type="file"` CSV içe
+  aktarma, tarayıcıda ayrıştırılıyor).
+- `/privacy` zaten `PUBLIC_ROUTES`'taydı; `/support` eklendi. Her iki sayfa dashboard layout'unun
+  dışında (`app/privacy`, `app/support`), athlete guard'a takılmaz.
+- Supabase bölgesi `aws-1-eu-central-1` (Frankfurt) — pooler URL'sinden doğrulandı.
+- Mobilde gizlilik/destek bağlantısı YOK (değiştirilmedi; App Store için gerekirse 18E).
+- Şifre sıfırlama: self-servis yok. Sporcu → koç/admin (`reset-athlete-password`, koç kendi
+  takımı), koç → admin (`reset-user-password`), admin → süper admin.
+- Hesap silme yalnızca mobilde: Profil → Hesap → "Hesabımı Sil" → "Talep Oluştur"
+  (`AccountDeletionSection`, sporcu `profile` + koç `coach-profile`), geri alma "Talebi Geri Al".
+- Groq'a giden payload anonim (yaş, cinsiyet, branş, WHOOP + wellness'tan türetilen göstergeler).
+- Eski metindeki yanlış "üçüncü taraflarla paylaşılmaz" ifadesi kaldırıldı. Eski metin platform
+  yöneticisinin erişimini ve WHOOP bağlantısı kesilince geçmiş verinin silinmediğini söylemiyordu.
+
+#### Değişiklikler
+- `apps/web/lib/brand.ts` (yeni): `PRODUCT_NAME`, `PRIMARY_DOMAIN`, `SITE_URL`, `SUPPORT_EMAIL`,
+  `LEGAL_NAME` — 18E bunu genişletecek.
+- `apps/web/components/legal/public-page-shell.tsx` (yeni): iki sayfanın ortak kabuğu (başlık,
+  tema anahtarı, alt bilgi), `TextSection`, `TextLink`. Tema token'larıyla — açık/koyu uyumlu.
+- `apps/web/app/privacy/page.tsx`: 15 bölümlük Türkçe politika (içindekiler, roller, App Store
+  etiketiyle aynı veri kategorileri, sağlayıcı tablosu, KVKK m.5/6/9/11, saklama, hesap silme,
+  18 yaş altı, cihazlar, çerezler). `alternates.canonical` → loadwell.app.
+- `apps/web/app/support/page.tsx` (yeni): tanım, hesap, giriş + şifre sıfırlama zinciri, hesap
+  silme, WHOOP bağlama/kaldırma, iletişim, 5 soruluk SSS.
+- `apps/web/middleware.ts`: `PUBLIC_ROUTES`'a `/support`.
+- `apps/web/components/landing/landing-page.tsx`: footer'a "Destek" linki.
+
+#### Doğrulama
+- `pnpm --filter @athleteiq/web run lint` 0 hata (27 önceden var olan uyarı, hiçbiri değişen
+  dosyalarda), `type-check` temiz, `build` temiz (`/privacy`, `/support` statik).
+- Oturumsuz `next start`: `/privacy` 200, `/support` 200, yönlendirme yok; korumalı `/settings`
+  hâlâ `/login`'e 307. İki sayfada "AthleteIQ" geçmiyor. Playwright ile 375 px açık/koyu ekran
+  görüntüsü: yatay taşma yok (scrollWidth 375).
+
+#### Açık noktalar
+- Politikaya Polar ve Fitbit de eklendi (görev metnindeki tabloda yoktu; Polar canlıda bağlı,
+  Fitbit kodu yayında) — "yalnızca web panelinden bağlarsa" koşuluyla.
+- Mobil uygulama içinden `/privacy` ve `/support`'a bağlantı yok.
+
 ### Parti 18T — Tarih / Saat Dilimi Düzeltmeleri ✅ (2026-10-27)
 
 #### Kapsam

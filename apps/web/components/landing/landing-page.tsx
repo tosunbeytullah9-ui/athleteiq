@@ -552,6 +552,9 @@ function Footer() {
           <Link href="/privacy" className="hover:text-foreground">
             Gizlilik
           </Link>
+          <Link href="/support" className="hover:text-foreground">
+            Destek
+          </Link>
           <a href="#demo" className="hover:text-foreground">
             Demo talebi
           </a>

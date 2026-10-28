@@ -2108,7 +2108,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-10-27
+Son otomatik senkron: 2026-10-28
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---
