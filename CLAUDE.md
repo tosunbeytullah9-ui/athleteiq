@@ -361,7 +361,8 @@ AthleteIQ/
 │   │   ├── 20261026201410_function_default_privileges_hardening.sql
 │   │   ├── 20261026201424_account_deletion_requests_notified_at.sql
 │   │   ├── 20261027091923_program_tree_rls_performance.sql
-│   │   └── 20261027110705_istanbul_calendar_defaults.sql
+│   │   ├── 20261027110705_istanbul_calendar_defaults.sql
+│   │   └── 20261028113032_athlete_scoped_reads_and_competition_visibility.sql
 │   ├── snippets/
 │   ├── config.toml
 │   └── seed.sql
@@ -406,10 +407,10 @@ AthleteIQ/
 - **athlete_push_tokens** — Sporcunun Expo push notification token'ı; koç bir programı publish ettiğinde mobil bildirim göndermek için kullanılır (004_wearables.sql).
 - **athletes** — Sporcu profili — organizasyon ve takıma bağlı, opsiyonel auth kullanıcısı, doğum tarihi/boy/kilo vb. (001_schema.sql). ÜÇ AYRI KAVRAM karıştırılmasın (20260922084236_position_vs_training_group.sql): BRANŞ sporcuda TUTULMAZ, teams.discipline'dan türetilir (tek kaynak); position = MEVKİ (Tight End, RB — serbest metin, bilgi amaçlı); training_group = ANTRENMAN GRUBU (Hücum Hattı, Skill), program görünürlüğünü RLS düzeyinde daraltan tek alan.
 - **attendance_records** — Takım/tarih bazlı antrenman yoklaması (present/late/excused/absent); coach kendi takımını, admin org genelini görür/yazar — sporcu görünürlüğü yok (042_attendance.sql, 2026-09-05).
-- **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql). stages = sporcunun yarıştığı aşamalar (qualification / apparatus_final / team_final / all_around_final); boş dizi = yarışmada aşama kavramı yok (20261024082932_competition_stages.sql).
-- **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql).
-- **competition_stages** — Cimnastik (FIG) yarışmasının aşamaları — Qualification, Apparatus Final, Team Final, All-Around Final — ve her aşamanın günü (stage_date NULL = yarışma tarihi). Aşamalar AYNI yarışmanın parçasıdır, ayrı yarışma kaydı açılmaz; finale kalan sporcu competition_entries.stages ile işaretlenir. RLS competition_entries ile birebir (20261024082932_competition_stages.sql).
-- **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql).
+- **competition_entries** — Bir yarışmaya hangi sporcunun kayıtlı/gideceği (roster) — competition_results (SONUÇ, yarışma sonrası) ile karıştırılmasın, bu yarışma ÖNCESİ katılım kaydı (20260909070021_athlete_delete_and_competition_entries.sql). stages = sporcunun yarıştığı aşamalar (qualification / apparatus_final / team_final / all_around_final); boş dizi = yarışmada aşama kavramı yok (20261024082932_competition_stages.sql). GÖRÜNÜRLÜK (Parti 18C-S): personel (süper admin, org admin/koç) kurum genelini görür; sporcu yalnızca KENDİ kayıtlarını görür.
+- **competition_results** — Bir sporcunun bir yarışmadaki sonucu (event/score/rank) (001_schema.sql). GÖRÜNÜRLÜK (Parti 18C-S): personel (süper admin, org admin/koç) kurum genelini görür; sporcu yalnızca KENDİ sonuçlarını görür.
+- **competition_stages** — Cimnastik (FIG) yarışmasının aşamaları — Qualification, Apparatus Final, Team Final, All-Around Final — ve her aşamanın günü (stage_date NULL = yarışma tarihi). Aşamalar AYNI yarışmanın parçasıdır, ayrı yarışma kaydı açılmaz; finale kalan sporcu competition_entries.stages ile işaretlenir. Yazma RLS'i competition_entries ile birebir (20261024082932_competition_stages.sql). GÖRÜNÜRLÜK (Parti 18C-S): personel (süper admin, org admin/koç) kurum genelini görür; sporcu yalnızca kaydı veya sonucu olduğu yarışmaların aşamalarını görür.
+- **competitions** — Organizasyona ait yarışma/müsabaka (takım veya bireysel) (001_schema.sql). GÖRÜNÜRLÜK (Parti 18C-S): personel (süper admin, org admin/koç) kurum genelini görür; sporcu yalnızca kaydı (competition_entries) veya sonucu (competition_results) olan yarışmaları görür (staff_competition_ids / own_competition_ids).
 - **demo_requests** — Landing sayfasındaki "Demo isteyin" formundan gelen talepler (kurum, kişi, rol, branş, sporcu sayısı, iletişim, mesaj, KVKK onayı) ve süper admin'in takip durumu (new/contacted/onboarded/rejected) + notu. Yalnızca /api/demo-request service role ile yazar (INSERT politikası yok), RLS SELECT/UPDATE yalnızca is_super_admin(); ham IP saklanmaz, hız sınırı için tuzlu ip_hash tutulur (20261023144302_demo_requests.sql).
 - **drill_diagrams** — Hız/hızlanma/çeviklik drill'i için koni yerleşimi + rota diyagramı (koniler, hareket tipine göre çizilen rota bölümleri — sprint/geri koşu/shuffle/carioca/çapraz adım/hafif koşu —, koni etrafı dönüşler, etiketler); birim drill bazında (m/yd). Bir org egzersizine 1:1 bağlıdır, programda egzersiz ADINDAN çözülür (demo linki ile aynı model). Yalnızca koç/admin okur/yazar — sporcu görünürlüğü YOK; jsonb şekli packages/validators/drill.ts'te doğrulanır (20261005122102_drill_diagrams.sql).
 - **exercise_1rm_ratios** — Egzersizler arası bilinen 1RM oran ilişkisi (örn. Front Squat = Back Squat * 0.85); platform geneli, super admin panelinden yönetilir, sporcunun türetilen egzersizde doğrudan kaydı yoksa %1RM çözümlemesinde sessiz fallback olarak kullanılır (20260914075144_exercise_1rm_ratios.sql).
@@ -442,7 +443,7 @@ AthleteIQ/
 
 ## 4. ROW LEVEL SECURITY (ÇEKİRDEK TABLOLAR)
 
-> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) `competition_entries` (20260909070021), `competition_stages` (20261024082932), `drill_diagrams` (20261005122102 — sporcu dalı YOK) ve `account_deletion_requests` (20261026185610 — yazma politikası YOK, yalnızca RPC/Edge Function) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez.
+> Aşağıdaki politikalar yalnızca `002_rls.sql`'i (ilk 8 çekirdek tablo) kapsar. `platform_exercises`, `org_exercise_categories`, `org_exercises`, `athlete_1rm_records` (005), `wellness_checkins` (012), `readiness_scores` (013), `exercise_sets` (014), `program_blocks` (017), `athlete_push_tokens` (004), `attendance_records` (042) `competition_entries` (20260909070021), `competition_stages` (20261024082932), `drill_diagrams` (20261005122102 — sporcu dalı YOK) ve `account_deletion_requests` (20261026185610 — yazma politikası YOK, yalnızca RPC/Edge Function) için RLS politikaları kendi migration dosyalarında tanımlıdır, burada tekrar edilmez. `whoop_cycles` / `athlete_1rm_records` / `polar_sync_state` ve dört yarışma tablosunun **SELECT** politikaları Parti 18C-S'te (`20261028113032_athlete_scoped_reads_and_competition_visibility.sql`) definer küme fonksiyonlarıyla yeniden yazıldı: ilk üçü `athletes_select` ile aynı küme (`readable_athlete_ids()`), yarışmalarda personel kurum geneli, sporcu yalnızca kendi kaydı/sonucu olan yarışmalar ve kendi satırları (bkz. §4.1 istisna listesi).
 
 ```sql
 -- =============================================
@@ -646,7 +647,13 @@ politikaları içinden çağrıldığı için `authenticated` yetkileri ASLA kal
 `can_access_annual_plan` — RLS içinden çağrılırlar, gövdeleri zaten fail-closed bir yetki
 kontrolüdür (`coalesce(..., false)`), döndürdükleri id'ler çağıranın zaten okuyabildiği/yazabildiği
 satırlardır; anon/PUBLIC EXECUTE yok. Anon bu dört tablodan okurken `42501` alır (bugün de
-`is_super_admin()` yüzünden böyleydi — snapshot bunu "ERR:42501" olarak kaydeder). (Parti 18-S'te
+`is_super_admin()` yüzünden böyleydi — snapshot bunu "ERR:42501" olarak kaydeder). Aynı istisna
+(Parti 18C-S, `20261028113032_athlete_scoped_reads_and_competition_visibility.sql`): `readable_athlete_ids`
+(`athletes_select`'in birebir karşılığı — `whoop_cycles` / `athlete_1rm_records` /
+`polar_sync_state` SELECT'i), `my_athlete_ids`, `staff_competition_ids` (süper admin → tümü,
+aksi halde admin/koç olunan org'lar) ve `own_competition_ids` (kendi kaydı VEYA sonucu olan
+yarışmalar) — dört yarışma tablosunun SELECT'i; `competitions` ↔ `competition_entries`
+politikaları birbirine referans verdiği için bu yardımcılar özyinelemeyi de önler. (Parti 18-S'te
 `copy_program_tree` ve `get_athlete_programs`'ın bu kuralı atladığı, ikisinin de gerçek
 cross-tenant açık olduğu bulundu ve kapatıldı — bkz. PROGRESS.md § Parti 18-S, BUGS.md Kritik.)
 
@@ -2194,6 +2201,7 @@ Son otomatik senkron: 2026-10-28
 - 20261026201424_account_deletion_requests_notified_at.sql
 - 20261027091923_program_tree_rls_performance.sql
 - 20261027110705_istanbul_calendar_defaults.sql
+- 20261028113032_athlete_scoped_reads_and_competition_visibility.sql
 <!-- AUTO-GENERATED:MIGRATIONS:END -->
 - **Edge Functions:** (2026-07-29 listesi Parti 16'da güncellendi — `create-org-user`/
   `reset-user-password` yeni, `invite-member` emekliye ayrıldı; `grant-athlete-access`/

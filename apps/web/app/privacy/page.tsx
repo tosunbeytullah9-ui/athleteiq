@@ -67,7 +67,7 @@ const PROVIDERS = [
   {
     name: "Polar",
     purpose: "Yalnızca sporcu kendi Polar hesabını web panelinden bağlarsa",
-    location: "Finlandiya (AB)",
+    location: "Finlandiya merkezli",
   },
   {
     name: "Fitbit (Google)",
@@ -198,6 +198,15 @@ export default function PrivacyPolicyPage() {
             kurumunun yöneticisi görebilir. Farklı bir takım veya kurumdaki hiç kimse erişemez; bu
             kural veritabanı seviyesinde (Row Level Security) teknik olarak uygulanır.
           </p>
+          <ul>
+            <li>
+              Adınız ve kullanıcı adınız, kurumunuzdaki diğer kullanıcılar tarafından görülebilir.
+            </li>
+            <li>
+              Yarışmalar: sporcu yalnızca kendi kayıtlı olduğu yarışmaları ve kendi sonuçlarını
+              görür; antrenörler ve yöneticiler kurumdaki tüm yarışmaları ve sonuçları görür.
+            </li>
+          </ul>
           <p>
             Platform yöneticisi ({LEGAL_NAME}) hizmetin işletilmesi, teknik destek ve aşağıda
             açıklanan yapay zekâ analiz aracı için verilere erişebilir.

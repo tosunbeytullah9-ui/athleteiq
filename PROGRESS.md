@@ -759,6 +759,57 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18C-S — RLS Takım Kapsamı + Sporcuya Özel Yarışma Görünürlüğü ✅ (2026-10-28)
+
+#### Kapsam
+Gizlilik politikası §5'teki "verilerinizi yalnızca siz, takım antrenörünüz ve kurum yöneticiniz
+görür" cümlesini DB'de doğru yapmak. Yalnızca SELECT politikaları; `*_write` (FOR ALL) ve
+INSERT/UPDATE/DELETE politikalarına dokunulmadı, adlar korundu. Uygulama kodu değişmedi.
+
+#### Keşif bulguları
+- 7 tablonun canlı politikaları görev tablosuyla birebir aynıydı.
+- `whoop_cycles` / `1rm_select` / `polar_sync_select` metinde "tüm koçlar" diyordu, ama alt
+  sorgudaki `athletes` kendi RLS'ine tabi olduğu için koçlar başka takımın satırlarını **fiilen
+  zaten göremiyordu** (BUGS.md'deki 031 notu da bunu söylüyordu). Snapshot bunu doğruladı: koçlarda
+  fark 0. Yeni politika bu dolaylı etkiye dayanmıyor, açık ve süper admin dalı içeriyor.
+- Yarışma tablolarında açık gerçekti: sporcular kurumdaki tüm yarışmaları (9), tüm kayıtları (6–10),
+  tüm sonuçları (4) ve aşamaları (4) görüyordu.
+- Kod: sporcu tarafı okumaları `getAthleteCompetitionEntries` / `getAthleteCompetitionResults` (kendi
+  satırları + gömülü yarışma/aşama) ve mobil `(tabs)/competitions` (`.eq("org_id")` — RLS sonrası
+  yalnızca kendi yarışmaları). Pano/yıllık plan/takımlar/sporcu detayı/testler personel rolünde.
+  `whoop-webhook` service role. Sporcu adına bu tablolara yazan akış yok.
+- Mobil sporcu yarışma ekranının boş liste metni ("Henüz yarışma programlanmamış.") kayıtsız
+  sporcu için artık tam doğru değil — değiştirilmedi, BUGS.md'ye not düşüldü.
+- Veri değişmezleri (0 ihlal): `memberships (user_id, org_id)` tekil; yarışma kaydı/sonucu sporcusu
+  yarışmayla aynı org'da; bir auth kullanıcısının en fazla bir `athletes` satırı.
+
+#### Değişiklikler
+- `supabase/migrations/20261028113032_athlete_scoped_reads_and_competition_visibility.sql` (MCP
+  sürümüne hizalandı, `supabase migration list` eşleşiyor): `readable_athlete_ids()`,
+  `my_athlete_ids()`, `staff_competition_ids()`, `own_competition_ids()` — SECURITY DEFINER,
+  `search_path = ''`, `coalesce(..., false)`, PUBLIC/anon EXECUTE yok, authenticated var (RLS
+  içinden çağrılır, §4.1 istisnası). 7 SELECT politikası `(select ...)` ile bu kümelere bağlandı.
+- `scripts/security/rls-visibility-snapshot.mjs`: `READ_TABLES` (7 tablo) — yalnızca okuma
+  görünürlüğü + veri parmak izi; mevcut 4 program tablosunun okuma/yazma/probe matrisi ve çıktı
+  biçimi aynı. `--compare` eski (read_tables'sız) dosyalarla da çalışır.
+- `packages/db/types.ts` (`--schema public`, yalnızca 4 yeni fonksiyon).
+- `/privacy` §5: ad/kullanıcı adının kurum içinde görünür olduğu + yarışma görünürlüğü; §7 Polar
+  "Finlandiya merkezli". `/support` SSS aynı iki ekleme.
+- CLAUDE.md §4 / §4.1, `scripts/table-descriptions.json` (§3 yarışma tabloları), BUGS.md.
+
+#### Doğrulama
+- Snapshot önce/sonra (24 kimlik, anon dahil): **45 fark, hepsi beklenen** — 17 sporcu kimliğinde
+  `competitions` / `competition_entries` / `competition_results` / `competition_stages` azaldı (hiçbir
+  sporcuda artış yok); süper admin `athlete_1rm_records` 47 → 233. Koç/admin: 0 fark. Program
+  tabloları (okuma + yazma + probe): 0 fark, `get_athlete_programs` 17/17 eşit. Anon: değişmedi
+  (`ERR:42501`). Sporcuların "sonra" sayıları RLS'siz bağımsız sorguyla (kendi kaydı ∪ sonucu,
+  onların aşamaları) birebir doğrulandı.
+- `get_advisors`: yeni ERROR yok. Security: 4 yeni fonksiyon yalnızca
+  `authenticated_security_definer_function_executable` (belgeli istisna sınıfı). Performance: yeni
+  SELECT politikalarından bulgu yok (kalan `multiple_permissive_policies` / `auth_rls_initplan`
+  dokunulmayan `*_write` / `*_insert` politikalarından, önceden vardı).
+- Web lint 0 hata, type-check + build temiz; mobil ve `@athleteiq/db` `tsc --noEmit` temiz.
+
 ### Parti 18C — Gizlilik Politikası + Destek Sayfası (Loadwell) ✅ (2026-10-28)
 
 #### Kapsam

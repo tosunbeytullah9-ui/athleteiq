@@ -2377,13 +2377,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      my_athlete_ids: { Args: never; Returns: string[] }
       my_role: { Args: { org: string }; Returns: string }
       my_team_id: { Args: { org: string }; Returns: string }
       org_has_users: { Args: { org: string }; Returns: boolean }
+      own_competition_ids: { Args: never; Returns: string[] }
       propagate_week_to_future: {
         Args: { p_source_program_id: string }
         Returns: Json
       }
+      readable_athlete_ids: { Args: never; Returns: string[] }
       readable_exercise_ids: { Args: never; Returns: string[] }
       readable_program_ids: { Args: never; Returns: string[] }
       readable_session_ids: { Args: never; Returns: string[] }
@@ -2449,6 +2452,7 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      staff_competition_ids: { Args: never; Returns: string[] }
       tr_fold: { Args: { p_value: string }; Returns: string }
       update_program_week: {
         Args: {

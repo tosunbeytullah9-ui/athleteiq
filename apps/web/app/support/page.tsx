@@ -54,7 +54,10 @@ const FAQ = [
     a: (
       <>
         Kendiniz, kendi takımınızın antrenörü ve kurumunuzun yöneticisi. Başka bir takım veya
-        kurumdaki hiç kimse verilerinizi göremez. Ayrıntılar{" "}
+        kurumdaki hiç kimse verilerinizi göremez. Adınız ve kullanıcı adınız ise kurumunuzdaki
+        diğer kullanıcılara görünür. Yarışmalarda yalnızca kendi kayıtlı olduğunuz yarışmaları ve
+        kendi sonuçlarınızı görürsünüz; antrenörler ve yöneticiler kurumdaki tümünü görür.
+        Ayrıntılar{" "}
         <TextLink href="/privacy">Gizlilik Politikası</TextLink>&apos;nda.
       </>
     ),

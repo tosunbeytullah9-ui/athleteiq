@@ -26,6 +26,18 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
 // Bu tablolar snapshot'a girer. Yeni bir RLS partisi kendi tablolarını buraya ekler.
 const TABLES = ["training_programs", "training_sessions", "exercises", "exercise_sets"];
+// Yalnızca OKUMA görünürlüğü ölçülen tablolar (Parti 18C-S) — yazma matrisi ve örnek
+// bazlı probe'lar bu tablolara uygulanmaz (yazma politikalarına dokunan bir parti onları
+// TABLES'a taşır). Okuma sonucu TABLES ile aynı biçimde reads[tablo] altına yazılır.
+const READ_TABLES = [
+  "whoop_cycles",
+  "athlete_1rm_records",
+  "polar_sync_state",
+  "competitions",
+  "competition_entries",
+  "competition_results",
+  "competition_stages",
+];
 const PARENT = {
   training_sessions: { col: "program_id", parent: "training_programs" },
   exercises: { col: "session_id", parent: "training_sessions" },
@@ -131,7 +143,7 @@ async function pickSamples(client) {
 async function dataFingerprint(client) {
   return withRollback(client, async (q) => {
     const out = {};
-    for (const t of TABLES) {
+    for (const t of [...TABLES, ...READ_TABLES]) {
       const r = await q(
         `select count(*)::int n, md5(coalesce(string_agg(md5(r::text), ',' order by r.id), '')) h from public.${t} r`
       );
@@ -222,6 +234,11 @@ async function snapshotPrincipal(client, p, samples) {
       out.probes[t] = per;
     }
 
+    for (const t of READ_TABLES) {
+      const read = await probe(q, `select id from public.${t}`);
+      out.reads[t] = read.ok ? idsHash(read.ids) : read.code;
+    }
+
     // get_athlete_programs ↔ RLS eşdeğerliği (yalnızca rolü athlete olan kullanıcılar):
     // RPC kümesi == RLS ile görünen, arşivlenmemiş programlar.
     if (p.role === "athlete" && p.athlete_id) {
@@ -282,6 +299,7 @@ async function runSnapshot(outFile) {
     const result = {
       generated_at: new Date().toISOString(),
       tables: TABLES,
+      read_tables: READ_TABLES,
       data_fingerprint: fingerprintStart,
       samples: samples.ids,
       principals: [],
@@ -319,7 +337,7 @@ async function runSnapshot(outFile) {
     const rpcRows = result.principals.filter((p) => p.rpc_get_athlete_programs);
     const rpcBad = rpcRows.filter((p) => !p.rpc_get_athlete_programs.equal);
     console.log(
-      `${result.principals.length} kimlik (anon dahil) × ${TABLES.length} tablo yazıldı → ${path.relative(process.cwd(), outFile)}`
+      `${result.principals.length} kimlik (anon dahil) × ${TABLES.length} tablo (+${READ_TABLES.length} yalnızca okuma) yazıldı → ${path.relative(process.cwd(), outFile)}`
     );
     console.log(`get_athlete_programs == RLS: ${rpcRows.length - rpcBad.length}/${rpcRows.length} sporcu eşit`);
     for (const p of rpcBad) {
@@ -343,8 +361,8 @@ function runCompare(aFile, bFile) {
   const fpB = b.data_fingerprint;
   if (fpA && fpB && JSON.stringify(fpA) !== JSON.stringify(fpB)) {
     console.log("UYARI: iki snapshot arasında VERİ değişti — farklar RLS'ten değil veriden kaynaklanıyor olabilir:");
-    for (const t of a.tables) {
-      if (JSON.stringify(fpA[t]) !== JSON.stringify(fpB[t])) console.log(`  ${t}: ${fpA[t].count} → ${fpB[t].count}`);
+    for (const t of [...a.tables, ...(a.read_tables ?? [])]) {
+      if (JSON.stringify(fpA[t]) !== JSON.stringify(fpB[t])) console.log(`  ${t}: ${fpA[t]?.count} → ${fpB[t]?.count}`);
     }
   }
   const key = (p) => p.user_id ?? "anon";
@@ -361,6 +379,13 @@ function runCompare(aFile, bFile) {
         const y = JSON.stringify(pb[section]?.[t]);
         if (x !== y) diffs.push(`${key(pa)} [${pa.role}] ${section}.${t}: ${x?.slice(0, 160)} → ${y?.slice(0, 160)}`);
       }
+    }
+    // Yalnızca okuma ölçülen tablolar — iki dosyadan birinde listelenmişse karşılaştırılır.
+    const readOnly = [...new Set([...(a.read_tables ?? []), ...(b.read_tables ?? [])])];
+    for (const t of readOnly) {
+      const x = JSON.stringify(pa.reads?.[t]);
+      const y = JSON.stringify(pb.reads?.[t]);
+      if (x !== y) diffs.push(`${key(pa)} [${pa.role}] reads.${t}: ${x?.slice(0, 160)} → ${y?.slice(0, 160)}`);
     }
   }
   for (const pb of b.principals) if (!a.principals.some((p) => key(p) === key(pb))) diffs.push(`${key(pb)}: öncekinde yok`);
