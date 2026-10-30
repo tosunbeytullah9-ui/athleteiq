@@ -10,6 +10,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
+import { WEARABLES_ENABLED } from "@/lib/features";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import type { Database } from "@athleteiq/db/types";
 import { addDaysYmd, formatYmdTr, todayInIstanbul, todayLocal } from "@athleteiq/validators/date";
@@ -196,10 +197,12 @@ export default function CoachRecoveryScreen() {
           <View className="bg-white rounded-2xl p-6 items-center mt-2">
             <Text className="text-4xl mb-3">⌚</Text>
             <Text className="text-gray-900 font-semibold text-lg text-center">
-              Wearable Bağlı Değil
+              {WEARABLES_ENABLED ? "Wearable Bağlı Değil" : "Recovery verileri yakında"}
             </Text>
             <Text className="text-gray-500 text-sm text-center mt-2">
-              Bu sporcunun WHOOP veya Polar cihazı henüz bağlı değil.
+              {WEARABLES_ENABLED
+                ? "Bu sporcunun WHOOP veya Polar cihazı henüz bağlı değil."
+                : "Giyilebilir cihaz entegrasyonu yakında eklenecek."}
             </Text>
           </View>
         ) : metrics.length === 0 ? (

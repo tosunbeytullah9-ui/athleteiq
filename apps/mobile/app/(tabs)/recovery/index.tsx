@@ -7,6 +7,7 @@ import {
   RefreshControl,
 } from "react-native";
 import { supabase } from "@/lib/supabase";
+import { WEARABLES_ENABLED } from "@/lib/features";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import type { Database } from "@athleteiq/db/types";
 import { addDaysYmd, formatYmdTr, todayInIstanbul, todayLocal } from "@athleteiq/validators/date";
@@ -159,12 +160,12 @@ export default function RecoveryScreen() {
           <View className="bg-white rounded-2xl p-6 items-center mt-2">
             <Text className="text-4xl mb-3">⌚</Text>
             <Text className="text-gray-900 font-semibold text-lg text-center">
-              Wearable Bağlı Değil
+              {WEARABLES_ENABLED ? "Wearable Bağlı Değil" : "Recovery verileri yakında"}
             </Text>
             <Text className="text-gray-500 text-sm text-center mt-2">
-              Recovery verilerini görmek için Profil ekranından WHOOP
-              cihazınızı bağlayın. Polar ve Fitbit bağlantıları web
-              panelinden yapılır.
+              {WEARABLES_ENABLED
+                ? "Recovery verilerini görmek için Profil ekranından WHOOP cihazınızı bağlayın. Polar ve Fitbit bağlantıları web panelinden yapılır."
+                : "Giyilebilir cihaz entegrasyonu yakında eklenecek."}
             </Text>
           </View>
         ) : metrics.length === 0 ? (

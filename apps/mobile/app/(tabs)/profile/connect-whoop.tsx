@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { connectWhoop } from "@/lib/wearables";
+import { WEARABLES_ENABLED } from "@/lib/features";
 
 export default function ConnectWhoopScreen() {
   const router = useRouter();
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Bayrak kapalıyken (Parti 18F) derin link ile açılsa bile akış başlamaz.
+  useEffect(() => {
+    if (!WEARABLES_ENABLED) router.replace("/(tabs)/profile");
+  }, [router]);
+
   async function handleConnect() {
+    if (!WEARABLES_ENABLED) return;
     setConnecting(true);
     setError(null);
 
@@ -25,6 +32,8 @@ export default function ConnectWhoopScreen() {
     }
     setError(result.message);
   }
+
+  if (!WEARABLES_ENABLED) return null;
 
   return (
     <View className="flex-1 bg-gray-50 p-5">
