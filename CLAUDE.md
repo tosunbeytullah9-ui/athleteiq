@@ -1843,8 +1843,9 @@ dolduruluyordu — yani koç, başında olmadığı antrenmanın RPE'sini tahmin
 bildiriminde koça push bildirimi de ekleyelim" dedi. **Önce tespit edilen gerçek durum:** bu
 projede push zinciri HİÇ KURULU DEĞİL — `apps/mobile/lib/notifications.ts`'teki
 `registerForPushNotifications()` `undefined` döndüren bir stub, `expo-notifications` kurulu değil,
-`eas.json`/EAS `projectId` yok (Expo push token'ı almak için development build ŞART, Expo Go'da
-çalışmaz), `athlete_push_tokens` boş ve sporcuya özel (koçu kapsamıyor), gönderim tarafında ne
+EAS `projectId` yok (o tarihte `eas.json` da yoktu — Parti 18A'da eklendi, `projectId`'yi kullanıcı
+`eas init` ile ekleyecek, bkz. `docs/app-store/eas-build-runbook.md`; Expo push token'ı almak için
+development build ŞART, Expo Go'da çalışmaz), `athlete_push_tokens` boş ve sporcuya özel (koçu kapsamıyor), gönderim tarafında ne
 Edge Function ne `pg_net`/`pg_cron` var (ikisi de kurulu değil). Bu yüzden kanal kullanıcıya
 soruldu ve **web içi anlık uyarı + kalıcı rozet** seçildi (Expo push ve e-posta bilinçli olarak
 ertelendi); alıcı = sporcunun takım koçu (RLS zaten böyle daraltıyor, ek filtre yok);
@@ -2052,6 +2053,13 @@ pnpm test:e2e               # Playwright E2E
 pnpm build                  # Production build
 eas build --platform all    # Mobile build (EAS)
 ```
+
+> **EAS (Parti 18H):** `apps/mobile/eas.json` `node: 22.23.4` / `pnpm: 11.9.0` sabitlerini
+> silmeyin — pnpm 11.9.0 `node >=22.13` ister, SDK 54 iOS imajının varsayılanı Node 20.19.4'tür.
+> `submit.production.ios.ascAppId` girildi; `extra.eas.projectId` + `owner` kullanıcının
+> `eas init`'iyle `app.json`'a yazılır. EAS env (`EXPO_PUBLIC_SUPABASE_URL` / `_ANON_KEY`) build'den
+> ÖNCE `production` ortamında olmalı — yoksa `lib/supabase.ts` açılışta çöker. Adımlar:
+> `docs/app-store/eas-build-runbook.md`.
 
 ---
 
@@ -2375,7 +2383,8 @@ Son otomatik senkron: 2026-10-30
   (`AI_ENABLED=true`, Groq `openai/gpt-oss-120b`), bkz. Çalışan Özellikler. KVKK kararı Beyto
   tarafından verilmiş sayılır — gerçek sporcu verisi artık sağlayıcıya gidiyor.
 - ⏳ **Expo mobil push altyapısı (hiç kurulu değil)** — `registerForPushNotifications()` stub,
-  `expo-notifications` kurulu değil, EAS `projectId`/`eas.json` yok (token için development build
+  `expo-notifications` kurulu değil, EAS `projectId` yok (`eas.json` Parti 18A'dan beri var,
+  `projectId` kullanıcının `eas init`'iyle gelecek — Parti 18H; token için development build
   şart), `athlete_push_tokens` boş ve sporcuya özel, gönderim tarafı (Edge Function veya
   `pg_net`/`pg_cron`) yok. Ağrı bildirimi şu an web içi uyarı + rozet olarak çalışıyor; mobil
   push isteniyorsa önce `eas init` + dev build gerekir

@@ -759,6 +759,23 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18H — EAS Production Build Hazırlığı ✅ (2026-10-30)
+
+Uygulama davranışına dokunulmadı. `apps/mobile/eas.json`: production'a `ios.resourceClass:
+"m-medium"`, `submit.production.ios.ascAppId: "6828987401"` (appleId/API anahtarı yok — giriş
+etkileşimli). Yeni: `docs/app-store/eas-build-runbook.md`. Bulgular:
+- `node: 22.23.4` (LTS, 2026-10-20, macOS arm64 binary var) + `pnpm: 11.9.0` geçerli ve
+  **zorunlu**: pnpm 11.9.0 `node >=22.13` ister, SDK 54 iOS imajının varsayılanı Node 20.19.4.
+- pnpm 11 `.npmrc`'deki `shamefully-hoist` / `node-linker` ayarlarını OKUMUYOR (`.modules.yaml`:
+  `nodeLinker: isolated`, `publicHoistPattern: []`). Yereldeki kök `node_modules` eski hoisted
+  kurulumun kalıntısı (735 gerçek klasör) — yerel başarı EAS'ı temsil etmiyordu. Temiz bir
+  worktree'de `pnpm install --frozen-lockfile` (43 sn, kökte 11 girdi) + `expo export --platform
+  ios` → 3190 modül, JS paketi başarılı; css-interop yaması uygulandı, `@athleteiq/*` çözüldü.
+- Takipli dosyalar 8 MB → `.easignore` gerekmedi. İzin gerektiren paket yok
+  (`NS*UsageDescription` gerekmez). RN 0.81 pod'ların PrivacyInfo'larını varsayılan birleştiriyor.
+- expo-doctor: 3 uyarı, hepsi önceden var olan ve build'i düşürmeyen (symlink ayarı,
+  `@types/react-native`, `expo`/`expo-constants` patch + iki minor sürüm farkı).
+
 ### Parti 18E — Marka: AthleteIQ → Loadwell ✅ (2026-10-30)
 
 #### Kapsam
