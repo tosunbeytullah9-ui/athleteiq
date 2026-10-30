@@ -11,8 +11,8 @@
 // Tüm tarihler seed anına göredir. Mobil ekranlar "bugünü kapsayan hafta" /
 // "son 7 gün" pencereleriyle sorguladığı için veri, seed'den sonra en az
 // FRESH_DAYS gün boyunca her iki rolün ekranlarını dolu tutacak şekilde
-// ileriye de uzatılır (program haftaları, yarışmalar). İstisna: WHOOP
-// metrikleri ileri tarihlenemez (bkz. aşağıda) — Recovery ~7 gün dolu kalır.
+// ileriye de uzatılır (program haftaları, yarışmalar). WHOOP metrikleri ileri
+// tarihlenemez (bkz. aşağıda); demo sporcunun wearable bağlantısı yok (Parti 18G).
 // İnceleme gönderiminden HEMEN ÖNCE yeniden çalıştırın
 // (docs/app-store/submission-checklist.md).
 //
@@ -271,14 +271,16 @@ for (const fb of defneFeedback) {
 }
 await coachDb.auth.signOut();
 
-// Demo sporcunun WHOOP metrikleri. Bağlantı satırı sahte token'la: profildeki
-// "Bağlantıyı Kes" çökmez (WHOOP 401 döner, yutulur) ama bağlantı pasife düşer
-// ve Recovery ekranı metrikleri gizler — yeniden seed düzeltir.
+// Demo sporcunun WHOOP metrikleri — bağlantı satırı YOK (Parti 18G): mobilde
+// wearable akışı "Yakında" (WEARABLES_ENABLED=false, Parti 18F); App Review
+// incelemecisi Profil'de "Bağlantıyı Kes" yerine "Yakında" ve Recovery'de
+// "Recovery verileri yakında" görür. Metrikler web panelindeki koç görünümleri
+// için korunur. reset() demo org'u sildiği için (athletes → wearable_connections
+// CASCADE) eski bir seed'in bağlantı satırı yeniden seed'de kendiliğinden gider.
 // Son 28 gün + bugün. İleri tarihli satır YAZILMAZ: mobil Recovery sorgusunun
 // üst sınırı yok (metric_date >= bugün-7, en yeni önce), gelecekteki bir gün
-// "son ölçüm" olarak görünürdü. Sonuç: mobil Recovery seed'den sonra ~7 gün
-// dolu kalır — FRESH_DAYS'i kapsamayan tek ekran (PROGRESS.md Parti 18D).
-await insert("wearable_connections", { athlete_id: athletes[0].id, provider: "whoop", access_token: "demo-not-a-token", is_active: true, last_synced_at: new Date().toISOString() });
+// "son ölçüm" olarak görünürdü (bayrak yeniden açılıp bağlantı eklenirse
+// mobil Recovery seed'den sonra ~7 gün dolu kalır — PROGRESS.md Parti 18D).
 await insert("wearable_daily_metrics", Array.from({ length: 29 }, (_, k) => ({
   athlete_id: athletes[0].id, provider: "whoop", metric_date: day(-28 + k),
   recovery_score: 40 + Math.round(rnd() * 50), hrv_rmssd: 55 + Math.round(rnd() * 25), resting_hr: 46 + Math.round(rnd() * 8),
@@ -313,7 +315,7 @@ console.log(`\nDemo Kulübü hazır (seed: ${day(0)}).
   Program: ${TOTAL_WEEKS} hafta, ${day(weekStart(1))} – ${day(weekStart(TOTAL_WEEKS) + 6)}
   Geri bildirim: Defne ${defneFeedback.length} seans, koç yanıtı ${replyCount}
 
-⚠ Bu veri ${freshUntil} tarihine kadar taze (Recovery / WHOOP ekranı: ${day(7)}).
+⚠ Bu veri ${freshUntil} tarihine kadar taze (mobil Recovery "Yakında" — wearable bağlantısı yok).
   App Review gönderiminden hemen önce yeniden seed edin
   (docs/app-store/submission-checklist.md).
 Yıllık plan ızgarası bu scriptle doldurulmaz; capture.mjs plan yoksa o kareyi atlar.`);

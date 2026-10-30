@@ -759,6 +759,20 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18G — Demo Sporcunun Wearable Bağlantısı Kaldırıldı ✅ (2026-10-30)
+
+Parti 18F mobilde WHOOP akışını "Yakında"ya çevirdi (`WEARABLES_ENABLED = false`) ama demo seed
+sporcuya hâlâ sahte token'lı aktif bir `wearable_connections` satırı yazıyordu — incelemeci
+Profil'de "Bağlantıyı Kes" ve dolu bir Recovery ekranı görürdü (bayrak bağlıysa kesmeyi açık
+bırakıyor). `scripts/landing/demo-seed.mjs` artık bağlantı satırı YAZMIYOR; `wearable_daily_metrics`
+web panelindeki koç görünümleri için korunuyor. Eski seed'in satırı yeniden seed'de kendiliğinden
+gider (`reset()` org'u siler → athletes → `wearable_connections` CASCADE). Sonuç: sporcu Recovery
+sekmesi, koçun sporcu Recovery ekranı ve Profil'deki WHOOP satırı "Yakında" gösterir; Recovery'nin
+~7 günlük tazelik istisnası kalktı. `review-notes.md` (Recovery + Wearables bölümü İngilizce, koç
+Recovery ekranı eklendi) ve `submission-checklist.md` buna göre güncellendi. Uygulama koduna
+dokunulmadı. **Canlı demo org'u bu partide yeniden seed EDİLMEDİ** — gönderimden önce
+`pnpm landing:seed` (checklist 1. adım) çalıştırılmalı.
+
 ### Parti 18H — EAS Production Build Hazırlığı ✅ (2026-10-30)
 
 Uygulama davranışına dokunulmadı. `apps/mobile/eas.json`: production'a `ios.resourceClass:

@@ -22,10 +22,10 @@ contain only fictional data.
 
 The login field takes **username@organization**, not an email address.
 
-| Role | Login | Password |
-|---|---|---|
+| Role    | Login               | Password     |
+| ------- | ------------------- | ------------ |
 | Athlete | `defne.arslan@demo` | `[PASSWORD]` |
-| Coach | `koc.demo@demo` | `[PASSWORD]` |
+| Coach   | `koc.demo@demo`     | `[PASSWORD]` |
 
 ## What to look at
 
@@ -39,17 +39,18 @@ The login field takes **username@organization**, not an email address.
 3. On the Program tab, tap the **Sabah Değerlendirmesi** (Morning check-in)
    card to fill in today's 5-question wellness survey. Recent days are listed
    below the form.
-4. **Recovery** tab: daily recovery, HRV, resting heart rate, sleep and strain
-   from the athlete's wearable (sample WHOOP data is preloaded).
+4. **Recovery** tab: shows "Recovery verileri yakında" (Recovery data coming
+   soon) — see "Wearables" below.
 5. **Yarışmalar** (Competitions) tab: upcoming and past competitions.
-6. **Profil** (Profile) tab: personal details, the wearable connection and
-   account deletion.
+6. **Profil** (Profile) tab: personal details, privacy policy and support
+   links (**Yardım** / Help) and account deletion.
 
 **Coach account (`koc.demo@demo`)**
 
 1. **Sporcularım** (My Athletes) tab: the coach's team roster.
-2. Tap an athlete (for example *Defne Arslan*) to open their program,
-   recovery data and competitions.
+2. Tap an athlete (for example _Defne Arslan_) to open their program and
+   competitions. Their **Recovery** screen shows "Recovery verileri yakında"
+   (coming soon) — see "Wearables" below.
 3. **Profil** (Profile) tab: organization info, sign out, privacy policy and
    support links (**Yardım** / Help) and account deletion.
 
@@ -69,13 +70,12 @@ Profile → **Yardım** (Help) → **Gizlilik Politikası** (Privacy Policy) ope
 https://loadwell.app/privacy and **Destek** (Support) opens
 https://loadwell.app/support, on both the athlete and the coach account.
 
-## WHOOP (optional)
+## Wearables
 
-Connecting a wearable is optional and requires the user's own WHOOP account
-and device. The demo athlete has sample WHOOP data preloaded. If you tap
-**Bağlantıyı Kes** (Disconnect) on the Profile tab, the sample connection is
-deactivated and the Recovery tab will show "not connected". Reconnecting
-requires a real WHOOP account.
+Wearable integration (WHOOP) is disabled in this version. The related screens
+show **Yakında** ("Coming soon"): the Recovery tab, the athlete's Recovery
+screen on the coach account and the WHOOP row on the Profile tab. No wearable
+device or third-party account is needed to review the app.
 
 ## Purchases
 
