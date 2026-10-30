@@ -13,6 +13,8 @@ import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { resolveLoginIdentifier } from "@athleteiq/validators";
+import { PRODUCT_NAME } from "@athleteiq/validators/brand";
+import { BrandMark } from "@/components/BrandMark";
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -57,10 +59,10 @@ export default function LoginScreen() {
       <View className="flex-1 justify-center p-8">
         {/* Logo */}
         <View className="mb-10 items-center">
-          <View className="w-16 h-16 rounded-2xl items-center justify-center mb-4" style={{ backgroundColor: "#534AB7" }}>
-            <Text className="text-white text-2xl font-black">A</Text>
+          <View className="mb-4">
+            <BrandMark size={64} />
           </View>
-          <Text className="text-3xl font-black text-gray-900">AthleteIQ</Text>
+          <Text className="text-3xl font-black text-gray-900">{PRODUCT_NAME}</Text>
           <Text className="mt-1 text-gray-500">Sporcu platformuna giriş yapın</Text>
         </View>
 

@@ -1,11 +1,12 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Activity, LogOut, Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { Button } from "@athleteiq/ui/components/button";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { signOut } from "@/lib/auth-client";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { ROLE_LABELS, getUserDisplay } from "@/components/shared/sidebar";
 import { findActiveHref, getNavSections } from "@/components/shared/nav-config";
 
@@ -36,9 +37,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Mobilde marka ikonu + bölüm adı; masaüstünde yalnızca bölüm adı */}
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet text-primary-foreground md:hidden">
-          <Activity className="h-4 w-4" />
-        </span>
+        <BrandMark className="h-7 w-7 md:hidden" />
         <span className="truncate text-base font-semibold tracking-tight md:text-lg">
           {sectionLabel}
         </span>

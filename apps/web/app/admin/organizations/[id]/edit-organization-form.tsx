@@ -106,8 +106,8 @@ export function EditOrganizationForm({ org, userCount }: Props) {
           />
           <p className="text-xs text-muted-foreground">
             {slugLocked
-              ? `Bu organizasyonda ${userCount} kullanıcı var; giriş kimlikleri ({kullanıcı adı}@${org.slug}.athleteiq.app) slug'a bağlı olduğu için değiştirilemez.`
-              : `Henüz kullanıcı yok; giriş kimlikleri {kullanıcı adı}@${form.slug || "slug"}.athleteiq.app olacak.`}
+              ? `Bu organizasyonda ${userCount} kullanıcı var; giriş kimlikleri (kullanıcı adı@${org.slug}) slug'a bağlı olduğu için değiştirilemez.`
+              : `Henüz kullanıcı yok; giriş kimlikleri kullanıcı adı@${form.slug || "slug"} olacak.`}
           </p>
           {fieldErrors.slug && <p className="text-xs text-destructive">{fieldErrors.slug}</p>}
         </div>

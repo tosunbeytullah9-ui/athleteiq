@@ -105,7 +105,7 @@ Deno.serve(async (req: Request) => {
       return json({ notified: false, reason: "not_configured" }, 200);
     }
     const from =
-      Deno.env.get("ACCOUNT_DELETION_FROM_EMAIL") || "AthleteIQ <onboarding@resend.dev>";
+      Deno.env.get("ACCOUNT_DELETION_FROM_EMAIL") || "Loadwell <onboarding@resend.dev>";
     const siteUrl = Deno.env.get("APP_SITE_URL")?.replace(/\/+$/, "");
 
     const { data: org } = await supabaseAdmin

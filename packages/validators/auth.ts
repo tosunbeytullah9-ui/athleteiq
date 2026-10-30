@@ -19,6 +19,10 @@ export type ResolvedIdentifier =
   | { ok: true; email: string }
   | { ok: false; reason: "missing_org" | "email_rejected" };
 
+// Sentetik e-postanın alan adı eki — dahili kimliktir, marka değişse de (Parti 18E,
+// AthleteIQ → Loadwell) bilinçli olarak korunur: tüm auth.users kayıtları bu biçimde.
+const SYNTHETIC_EMAIL_SUFFIX = ".athleteiq.app";
+
 // Login formundaki serbest metin girdiyi sentetik email'e çözer.
 // Tek geçerli biçim: "kullanici@slug" (org kısayolu) → "kullanici@slug.athleteiq.app".
 // İki ret durumu:
@@ -34,5 +38,20 @@ export function resolveLoginIdentifier(raw: string): ResolvedIdentifier {
   const domain = parts[1];
   if (parts.length !== 2 || !domain) return { ok: false, reason: "missing_org" };
   if (domain.includes(".")) return { ok: false, reason: "email_rejected" };
-  return { ok: true, email: `${trimmed.toLowerCase()}.athleteiq.app` };
+  return { ok: true, email: `${trimmed.toLowerCase()}${SYNTHETIC_EMAIL_SUFFIX}` };
+}
+
+// Kullanıcıya gösterilen / kopyalatılan giriş kimliği: "kullanici@slug". Sentetik
+// e-posta hiçbir arayüzde gösterilmez — resolveLoginIdentifier onu reddeder.
+export function buildLoginIdentifier(username: string, orgSlug: string): string {
+  return `${username.trim().toLowerCase()}@${orgSlug.trim().toLowerCase()}`;
+}
+
+// Sentetik e-postayı ("kullanici@slug.athleteiq.app") giriş kimliğine çevirir.
+// Sentetik olmayan bir adres (eski/elle oluşturulmuş hesap) olduğu gibi döner.
+export function toLoginIdentifier(email: string): string {
+  const lower = email.trim().toLowerCase();
+  return lower.endsWith(SYNTHETIC_EMAIL_SUFFIX)
+    ? lower.slice(0, -SYNTHETIC_EMAIL_SUFFIX.length)
+    : email;
 }

@@ -4,6 +4,8 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { confirmSignOut } from "@/lib/signOut";
 import { AccountDeletionSection } from "@/components/AccountDeletionSection";
+import { HelpLinksSection } from "@/components/HelpLinksSection";
+import { toLoginIdentifier } from "@athleteiq/validators/auth";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -48,19 +50,21 @@ export default function CoachProfileScreen() {
   }
 
   const roleLabel = role ? (ROLE_LABELS[role] ?? role) : "—";
+  // Sentetik e-posta (…@slug.athleteiq.app) gösterilmez — yalnızca girişte yazılan biçim.
+  const loginId = session?.user.email ? toLoginIdentifier(session.user.email) : "—";
 
   return (
     <ScrollView className="flex-1 bg-gray-50">
       <View className="bg-blue-700 px-5 pt-14 pb-8 items-center">
-        <Text className="text-white text-xl font-bold mt-3">{session?.user.email ?? "—"}</Text>
+        <Text className="text-white text-xl font-bold mt-3">{loginId}</Text>
         <Text className="text-blue-200 text-sm mt-0.5">{roleLabel}</Text>
       </View>
 
       <View className="p-4">
         <View className="bg-white rounded-2xl px-4 py-1 mb-4 shadow-sm">
           <View className="flex-row justify-between items-center py-3 border-b border-gray-50">
-            <Text className="text-gray-500 text-sm">E-posta</Text>
-            <Text className="text-gray-900 text-sm font-medium">{session?.user.email ?? "—"}</Text>
+            <Text className="text-gray-500 text-sm">Giriş kimliği</Text>
+            <Text className="text-gray-900 text-sm font-medium">{loginId}</Text>
           </View>
           <View className="flex-row justify-between items-center py-3 border-b border-gray-50">
             <Text className="text-gray-500 text-sm">Organizasyon</Text>
@@ -83,6 +87,8 @@ export default function CoachProfileScreen() {
             <Text className="text-red-500 font-medium">Çıkış Yap</Text>
           )}
         </TouchableOpacity>
+
+        <HelpLinksSection />
 
         <AccountDeletionSection isStaff />
 

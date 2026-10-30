@@ -12,7 +12,7 @@ export type WearableConnectResult =
 // Akış: authorize route'undan (sporcu kimliğini imzalı state'e gömen)
 // bir WHOOP authorize URL'si alınır → WebBrowser bunu açar → WHOOP,
 // kullanıcı onayından sonra web callback'e yönlendirir → callback token'ları
-// DB'ye kaydedip "athleteiq://wearables/callback" deep link'ine döner →
+// DB'ye kaydedip "loadwell://wearables/callback" deep link'ine döner →
 // WebBrowser bu redirect'i yakalayıp kapanır (bkz. CLAUDE.md §5.1, §6 Agent 5).
 export async function connectWhoop(): Promise<WearableConnectResult> {
   const appUrl = process.env.EXPO_PUBLIC_APP_URL;

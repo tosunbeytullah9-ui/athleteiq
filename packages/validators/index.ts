@@ -21,3 +21,4 @@ export * from "./date";
 export * from "./demo-request";
 export * from "./competition";
 export * from "./account-deletion";
+export * from "./brand";

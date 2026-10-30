@@ -130,7 +130,7 @@ export function OneRmImportClient({ athletes, teams, exercises, existingRecords 
         <CardContent className="space-y-4">
           <ImportSource
             templateCsv={oneRmImportTemplateCsv()}
-            templateFileName="athleteiq-1rm-sablonu.csv"
+            templateFileName="loadwell-1rm-sablonu.csv"
             value={text}
             onChange={setText}
             hint={

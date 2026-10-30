@@ -10,6 +10,7 @@ import {
   type DemoRequest,
 } from "@athleteiq/validators";
 import type { Database } from "@athleteiq/db/types";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 /**
  * Landing'deki demo talep formu (oturumsuz). demo_requests'e INSERT politikası
@@ -100,7 +101,7 @@ async function notify(data: DemoRequest, origin: string): Promise<boolean> {
   const to = process.env.DEMO_REQUEST_NOTIFY_EMAIL;
   if (!apiKey || !to) return false;
 
-  const from = process.env.DEMO_REQUEST_FROM_EMAIL || "AthleteIQ <onboarding@resend.dev>";
+  const from = process.env.DEMO_REQUEST_FROM_EMAIL || `${PRODUCT_NAME} <onboarding@resend.dev>`;
   const rows: [string, string | undefined][] = [
     ["Ad Soyad", data.full_name],
     ["Kurum", data.organization],

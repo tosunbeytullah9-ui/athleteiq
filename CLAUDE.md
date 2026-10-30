@@ -8,7 +8,7 @@
 
 ## 0. PROJE TANIMI
 
-**Ürün adı:** AthleteIQ  
+**Ürün adı:** **Loadwell** (eski adı AthleteIQ; 2026-10-28) — birincil alan adı https://loadwell.app, marka sabitleri `packages/validators/brand.ts`  
 **Tip:** Multi-tenant B2B SaaS — Sporcu İzleme ve Antrenman Yönetim Platformu  
 **Hedef kullanıcı:**
 - **Super Admin** → Platform sahibi (sen). Tüm organizasyonlara erişir.
@@ -218,6 +218,8 @@ AthleteIQ/
 │       ├── attendance.ts
 │       ├── auth.test.ts
 │       ├── auth.ts
+│       ├── brand.test.ts
+│       ├── brand.ts
 │       ├── competition.test.ts
 │       ├── competition.ts
 │       ├── csv.test.ts
@@ -254,6 +256,8 @@ AthleteIQ/
 ├── patches/
 │   └── react-native-css-interop@0.2.6.patch
 ├── scripts/
+│   ├── brand/
+│   │   └── render-icons.mjs
 │   ├── landing/
 │   │   ├── lib/
 │   │   ├── backgrounds.json
@@ -726,6 +730,11 @@ beytullah.tosun@tgf.athleteiq.app
 beytullah.tosun@koc-universitesi.athleteiq.app   ← aynı username, farklı org, bağımsız hesap
 ```
 
+> **Sentetik e-posta alan adı `.athleteiq.app` bilinçli olarak korundu** (Parti 18E, marka
+> Loadwell oldu): dahili kimliktir, kullanıcıya gösterilmez; arayüz yalnızca `kullanici@slug`
+> gösterir ve kopyalatır (`buildLoginIdentifier` / `toLoginIdentifier`,
+> `packages/validators/auth.ts` — `resolveLoginIdentifier` tam sentetik e-postayı REDDEDER).
+
 Sonuçları:
 - Aynı `username` farklı org'larda bağımsız olarak var olabilir (`profiles` üzerindeki unique
   index `(org_id, lower(username))` — org-scoped, global değil).
@@ -1185,7 +1194,7 @@ code-exchange'i içindi).
 [x] apps/web/app/(dashboard)/wearables/page.tsx + athlete-wearable-client.tsx → role==="athlete" dalı: kendi WHOOP bağlantı durumu + web'den bağlan/bağlantı kes (admin/coach'un org-geneli salt-okunur durum tablosu değişmedi)
 [x] packages/integrations/whoop/oauth.ts → createOAuthState/verifyOAuthState'e opsiyonel platform: "web"|"mobile" alanı eklendi (geriye dönük uyumlu — platform verilmezse eski mobil davranış)
 [x] apps/web/app/api/wearables/whoop/connect/route.ts → YENİ, web-özel: cookie oturumundan athlete id çözer, platform:"web" state'iyle WHOOP authorize'a yönlendirir (mobildeki Bearer-token'lı /authorize'dan ayrı — web tarayıcı navigasyonu cookie taşır, mobil taşımaz)
-[x] apps/web/app/api/wearables/whoop/callback/route.ts → state'teki platform'a göre dallanır: "web" ise `/wearables?status=...`'a, aksi halde (mobil, platform yok) eskisi gibi `athleteiq://wearables/callback`'e yönlendirir
+[x] apps/web/app/api/wearables/whoop/callback/route.ts → state'teki platform'a göre dallanır: "web" ise `/wearables?status=...`'a, aksi halde (mobil, platform yok) eskisi gibi `loadwell://wearables/callback`'e (`MOBILE_SCHEME`, Parti 18E'den önce `athleteiq://`) yönlendirir
 [x] apps/web/app/api/wearables/whoop/disconnect/route.ts → YENİ, web-özel: RLS "wearable_own" (for all) sayesinde anon+cookie client ile kendi bağlantısını revokeAccess() + is_active=false yapar (access_token kolonu NOT NULL olduğu için null'lanmaz, yalnızca refresh_token temizlenir)
 ```
 Not: `apps/web/app/(dashboard)/wearables/wearables-client.tsx`'teki admin/coach org-geneli görünümünün kaynağı olan `getWearableConnections()` RLS'i (`wearable_own`, yalnızca athlete-self + super_admin) admin/coach dalını kapsamıyor — bu ayrı, önceden var olan bir bulgu, bu Parti'de DOKUNULMADI (bkz. BUGS.md'ye eklenmesi önerilir).
@@ -1461,7 +1470,7 @@ proje TanStack Query kullanmıyor). Gerçek uygulamalar:
 
 **Görev listesi:**
 ```
-[ ] apps/mobile/app.json → Expo config (bundle ID: com.athleteiq.app)
+[x] apps/mobile/app.json → Expo config (bundle ID / Android paketi: app.loadwell, şema: loadwell — Parti 18E)
 [ ] apps/mobile/app/(auth)/login.tsx → Email/password + magic link
 [ ] apps/mobile/app/(tabs)/_layout.tsx → Bottom tab navigator
 [ ] apps/mobile/app/(tabs)/program/index.tsx → Haftalık program görünümü
@@ -1542,7 +1551,7 @@ Sporcu (mobil) → POST /api/wearables/whoop/authorize (Bearer <supabase access_
 → WHOOP kullanıcı onayından sonra GET /api/wearables/whoop/callback?code&state'e yönlendirir
   → state doğrulanır → code token'a çevrilir → WHOOP profile'dan provider_user_id alınır
     → wearable_connections upsert edilir (service-role, onConflict athlete_id+provider)
-  → 302 redirect: athleteiq://wearables/callback?status=success|denied|error
+  → 302 redirect: loadwell://wearables/callback?status=success|denied|error
 → WebBrowser bu redirect'i yakalayıp kapanır, mobil UI sonucu okur
 ```
 
@@ -2115,7 +2124,7 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
 *Bu dosya CLAUDE.md'dir. Claude Code bu dosyayı okuyarak çalışır.*
 
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:START -->
-Son otomatik senkron: 2026-10-28
+Son otomatik senkron: 2026-10-30
 <!-- AUTO-GENERATED:SYNC_TIMESTAMP:END -->
 
 ---

@@ -1,11 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { exchangeCode, verifyOAuthState } from "@athleteiq/integrations/whoop";
 import { upsertWearableConnection } from "@athleteiq/db/queries/wearables";
+import { MOBILE_SCHEME } from "@athleteiq/validators/brand";
 import { NextRequest, NextResponse } from "next/server";
 
 // WHOOP'un yönlendirdiği tarayıcı isteği. İki çağıran var:
 //  - Mobil: WebBrowser.openAuthSessionAsync ile açılır, işlem bitince
-//    "athleteiq://wearables/callback" deep link'ine yönlendirilir (bkz.
+//    "loadwell://wearables/callback" deep link'ine yönlendirilir (bkz.
 //    apps/mobile connect-whoop.tsx).
 //  - Web: /api/wearables/whoop/connect (sporcu kendi web oturumuyla) ile
 //    açılır, işlem bitince "/wearables" sayfasına yönlendirilir.
@@ -22,7 +23,7 @@ function buildRedirect(
     url.searchParams.set("status", status);
     return NextResponse.redirect(url);
   }
-  return NextResponse.redirect(`athleteiq://wearables/callback?status=${status}`);
+  return NextResponse.redirect(`${MOBILE_SCHEME}://wearables/callback?status=${status}`);
 }
 
 export async function GET(request: NextRequest) {

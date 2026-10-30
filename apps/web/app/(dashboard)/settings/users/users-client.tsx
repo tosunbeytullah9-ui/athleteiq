@@ -10,6 +10,7 @@ import { CreateOrgUserModal } from "@/components/features/settings/create-org-us
 import { EditOrgUserModal } from "@/components/features/settings/edit-org-user-modal";
 import { DeleteOrgUserDialog } from "@/components/features/settings/delete-org-user-dialog";
 import { ResetUserPasswordModal } from "@/components/features/settings/reset-user-password-modal";
+import { toLoginIdentifier } from "@athleteiq/validators/auth";
 import { useUserContext } from "@/lib/hooks/useUserContext";
 import { toast } from "@/components/ui/use-toast";
 
@@ -160,11 +161,15 @@ export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
                 >
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">
-                      {u.profile?.full_name ?? u.email ?? u.user_id}
+                      {u.profile?.full_name ?? (u.email ? toLoginIdentifier(u.email) : u.user_id)}
                     </p>
                     <p className="text-xs text-muted-foreground truncate">
-                      {u.profile?.username ? `@${u.profile.username}` : "—"}
-                      {u.email ? ` · ${u.email}` : ""}
+                      {/* Sentetik e-posta gösterilmez — girişte yazılan kimlik (kullanici@slug). */}
+                      {u.email
+                        ? toLoginIdentifier(u.email)
+                        : u.profile?.username
+                          ? `@${u.profile.username}`
+                          : "—"}
                       {u.team_name ? ` · ${u.team_name}` : ""}
                     </p>
                   </div>
@@ -227,7 +232,10 @@ export function UsersClient({ orgId, orgSlug, users, teams }: Props) {
 
       {deleteTarget && (
         <DeleteOrgUserDialog
-          fullName={deleteTarget.profile?.full_name ?? deleteTarget.email ?? "Kullanıcı"}
+          fullName={
+            deleteTarget.profile?.full_name ??
+            (deleteTarget.email ? toLoginIdentifier(deleteTarget.email) : "Kullanıcı")
+          }
           onConfirm={handleConfirmDelete}
           onCancel={() => setDeleteTarget(null)}
           isDeleting={isDeleting}

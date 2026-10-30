@@ -48,6 +48,8 @@ Mağazaya gidecek build ile (TestFlight), **gerçek cihazda**:
       (incelemeci kendisi doldurabilmeli).
 - [ ] Recovery sekmesinde WHOOP metrikleri var (bugün ve son 7 gün).
 - [ ] Yarışmalar sekmesinde yaklaşan ve geçmiş yarışmalar listeleniyor.
+- [ ] Profil → "Yardım" altında "Gizlilik Politikası" ve "Destek"
+      `https://loadwell.app/privacy` ve `/support` sayfalarını açıyor.
 - [ ] Profil → "Hesabımı Sil" bölümü görünüyor.
 - [ ] Çıkış → `koc.demo@demo` + şifre → Sporcularım listesi dolu → Defne
       Arslan → Program / Recovery / Yarışmalar dolu.
@@ -57,13 +59,23 @@ Mağazaya gidecek build ile (TestFlight), **gerçek cihazda**:
 ## 3. Review Notes güncel mi
 
 - [ ] App Store Connect → App Review Information → Notes alanı
-      `review-notes.md`'nin güncel hali; `[APP_NAME]` doldurulmuş.
+      `review-notes.md`'nin güncel hali.
 - [ ] Notlardaki ve "Sign-in required" alanındaki şifre, 1. adımda
       kullanılan `LANDING_DEMO_PASSWORD` ile **aynı**.
 - [ ] Kullanıcı adları değişmedi: `defne.arslan@demo` (sporcu),
       `koc.demo@demo` (koç).
 
-## 4. Landing görselleri
+## 4. Uygulama kaydı
+
+- [ ] App Store Connect'teki uygulama adı **Loadwell**, bundle ID
+      **`app.loadwell`** (`apps/mobile/app.json` ile aynı — gönderimden sonra
+      değişmez).
+- [ ] Privacy Policy URL: `https://loadwell.app/privacy`; Support URL:
+      `https://loadwell.app/support`.
+- [ ] İkon: `apps/mobile/assets/icon.png` 1024×1024, alfa kanalı yok
+      (`scripts/brand/render-icons.mjs` çıktısında `hasAlpha: false`).
+
+## 5. Landing görselleri
 
 Aynı org landing görsellerinde de kullanılıyor. Seed sonrası
 `pnpm landing:capture` gerekmez; çalıştırılırsa aynı şifreyle çalışır.

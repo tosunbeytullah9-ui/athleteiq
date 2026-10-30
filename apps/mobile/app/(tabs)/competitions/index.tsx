@@ -230,7 +230,7 @@ export default function CompetitionsScreen() {
           <View className="items-center py-12">
             <Text className="text-4xl mb-3">🏆</Text>
             <Text className="text-gray-500 text-center">
-              Henüz yarışma programlanmamış.
+              Kayıtlı olduğunuz bir yarışma yok.
             </Text>
           </View>
         )}

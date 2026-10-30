@@ -26,7 +26,8 @@
     "./date": "./date.ts",
     "./drill": "./drill.ts",
     "./competition": "./competition.ts",
-    "./account-deletion": "./account-deletion.ts"
+    "./account-deletion": "./account-deletion.ts",
+    "./brand": "./brand.ts"
   },
   "scripts": {
     "type-check": "tsc --noEmit",

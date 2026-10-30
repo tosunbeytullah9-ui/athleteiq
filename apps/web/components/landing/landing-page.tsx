@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Inter, Inter_Tight } from "next/font/google";
 import { ArrowDown, ArrowRight, Check, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PRIMARY_DOMAIN, PRODUCT_NAME } from "@/lib/brand";
 import { LoginForm } from "@/app/(auth)/login/login-form";
 import { SiteNav } from "./site-nav";
 import { SectionBg } from "./section-bg";
@@ -107,7 +108,7 @@ function Hero() {
             <span className="text-primary">Sporcunu dinle.</span>
           </h1>
           <p className="mt-7 max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            AthleteIQ, koçun hazırladığı haftalık programı sporcunun telefonuna taşır. Antrenman
+            {PRODUCT_NAME}, koçun hazırladığı haftalık programı sporcunun telefonuna taşır. Antrenman
             sonrası RPE&apos;yi, sabah check-in&apos;ini ve WHOOP / Polar verisini geri getirir.
             Aradaki hesabı (yük, ACWR, risk) sistem yapar; karar sende kalır.
           </p>
@@ -188,7 +189,7 @@ function PanelStrip() {
 
       <Reveal className="mt-12" delay={120}>
         <div className="relative">
-          <BrowserFrame url="app.athleteiq.app/dashboard">
+          <BrowserFrame url={`${PRIMARY_DOMAIN}/dashboard`}>
             <Image
               src={LANDING_SHOTS.coachDashboard.src}
               width={LANDING_SHOTS.coachDashboard.width}
@@ -512,7 +513,7 @@ function Closing() {
             Kulübünüz için hesap açalım.
           </h2>
           <p className="mt-5 max-w-xl text-muted-foreground">
-            AthleteIQ&apos;da hesaplar kendi kendine açılmaz. Organizasyonunuzu biz kurarız,
+            {PRODUCT_NAME}&apos;da hesaplar kendi kendine açılmaz. Organizasyonunuzu biz kurarız,
             koç ve sporcularınızı yöneticiniz ekler; ilk programınızı birlikte yazarız.
           </p>
           <ol className="mt-10 space-y-5">
@@ -547,7 +548,7 @@ function Footer() {
   return (
     <footer className="border-t border-white/5">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-8 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-        <p>© {new Date().getFullYear()} AthleteIQ · Türkiye&apos;de, sahada geliştirildi.</p>
+        <p>© {new Date().getFullYear()} {PRODUCT_NAME} · Türkiye&apos;de, sahada geliştirildi.</p>
         <div className="flex gap-5">
           <Link href="/privacy" className="hover:text-foreground">
             Gizlilik

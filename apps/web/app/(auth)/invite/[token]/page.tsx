@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/client";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 const acceptSchema = z
   .object({
@@ -81,7 +82,7 @@ export default function InviteAcceptPage({ params }: Props) {
     <main className="flex min-h-screen items-center justify-center bg-background">
       <div className="w-full max-w-sm space-y-6 rounded-xl border bg-card p-8 shadow-sm">
         <div className="space-y-1 text-center">
-          <h1 className="text-2xl font-bold tracking-tight">AthleteIQ</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{PRODUCT_NAME}</h1>
           <p className="text-sm text-muted-foreground">Daveti Kabul Et</p>
         </div>
 

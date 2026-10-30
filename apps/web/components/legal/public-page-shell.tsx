@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ThemeToggle } from "@/components/shared/theme-toggle";
+import { BrandMark } from "@/components/shared/brand-mark";
 import { LEGAL_NAME, PRODUCT_NAME } from "@/lib/brand";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +23,8 @@ export function PublicPageShell({
     <div className="flex min-h-dvh flex-col bg-background text-foreground">
       <header className="border-b">
         <div className="mx-auto flex h-14 max-w-3xl items-center gap-4 px-4 sm:px-6">
-          <Link href="/" className="font-semibold tracking-tight">
+          <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
+            <BrandMark className="h-7 w-7" />
             {PRODUCT_NAME}
           </Link>
           <nav className="ml-auto flex items-center gap-4 text-sm">

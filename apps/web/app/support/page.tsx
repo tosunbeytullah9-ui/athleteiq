@@ -11,7 +11,7 @@ import { PRODUCT_NAME, SITE_URL, SUPPORT_EMAIL } from "@/lib/brand";
 // kayıtlı. Menü/düğme adları mobil uygulamadakiyle birebir aynı tutulmalı.
 
 export const metadata: Metadata = {
-  title: `Destek — ${PRODUCT_NAME}`,
+  title: "Destek",
   description: `${PRODUCT_NAME} hesabı, giriş, şifre, hesap silme ve WHOOP bağlantısı hakkında yardım.`,
   alternates: { canonical: `${SITE_URL}/support` },
 };

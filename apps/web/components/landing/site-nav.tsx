@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Activity, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/shared/brand-mark";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 const LINKS = [
   { href: "#koc", label: "Koç için" },
@@ -30,10 +32,8 @@ export function SiteNav() {
     >
       <div className="mx-auto flex h-16 max-w-7xl items-center gap-8 px-4 sm:px-6 lg:px-8">
         <a href="#top" className="flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet text-primary-foreground">
-            <Activity className="h-4 w-4" />
-          </span>
-          <span className="font-display text-[17px] font-bold">AthleteIQ</span>
+          <BrandMark className="h-8 w-8" />
+          <span className="font-display text-[17px] font-bold">{PRODUCT_NAME}</span>
         </a>
         <nav className="hidden items-center gap-6 text-sm text-muted-foreground md:flex">
           {LINKS.map((l) => (

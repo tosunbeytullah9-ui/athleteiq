@@ -351,7 +351,7 @@ export function ProgramImportClient({ orgId, teams, athletes }: Props) {
         <CardContent>
           <ImportSource
             templateCsv={programImportTemplateCsv()}
-            templateFileName="athleteiq-program-sablonu.csv"
+            templateFileName="loadwell-program-sablonu.csv"
             value={text}
             onChange={setText}
             hint={

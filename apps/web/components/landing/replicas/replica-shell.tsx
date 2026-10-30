@@ -1,7 +1,9 @@
 "use client";
 
-import { Activity, AlertTriangle, ChevronsLeft, LogOut, Moon } from "lucide-react";
+import { AlertTriangle, ChevronsLeft, LogOut, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BrandMark } from "@/components/shared/brand-mark";
+import { PRODUCT_NAME } from "@/lib/brand";
 import { findActiveHref, getNavSections, type Role } from "@/components/shared/nav-config";
 
 /**
@@ -32,10 +34,8 @@ export function ReplicaShell({
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
       <aside className="relative flex w-64 shrink-0 flex-col border-r bg-card">
         <div className="flex h-16 items-center gap-2.5 border-b px-5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-primary to-violet text-primary-foreground">
-            <Activity className="h-4 w-4" />
-          </span>
-          <span className="text-base font-bold tracking-tight">AthleteIQ</span>
+          <BrandMark className="h-8 w-8" />
+          <span className="text-base font-bold tracking-tight">{PRODUCT_NAME}</span>
         </div>
         <nav className="flex-1 overflow-hidden px-3 py-4">
           {sections.map((section, sIdx) => (

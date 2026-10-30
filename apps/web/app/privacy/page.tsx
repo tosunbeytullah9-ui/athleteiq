@@ -22,7 +22,7 @@ import { LEGAL_NAME, PRODUCT_NAME, SITE_URL, SUPPORT_EMAIL } from "@/lib/brand";
 const LAST_UPDATED = "28 Ekim 2026";
 
 export const metadata: Metadata = {
-  title: `Gizlilik Politikası — ${PRODUCT_NAME}`,
+  title: "Gizlilik Politikası",
   description: `${PRODUCT_NAME} hangi kişisel verileri hangi amaçla işler, kimlerle paylaşır ve hesabınızı nasıl silebilirsiniz.`,
   alternates: { canonical: `${SITE_URL}/privacy` },
 };

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "@/components/ui/use-toast";
 import { createClient } from "@/lib/supabase/client";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 type Row = Database["public"]["Tables"]["demo_requests"]["Row"];
 type FilterKey = "open" | "all" | DemoRequestStatus;
@@ -134,7 +135,7 @@ export function DemoRequestsClient({ rows }: { rows: Row[] }) {
 
                 <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
                   <a
-                    href={`mailto:${r.email}?subject=${encodeURIComponent("AthleteIQ demo talebiniz")}`}
+                    href={`mailto:${r.email}?subject=${encodeURIComponent(`${PRODUCT_NAME} demo talebiniz`)}`}
                     className="inline-flex items-center gap-1.5 text-primary hover:underline"
                   >
                     <Mail className="h-3.5 w-3.5" /> {r.email}

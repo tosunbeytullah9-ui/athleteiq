@@ -181,7 +181,7 @@ export function AthleteImportClient({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "athleteiq-giris-bilgileri.csv";
+    a.download = "loadwell-giris-bilgileri.csv";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -299,7 +299,7 @@ export function AthleteImportClient({
         <CardContent className="space-y-4">
           <ImportSource
             templateCsv={athleteImportTemplateCsv()}
-            templateFileName="athleteiq-sporcu-sablonu.csv"
+            templateFileName="loadwell-sporcu-sablonu.csv"
             value={text}
             onChange={setText}
             hint={

@@ -7,6 +7,7 @@ import { Button } from "@athleteiq/ui/components/button";
 import { Input } from "@athleteiq/ui/components/input";
 import { Label } from "@athleteiq/ui/components/label";
 import { suggestUsername, generateTempPassword } from "@athleteiq/validators/athlete";
+import { buildLoginIdentifier } from "@athleteiq/validators/auth";
 
 type OrgRole = "admin" | "coach" | "athlete";
 
@@ -135,7 +136,8 @@ export function CreateOrgUserModal({ orgId, orgSlug, teams, onSuccess }: Props) 
     if (view === "success") onSuccess();
   }
 
-  const email = `${form.username || "kullaniciadi"}@${orgSlug}.athleteiq.app`;
+  // Gösterilen/kopyalatılan kimlik girişte yazılan biçimdir — sentetik e-posta değil.
+  const loginId = buildLoginIdentifier(form.username || "kullaniciadi", orgSlug);
 
   return (
     <Dialog.Root open={open} onOpenChange={handleOpenChange}>
@@ -297,7 +299,7 @@ export function CreateOrgUserModal({ orgId, orgSlug, teams, onSuccess }: Props) 
                   value={form.username}
                   onChange={(e) => setForm((prev) => ({ ...prev, username: e.target.value }))}
                 />
-                <p className="text-xs text-muted-foreground">Giriş kimliği: {email}</p>
+                <p className="text-xs text-muted-foreground">Giriş kimliği: {loginId}</p>
                 {fieldErrors.username && (
                   <p className="text-xs text-destructive">{fieldErrors.username}</p>
                 )}
@@ -343,10 +345,10 @@ export function CreateOrgUserModal({ orgId, orgSlug, teams, onSuccess }: Props) 
               </p>
 
               <div className="space-y-1.5">
-                <Label>Giriş kimliği (email)</Label>
+                <Label>Giriş kimliği</Label>
                 <div className="flex gap-2">
-                  <Input readOnly value={email} />
-                  <CopyButton value={email} />
+                  <Input readOnly value={loginId} />
+                  <CopyButton value={loginId} />
                 </div>
               </div>
 

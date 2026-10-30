@@ -1,7 +1,7 @@
-# App Review Notes — [APP_NAME]
+# App Review Notes — Loadwell
 
 > Paste the section below into App Store Connect → App Review Information →
-> Notes. Replace `[APP_NAME]` and `[PASSWORD]` before submitting. The password
+> Notes. Replace `[PASSWORD]` before submitting. The password
 > is the current `LANDING_DEMO_PASSWORD` used for the latest demo seed — it is
 > never stored in this repository. See `submission-checklist.md`.
 
@@ -9,7 +9,7 @@
 
 ## About the app
 
-[APP_NAME] is an athlete monitoring and training management app. Sports
+Loadwell is an athlete monitoring and training management app. Sports
 organizations (federations, clubs and universities) use it to plan training
 for their athletes and to track readiness, training load and competitions.
 
@@ -50,7 +50,8 @@ The login field takes **username@organization**, not an email address.
 1. **Sporcularım** (My Athletes) tab: the coach's team roster.
 2. Tap an athlete (for example *Defne Arslan*) to open their program,
    recovery data and competitions.
-3. **Profil** (Profile) tab: organization info, sign out and account deletion.
+3. **Profil** (Profile) tab: organization info, sign out, privacy policy and
+   support links (**Yardım** / Help) and account deletion.
 
 ## Account deletion (Guideline 5.1.1(v))
 
@@ -61,6 +62,12 @@ request is pending, the user can cancel it from the same screen.
 Note for the demo accounts: the demo organization has no administrator, so a
 deletion request made during review stays pending. It is cleared the next time
 we reset the demo data.
+
+## Privacy policy and support
+
+Profile → **Yardım** (Help) → **Gizlilik Politikası** (Privacy Policy) opens
+https://loadwell.app/privacy and **Destek** (Support) opens
+https://loadwell.app/support, on both the athlete and the coach account.
 
 ## WHOOP (optional)
 

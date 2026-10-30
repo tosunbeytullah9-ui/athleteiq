@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Activity, ChevronsLeft, LogOut, X } from "lucide-react";
+import { ChevronsLeft, LogOut, X } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { cn } from "@/lib/utils";
 import { useUserContext } from "@/lib/hooks/useUserContext";
@@ -11,6 +11,8 @@ import { usePainAlerts } from "@/lib/hooks/pain-alerts-provider";
 import { useServerUserContext } from "@/lib/hooks/user-context-provider";
 import { signOut } from "@/lib/auth-client";
 import { findActiveHref, getNavSections } from "@/components/shared/nav-config";
+import { BrandMark } from "@/components/shared/brand-mark";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Org Admin",
@@ -109,16 +111,14 @@ export function Sidebar({ open, onOpenChange, collapsed, onCollapsedChange }: Si
           )}
         >
           <Link href="/dashboard" className="flex min-w-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-violet text-primary-foreground shadow-md shadow-primary/30">
-              <Activity className="h-5 w-5" />
-            </span>
+            <BrandMark className="h-9 w-9" />
             <span
               className={cn(
                 "truncate text-lg font-bold tracking-tight",
                 mini && "md:hidden"
               )}
             >
-              Athlete<span className="text-primary">IQ</span>
+              {PRODUCT_NAME}
             </span>
           </Link>
           <button

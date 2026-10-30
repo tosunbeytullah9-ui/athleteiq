@@ -759,6 +759,75 @@
 
 ## Tamamlanan Özellikler
 
+### Parti 18E — Marka: AthleteIQ → Loadwell ✅ (2026-10-30)
+
+#### Kapsam
+App Store'a ilk gönderim öncesi son marka partisi: ürün adı **Loadwell**, iOS bundle ID /
+Android paketi **`app.loadwell`**, mobil şema **`loadwell`**, onaylı "1B · Eksen" ikonu, splash,
+favicon ve kullanıcıya görünen tüm "AthleteIQ" metinleri. Uygulama hiçbir cihaza yüklenmediği ve
+EAS projesi olmadığı için bundle ID / slug / şema güvenle değişti. Branch: `parti-18e-brand`.
+
+#### Bilinçli olarak DEĞİŞMEYENLER
+`@athleteiq/*` paket adları, repo / Supabase / Vercel proje adları, `aiq_*` cookie/localStorage
+anahtarları, `DEMO_REQUEST_IP_SALT` varsayılanı (`athleteiq-demo-request` — değişirse hız sınırı
+hash'leri kırılır), migration'lar, kod yorumları (akışı birebir anlatan iki şema yorumu hariç),
+geçmiş kayıtlar ve **sentetik e-posta alan adı `{kullanici}@{slug}.athleteiq.app`** (dahili kimlik;
+tüm `auth.users` kayıtları, Edge Function'lar ve `resolveLoginIdentifier` aynı kalır).
+
+#### Keşif bulguları
+- Görünen marka geçişleri: web metadata, sidebar (`Athlete<span>IQ</span>` + gradyanlı `Activity`
+  kutusu), header (mobil kutu), landing nav / metin / telif / sahte tarayıcı URL'leri
+  (`app.athleteiq.app/…`, coach-tour'da 4 adet), replica-shell, ölü davet sayfası, demo mailto konusu
+  ve varsayılan gönderici, 4 CSV dosya adı, mobil `app.json` + login'deki mor "A" kutusu, WHOOP mobil
+  dönüşü (`athleteiq://`), `notify-account-deletion` varsayılan göndericisi.
+- **Sentetik e-postanın gösterildiği yerler (giriş kimliği hatası):** org oluşturma formu ve
+  kullanıcı oluşturma modali `kullanici@slug.athleteiq.app` gösterip kopyalatıyordu —
+  `resolveLoginIdentifier` bu biçimi reddettiği için kopyalanan kimlik girişte ÇALIŞMIYORDU.
+  Ayrıca keşifte bulunan iki yer daha: `/settings/users` listesi (`@username · sentetik e-posta`)
+  ve **mobil koç profili** (başlıkta ve "E-posta" satırında `session.user.email`). Slug yardım
+  metinleri (`/settings`, süper admin org düzenleme) de `.athleteiq.app` gösteriyordu.
+- Mobil `(tabs)/competitions` yalnızca sporcuya açık (koçta `href: null`; koç
+  `my-athletes/[id]/competitions` kullanıyor) — boş metin yalnızca sporcu ekranında değişti.
+- `react-native-svg` (15.12.1) ve `expo-web-browser` kurulu. `sharp` 0.34.5 `apps/web`'den
+  çözülüyor. `/privacy` ve `/support` başlıkları kendi "— AthleteIQ/Loadwell" ekini taşıyordu
+  → root `title.template` ile çift ek olmasın diye sadeleşti.
+- `apps/mobile/android/` git'e girmeyen eski bir yerel prebuild (`com.athleteiq.app`). EAS bunu
+  yüklemez; yerelde emülatör build'i için `expo prebuild --clean` gerekir.
+
+#### Değişiklikler
+- `packages/validators/brand.ts` (+ `brand.test.ts`): `PRODUCT_NAME`, `PRIMARY_DOMAIN`, `SITE_URL`,
+  `PRIVACY_URL`, `SUPPORT_URL`, `SUPPORT_EMAIL`, `LEGAL_NAME`, `IOS_BUNDLE_ID`, `MOBILE_SCHEME`,
+  `BRAND_COLOR`; test `apps/mobile/app.json`'ı diskten okuyup ad / şema / bundle ID / Android paketi /
+  splash rengini karşılaştırır. `apps/web/lib/brand.ts` artık yeniden export.
+- `packages/validators/auth.ts`: `buildLoginIdentifier(username, slug)` ve
+  `toLoginIdentifier(email)` (+4 test — gösterilen değerin `resolveLoginIdentifier` ile gerçekten
+  girişe çözüldüğü round-trip dahil). Sentetik ek tek sabitte.
+- Mobil: `app.json`; `components/BrandMark.tsx` (react-native-svg); login logosu + ad;
+  `components/HelpLinksSection.tsx` ("Yardım" → Gizlilik Politikası / Destek, `openBrowserAsync`,
+  `accessibilityRole="link"`) sporcu ve koç profilinde `AccountDeletionSection`'ın üstünde; koç
+  profilinde "Giriş kimliği" (`kullanici@slug`); yarışma boş metni "Kayıtlı olduğunuz bir yarışma
+  yok."; `.env.example` production yorumu.
+- İkon: `apps/mobile/assets/brand/{loadwell-mark,loadwell-icon,loadwell-favicon}.svg`,
+  `scripts/brand/render-icons.mjs` → `icon.png` (1024², alfasız), `splash-icon.png` (1024², şeffaf),
+  `apps/web/app/apple-icon.png` (180², alfasız), `apps/web/app/icon.svg`. Assets README yenilendi.
+- Web: `components/shared/brand-mark.tsx` (sidebar, header, site-nav, replica-shell,
+  public-page-shell); sidebar wordmark `PRODUCT_NAME`; root metadata (`title.template`,
+  `metadataBase`, `applicationName`, yeni açıklama); landing metinleri / URL'ler / telif; demo mailto
+  ve varsayılan gönderici; CSV adları `loadwell-*.csv`; WHOOP callback `${MOBILE_SCHEME}://`;
+  giriş kimliği gösterimleri (org oluşturma, kullanıcı oluşturma, kullanıcı listesi, iki slug metni).
+- Edge: `notify-account-deletion` varsayılan gönderici "Loadwell" — deploy edildi (v6,
+  `verify_jwt: true`).
+- Landing medyası: `pnpm landing:replicas` ile 5 görsel + 3 video (poster dahil) yeniden kaydedildi.
+- Dokümanlar: CLAUDE.md §0 / §4.3 / Agent 3–5, `docs/app-store/*`, BUGS.md (yarışma boş metni).
+
+#### Doğrulama
+- `validators` test: 19 dosya / 284 test yeşil; `type-check` temiz.
+- Web: `lint` 0 hata (27 önceden var olan uyarı), `type-check` temiz, `build` başarılı.
+- Mobil: `tsc --noEmit` temiz, `expo lint` temiz; `expo config --type public` → name Loadwell,
+  slug/scheme loadwell, bundleIdentifier/package app.loadwell, splash #1d4ed8 / 200.
+- `next start`: `/`, `/privacy`, `/support`, `/login`, `/icon.svg`, `/apple-icon.png` → 200; başlıklar
+  "Loadwell", "Gizlilik Politikası — Loadwell", "Destek — Loadwell".
+
 ### Parti 18C-S — RLS Takım Kapsamı + Sporcuya Özel Yarışma Görünürlüğü ✅ (2026-10-28)
 
 #### Kapsam

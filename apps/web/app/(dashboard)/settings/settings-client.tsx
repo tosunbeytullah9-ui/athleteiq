@@ -163,8 +163,8 @@ function OrganizationCard({ orgId, org, orgUserCount }: { orgId: string; org: Or
                     <Input id="org-slug" value={form.slug} readOnly className="font-mono text-xs bg-muted/40" />
                     <p className="text-xs text-muted-foreground">
                       {isSuperAdmin
-                        ? `Bu organizasyonda ${orgUserCount} kullanıcı var; giriş kimlikleri ({kullanıcı adı}@${form.slug}.athleteiq.app) slug'a bağlı olduğu için değiştirilemez.`
-                        : `Sentetik giriş e-postaları ({kullanıcı adı}@${form.slug}.athleteiq.app) slug'a bağlı olduğu için yalnızca süper admin, kullanıcısı olmayan bir organizasyonda değiştirebilir.`}
+                        ? `Bu organizasyonda ${orgUserCount} kullanıcı var; giriş kimlikleri (kullanıcı adı@${form.slug}) slug'a bağlı olduğu için değiştirilemez.`
+                        : `Giriş kimlikleri (kullanıcı adı@${form.slug}) slug'a bağlı olduğu için yalnızca süper admin, kullanıcısı olmayan bir organizasyonda değiştirebilir.`}
                     </p>
                   </>
                 )}

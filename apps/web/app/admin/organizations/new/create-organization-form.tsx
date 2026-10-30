@@ -11,6 +11,7 @@ import { createClient } from "@/lib/supabase/client";
 import { createOrgSchema, type CreateOrgInput } from "@athleteiq/validators/organization";
 import { createOrganization } from "@athleteiq/db/queries/organizations";
 import { suggestUsername, generateTempPassword } from "@athleteiq/validators/athlete";
+import { buildLoginIdentifier } from "@athleteiq/validators/auth";
 
 function CopyButton({ value }: { value: string }) {
   const [copied, setCopied] = useState(false);
@@ -169,7 +170,7 @@ export function CreateOrganizationForm() {
                 onChange={(e) => setUsername(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                Giriş kimliği: {username || "kullaniciadi"}@{createdOrg.slug}.athleteiq.app
+                Giriş kimliği: {buildLoginIdentifier(username || "kullaniciadi", createdOrg.slug)}
               </p>
             </div>
             <div className="space-y-1.5">
@@ -205,10 +206,10 @@ export function CreateOrganizationForm() {
               İlk admin oluşturuldu.
             </p>
             <div className="space-y-1.5">
-              <Label>Giriş kimliği (email)</Label>
+              <Label>Giriş kimliği</Label>
               <div className="flex gap-2">
-                <Input readOnly value={`${username}@${createdOrg.slug}.athleteiq.app`} />
-                <CopyButton value={`${username}@${createdOrg.slug}.athleteiq.app`} />
+                <Input readOnly value={buildLoginIdentifier(username, createdOrg.slug)} />
+                <CopyButton value={buildLoginIdentifier(username, createdOrg.slug)} />
               </div>
             </div>
             <div className="space-y-1.5">

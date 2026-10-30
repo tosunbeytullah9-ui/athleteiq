@@ -12,6 +12,7 @@ import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import { revokeWhoopAccess } from "@/lib/wearables";
 import { AccountDeletionSection } from "@/components/AccountDeletionSection";
+import { HelpLinksSection } from "@/components/HelpLinksSection";
 import type { Database } from "@athleteiq/db/types";
 import { formatYmdTr } from "@athleteiq/validators/date";
 
@@ -232,6 +233,8 @@ export default function ProfileScreen() {
             <Text className="text-red-500 font-medium">Çıkış Yap</Text>
           )}
         </TouchableOpacity>
+
+        <HelpLinksSection />
 
         <AccountDeletionSection isStaff={false} />
 
