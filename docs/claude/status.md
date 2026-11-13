@@ -2,7 +2,7 @@
 
 > CLAUDE.md'den Parti 18J'de (2026-11-13) **birebir** taşındı — metin ve § numaraları değişmedi.
 > Diğer bölümlerin yeri için CLAUDE.md'deki "Başvuru dokümanları" haritasına bakın: [CLAUDE.md](../../CLAUDE.md).
-> Kapsam: §10 MVP TAMAMLANMA KRİTERLERİ, §11 MEVCUT DURUM (Supabase Cloud, migration listesi, Edge Functions, env dosyaları, test hesapları, çalışan/bekleyen özellikler, AI Katmanı Kuralları).
+> Kapsam: §10 MVP TAMAMLANMA KRİTERLERİ, §11 MEVCUT DURUM (Supabase Cloud, migration listesi, Edge Functions, env dosyaları, test hesapları, çalışan/bekleyen özellikler). AI Katmanı Kuralları → CLAUDE.md §4.1-AI.
 > `AUTO-GENERATED:MIGRATIONS` bloğu `pnpm docs:sync` ile üretilir — elle düzenlemeyin.
 > §11'in son alt bölümü "Her Yeni Session Başında" CLAUDE.md'de kaldı.
 
@@ -255,14 +255,9 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
   `confidence_cap`), `payload.ts`+`prompt.ts`+`llm.ts` (allowlist'li anonim payload → OpenAI uyumlu
   `/chat/completions`, 429/5xx'te 1 tekrar, geçersiz JSON çıktısında 1 tekrar), `athlete_ai_insights`
   tablosu (yalnızca service-role yazar, RLS SELECT'i `coalesce(is_super_admin(), false)`). Bkz. AI
-  Katmanı Kuralları (hemen aşağıda) ve §6 Agent 5 sonrası "AGENT 21-AI" notu.
+  Katmanı Kuralları (CLAUDE.md §4.1-AI) ve §6 Agent 5 sonrası "AGENT 21-AI" notu.
 
-**AI Katmanı Kuralları (Parti 21-AI, değiştirilemez):**
-1. LLM hiçbir sayı hesaplamaz — tüm göstergeler `features.ts`'te deterministik kodla üretilir, LLM yalnızca yorum yazar.
-2. LLM'e giden payload allowlist ile anonimleştirilir (`payload.ts`) — isim/kullanıcı adı/UUID/doğum tarihi/email/not/org/takım/raw_data ASLA gönderilmez, tüm tarihler göreli (`bugun`, `gun_-N`).
-3. Sağlık verisi (payload, model çıktısı, API anahtarı) ASLA loglanmaz — yalnızca durum/süre/token sayısı (`llm.ts`).
-4. Yalnızca süper admin erişir — hem Edge Function (`rpc('is_super_admin')` + 403) hem web paneli (sunucu tarafı `user.app_metadata.platform_role` kontrolü, değilse render edilmez) hem RLS (`athlete_ai_insights_select_super_admin`).
-5. `AI_ENABLED` varsayılanı `false`'tur — env'de `true` olmadıkça Edge Function 503 döner, gerçek sporcu verisiyle kullanım kararı KVKK açısından Beyto'ya aittir.
+AI Katmanı Kuralları CLAUDE.md §4.1-AI'ye taşındı.
 
 ### Bekleyen Özellikler
 - ⏳ ~~Davet e-postası gerçek dış adreslere ulaşmıyor~~ — Parti 16'da davet akışının kendisi kaldırıldı (`invite-member` 410 döner), bu madde artık geçersiz. Custom SMTP kurulumu (Dashboard → Auth → SMTP Settings) yalnızca gelecekte bir email-doğrulama/şifre-sıfırlama-linki özelliği eklenirse gerekir.
@@ -277,11 +272,11 @@ Proje, aşağıdakiler çalışır durumda olunca MVP sayılır:
   (`AI_ENABLED=true`, Groq `openai/gpt-oss-120b`), bkz. Çalışan Özellikler. KVKK kararı Beyto
   tarafından verilmiş sayılır — gerçek sporcu verisi artık sağlayıcıya gidiyor.
 - ⏳ **Expo mobil push altyapısı (hiç kurulu değil)** — `registerForPushNotifications()` stub,
-  `expo-notifications` kurulu değil, EAS `projectId` yok (`eas.json` Parti 18A'dan beri var,
-  `projectId` kullanıcının `eas init`'iyle gelecek — Parti 18H; token için development build
+  `expo-notifications` kurulu değil (EAS projesi bağlı: `projectId` `apps/mobile/app.json`'da,
+  `@beytuuu/loadwell` — ef7eeaa; token için development build
   şart), `athlete_push_tokens` boş ve sporcuya özel, gönderim tarafı (Edge Function veya
   `pg_net`/`pg_cron`) yok. Ağrı bildirimi şu an web içi uyarı + rozet olarak çalışıyor; mobil
-  push isteniyorsa önce `eas init` + dev build gerekir
+  push isteniyorsa önce `expo-notifications` kurulumu + dev build gerekir
 - ⏳ Ağrı bildiriminde e-posta (Resend) — anahtar env'de dolu ama kodda hiç kullanılmıyor; ayrıca
   koç hesaplarının sentetik e-postası gerçek bir kutu değil, `profiles`'a gerçek adres alanı gerekir
 - ⏳ Yıllık plan: Excel/CSV dışa aktarma, "Max Takibi" görünümü (`athlete_1rm_records` hazır),

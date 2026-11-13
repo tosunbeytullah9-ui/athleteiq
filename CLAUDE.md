@@ -23,7 +23,7 @@
 | §5 (5.1–5.4) | WHOOP / Polar / Fitbit API ayrıntıları, normalize şema | [docs/claude/wearables.md](docs/claude/wearables.md) | `packages/integrations`, `/api/wearables/*`, `whoop-webhook` işinden önce |
 | §6 | Agent tanımları + özellik kararları: Agent 1 DB, 2 Auth, 3 Web, 4 Mobile, 5 Integration, 21-AI, 22-FB, 23-YP, 6 Test | [docs/claude/agents.md](docs/claude/agents.md) | Bir özelliği değiştirmeden önce o özelliğin tasarım kararlarını ve "kapsam dışı" listesini okumak için (içe aktarma, WOD, dayanıklılık, drill, blok kopyalama, landing, demo talebi, slug kilidi, AI asistanı, seans geri bildirimi, yıllık plan, mobil kısıtlar) |
 | §7, §8 | Env değişkenleri, geliştirme komutları, EAS notu | [docs/claude/env-and-commands.md](docs/claude/env-and-commands.md) | Env eklerken, kurulum/build/test komutu veya EAS build öncesi |
-| §10, §11 | MVP kriterleri; mevcut durum: Supabase Cloud, migration listesi (otomatik), Edge Functions, env dosyaları, test hesapları, çalışan/bekleyen özellikler, **AI Katmanı Kuralları** | [docs/claude/status.md](docs/claude/status.md) | Oturum başında (bkz. "Her Yeni Session Başında"); test hesabı, Edge Function veya özellik durumu ararken; AI katmanına dokunmadan önce |
+| §10, §11 | MVP kriterleri; mevcut durum: Supabase Cloud, migration listesi (otomatik), Edge Functions, env dosyaları, test hesapları, çalışan/bekleyen özellikler (AI Katmanı Kuralları artık burada: §4.1-AI) | [docs/claude/status.md](docs/claude/status.md) | Oturum başında (bkz. "Her Yeni Session Başında"); test hesabı, Edge Function veya özellik durumu ararken |
 
 ## GÜNCEL DURUM ÖZETİ (2026-11-13 — ayrıntı: [docs/claude/status.md](docs/claude/status.md))
 
@@ -40,7 +40,7 @@
   - Yetki yalnızca `app_metadata` / DB tablolarından — `user_metadata` asla (§4.1).
   - RLS: `(select ...)` sarmalı, definer küme fonksiyonları, `FOR ALL` yok, snapshot ile eşdeğerlik kanıtı (§4.1).
   - Saatsiz tarih asla `new Date(str)`; `todayLocal` / `todayInIstanbul` (§1 tarih kuralı).
-  - AI katmanı kuralları değiştirilemez; yalnızca süper admin (status.md § AI Katmanı Kuralları).
+  - AI katmanı kuralları değiştirilemez; yalnızca süper admin (§4.1-AI).
   - Kullanıcısı olan org'un slug'ı DB trigger'ıyla kilitli; koçun elle girdiği ACWR günü ezilmez;
     drill diyagramı ve yıllık plan sporcuya kapalı; landing yalnızca hayali "Demo Kulübü" verisi (agents.md §6).
 
@@ -167,7 +167,8 @@ Playwright (E2E testler)
 ## §4.1–§4.3 — HER OTURUMDA GEÇERLİ GÜVENLİK, TİP VE KİMLİK KURALLARI
 
 > "## 4. ROW LEVEL SECURITY" bölümünün girişi, §4.0 ve §4.4 → [docs/claude/database.md](docs/claude/database.md).
-> Aşağıdaki üç alt bölüm metni değişmeden burada kaldı.
+> Aşağıdaki üç alt bölüm metni değişmeden burada kaldı; §4.1-AI (AI Katmanı Kuralları) 18J-ek'te
+> status.md'den birebir taşındı.
 
 ### 4.1 Güvenlik Konvansiyonları
 
@@ -254,6 +255,14 @@ doğrulandı, `044_super_admin_app_metadata.sql` ile kapatıldı — Parti 20-S)
 (`app_metadata`) yalnızca service role/admin API ile yazılabildiği için yetki verisi artık orada.
 Sunucu tarafı kontroller `supabase.auth.getUser()`'ın döndürdüğü `user.app_metadata` veya
 `supabase.rpc('is_super_admin')` kullanmalı — `getSession()`'a güvenilmez.
+
+### 4.1-AI AI Katmanı Kuralları (Parti 21-AI, değiştirilemez)
+
+1. LLM hiçbir sayı hesaplamaz — tüm göstergeler `features.ts`'te deterministik kodla üretilir, LLM yalnızca yorum yazar.
+2. LLM'e giden payload allowlist ile anonimleştirilir (`payload.ts`) — isim/kullanıcı adı/UUID/doğum tarihi/email/not/org/takım/raw_data ASLA gönderilmez, tüm tarihler göreli (`bugun`, `gun_-N`).
+3. Sağlık verisi (payload, model çıktısı, API anahtarı) ASLA loglanmaz — yalnızca durum/süre/token sayısı (`llm.ts`).
+4. Yalnızca süper admin erişir — hem Edge Function (`rpc('is_super_admin')` + 403) hem web paneli (sunucu tarafı `user.app_metadata.platform_role` kontrolü, değilse render edilmez) hem RLS (`athlete_ai_insights_select_super_admin`).
+5. `AI_ENABLED` varsayılanı `false`'tur — env'de `true` olmadıkça Edge Function 503 döner, gerçek sporcu verisiyle kullanım kararı KVKK açısından Beyto'ya aittir.
 
 ### 4.2 Tip Güvenliği Konvansiyonu — types.ts regenerasyonu
 
