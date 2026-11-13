@@ -8,6 +8,7 @@ import {
 } from "react-native";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Database } from "@athleteiq/db/types";
 import { daysBetweenYmd, formatYmdTr, parseYmd, todayLocal } from "@athleteiq/validators/date";
 
@@ -131,110 +132,107 @@ export default function CompetitionsScreen() {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
-      }
-    >
+    <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-blue-700 px-5 pt-14 pb-6">
-        <Text className="text-white text-2xl font-bold">Yarışmalar</Text>
-        <Text className="text-blue-200 text-sm mt-1">
-          {upcoming.length} yaklaşan etkinlik
-        </Text>
-      </View>
+      <ScreenHeader title="Yarışmalar" subtitle={`${upcoming.length} yaklaşan etkinlik`} />
 
-      <View className="p-4">
-        {/* Yaklaşan */}
-        {upcoming.length > 0 && (
-          <>
-            <Text className="text-gray-900 font-semibold text-base mb-3">
-              Yaklaşan
-            </Text>
-            {upcoming.map((comp) => {
-              const levelStyle =
-                LEVEL_COLORS[comp.level ?? ""] ?? "bg-gray-100 text-gray-600";
-              return (
-                <View
-                  key={comp.id}
-                  className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
-                >
-                  <View className="flex-row items-start justify-between">
-                    <View className="flex-1 mr-2">
-                      <Text className="text-gray-900 font-semibold text-base leading-tight">
-                        {comp.name}
-                      </Text>
-                      {comp.location && (
-                        <View className="flex-row items-center mt-1">
-                          <Text className="text-gray-400 text-sm">
-                            📍 {comp.location}
-                          </Text>
-                        </View>
-                      )}
-                      <Text className="text-gray-500 text-sm mt-0.5">
-                        {formatDate(comp.competition_date)}
-                      </Text>
-                    </View>
-                    <View className="items-end gap-1">
-                      {comp.level && (
-                        <View
-                          className={`px-2 py-0.5 rounded-full ${levelStyle.split(" ")[0]}`}
-                        >
-                          <Text
-                            className={`text-xs font-medium ${levelStyle.split(" ")[1]}`}
+      <ScrollView
+        className="flex-1 bg-gray-50"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
+        }
+      >
+        <View className="p-4">
+          {/* Yaklaşan */}
+          {upcoming.length > 0 && (
+            <>
+              <Text className="text-gray-900 font-semibold text-base mb-3">
+                Yaklaşan
+              </Text>
+              {upcoming.map((comp) => {
+                const levelStyle =
+                  LEVEL_COLORS[comp.level ?? ""] ?? "bg-gray-100 text-gray-600";
+                return (
+                  <View
+                    key={comp.id}
+                    className="bg-white rounded-2xl p-4 mb-3 shadow-sm"
+                  >
+                    <View className="flex-row items-start justify-between">
+                      <View className="flex-1 mr-2">
+                        <Text className="text-gray-900 font-semibold text-base leading-tight">
+                          {comp.name}
+                        </Text>
+                        {comp.location && (
+                          <View className="flex-row items-center mt-1">
+                            <Text className="text-gray-400 text-sm">
+                              📍 {comp.location}
+                            </Text>
+                          </View>
+                        )}
+                        <Text className="text-gray-500 text-sm mt-0.5">
+                          {formatDate(comp.competition_date)}
+                        </Text>
+                      </View>
+                      <View className="items-end gap-1">
+                        {comp.level && (
+                          <View
+                            className={`px-2 py-0.5 rounded-full ${levelStyle.split(" ")[0]}`}
                           >
-                            {LEVEL_LABELS[comp.level] ?? comp.level}
-                          </Text>
-                        </View>
-                      )}
-                      <CountdownBadge dateStr={comp.competition_date} />
+                            <Text
+                              className={`text-xs font-medium ${levelStyle.split(" ")[1]}`}
+                            >
+                              {LEVEL_LABELS[comp.level] ?? comp.level}
+                            </Text>
+                          </View>
+                        )}
+                        <CountdownBadge dateStr={comp.competition_date} />
+                      </View>
                     </View>
+                    {comp.notes && (
+                      <Text className="text-gray-400 text-sm mt-2 italic">
+                        {comp.notes}
+                      </Text>
+                    )}
                   </View>
-                  {comp.notes && (
-                    <Text className="text-gray-400 text-sm mt-2 italic">
-                      {comp.notes}
+                );
+              })}
+            </>
+          )}
+
+          {/* Geçmiş */}
+          {past.length > 0 && (
+            <>
+              <Text className="text-gray-500 font-semibold text-sm mb-3 mt-2">
+                GEÇMİŞ
+              </Text>
+              {past
+                .slice()
+                .reverse()
+                .map((comp) => (
+                  <View
+                    key={comp.id}
+                    className="bg-white rounded-2xl p-4 mb-3 opacity-60"
+                  >
+                    <Text className="text-gray-700 font-medium">{comp.name}</Text>
+                    <Text className="text-gray-400 text-sm">
+                      {formatDate(comp.competition_date)}
+                      {comp.location ? ` · ${comp.location}` : ""}
                     </Text>
-                  )}
-                </View>
-              );
-            })}
-          </>
-        )}
+                  </View>
+                ))}
+            </>
+          )}
 
-        {/* Geçmiş */}
-        {past.length > 0 && (
-          <>
-            <Text className="text-gray-500 font-semibold text-sm mb-3 mt-2">
-              GEÇMİŞ
-            </Text>
-            {past
-              .slice()
-              .reverse()
-              .map((comp) => (
-                <View
-                  key={comp.id}
-                  className="bg-white rounded-2xl p-4 mb-3 opacity-60"
-                >
-                  <Text className="text-gray-700 font-medium">{comp.name}</Text>
-                  <Text className="text-gray-400 text-sm">
-                    {formatDate(comp.competition_date)}
-                    {comp.location ? ` · ${comp.location}` : ""}
-                  </Text>
-                </View>
-              ))}
-          </>
-        )}
-
-        {competitions.length === 0 && (
-          <View className="items-center py-12">
-            <Text className="text-4xl mb-3">🏆</Text>
-            <Text className="text-gray-500 text-center">
-              Kayıtlı olduğunuz bir yarışma yok.
-            </Text>
-          </View>
-        )}
-      </View>
-    </ScrollView>
+          {competitions.length === 0 && (
+            <View className="items-center py-12">
+              <Text className="text-4xl mb-3">🏆</Text>
+              <Text className="text-gray-500 text-center">
+                Kayıtlı olduğunuz bir yarışma yok.
+              </Text>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }

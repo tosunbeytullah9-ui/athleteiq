@@ -1,22 +1,30 @@
 import { Tabs } from "expo-router";
 import { View, ActivityIndicator } from "react-native";
 import { Calendar, Activity, Trophy, User, Users } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { BRAND_COLOR } from "@athleteiq/validators/brand";
 import { useAuth } from "@/lib/auth";
 
-const screenOptions = {
-  headerShown: false,
-  tabBarActiveTintColor: "#534AB7",
-  tabBarInactiveTintColor: "#9C9A92",
-  tabBarStyle: {
-    backgroundColor: "#FFFFFF",
-    borderTopColor: "#E8E6DE",
-    paddingBottom: 8,
-    height: 64,
-  },
-} as const;
+// Simge + etiket alanı (eski height 64 − paddingBottom 8). Alt boşluk ev göstergesi
+// (home indicator) kadar, en az eski 8 — göstergesiz cihazlarda görünüm birebir aynı.
+const TAB_BAR_CONTENT_HEIGHT = 56;
 
 export default function TabsLayout() {
   const { session, loading, role, roleLoading } = useAuth();
+  const insets = useSafeAreaInsets();
+  const tabBarPaddingBottom = Math.max(insets.bottom, 8);
+
+  const screenOptions = {
+    headerShown: false,
+    tabBarActiveTintColor: BRAND_COLOR,
+    tabBarInactiveTintColor: "#9C9A92",
+    tabBarStyle: {
+      backgroundColor: "#FFFFFF",
+      borderTopColor: "#E8E6DE",
+      paddingBottom: tabBarPaddingBottom,
+      height: TAB_BAR_CONTENT_HEIGHT + tabBarPaddingBottom,
+    },
+  } as const;
 
   // Oturum kapanınca root layout /(auth)/login'e yönlendirir; o gerçekleşene
   // kadar burada eski rol verisiyle sekme render etmemek için boş dön.

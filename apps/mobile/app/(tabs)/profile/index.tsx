@@ -14,6 +14,7 @@ import { revokeWhoopAccess } from "@/lib/wearables";
 import { WEARABLES_ENABLED, whoopRowMode } from "@/lib/features";
 import { AccountDeletionSection } from "@/components/AccountDeletionSection";
 import { HelpLinksSection } from "@/components/HelpLinksSection";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Database } from "@athleteiq/db/types";
 import { formatYmdTr } from "@athleteiq/validators/date";
 
@@ -164,9 +165,9 @@ export default function ProfileScreen() {
     connections.find((c) => c.provider === "whoop") ?? null;
 
   return (
-    <ScrollView className="flex-1 bg-gray-50">
+    <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-blue-700 px-5 pt-14 pb-8 items-center">
+      <ScreenHeader className="pb-8 items-center">
         {athlete && <InitialAvatar name={athlete.full_name} />}
         <Text className="text-white text-xl font-bold mt-3">
           {athlete?.full_name ?? "—"}
@@ -180,77 +181,79 @@ export default function ProfileScreen() {
         {athlete?.training_group && (
           <Text className="text-blue-300 text-xs mt-0.5">{athlete.training_group}</Text>
         )}
-      </View>
+      </ScreenHeader>
 
-      <View className="p-4">
-        {/* Bilgiler */}
-        {athlete && (
-          <View className="bg-white rounded-2xl px-4 py-1 mb-4 shadow-sm">
-            {athlete.birth_date && (
-              <View className="flex-row justify-between items-center py-3 border-b border-gray-50">
-                <Text className="text-gray-500 text-sm">Doğum Tarihi</Text>
-                <Text className="text-gray-900 text-sm font-medium">
-                  {formatYmdTr(athlete.birth_date, { style: "numeric" })}
-                </Text>
-              </View>
-            )}
-            {athlete.height_cm && (
-              <View className="flex-row justify-between items-center py-3 border-b border-gray-50">
-                <Text className="text-gray-500 text-sm">Boy</Text>
-                <Text className="text-gray-900 text-sm font-medium">
-                  {athlete.height_cm} cm
-                </Text>
-              </View>
-            )}
-            {athlete.weight_kg && (
-              <View className="flex-row justify-between items-center py-3">
-                <Text className="text-gray-500 text-sm">Kilo</Text>
-                <Text className="text-gray-900 text-sm font-medium">
-                  {athlete.weight_kg} kg
-                </Text>
-              </View>
-            )}
-          </View>
-        )}
-
-        {/* Wearable bağlantıları */}
-        <Text className="text-gray-900 font-semibold text-base mb-2">
-          Cihaz Bağlantıları
-        </Text>
-        <View className="bg-white rounded-2xl px-4 py-1 mb-2 shadow-sm">
-          <WhoopRow
-            connection={whoopConn}
-            onConnect={() => router.push("/(tabs)/profile/connect-whoop" as never)}
-            onDisconnect={handleDisconnect}
-          />
-        </View>
-        {WEARABLES_ENABLED ? (
-          <Text className="text-gray-400 text-xs mb-4 px-1">
-            Polar ve Fitbit bağlantıları web panelinden yapılır.
-          </Text>
-        ) : (
-          <View className="mb-4" />
-        )}
-
-        {/* Çıkış */}
-        <TouchableOpacity
-          className="bg-white rounded-2xl p-4 items-center shadow-sm"
-          onPress={handleSignOut}
-          disabled={signingOut}
-        >
-          {signingOut ? (
-            <ActivityIndicator color="#ef4444" />
-          ) : (
-            <Text className="text-red-500 font-medium">Çıkış Yap</Text>
+      <ScrollView className="flex-1 bg-gray-50">
+        <View className="p-4">
+          {/* Bilgiler */}
+          {athlete && (
+            <View className="bg-white rounded-2xl px-4 py-1 mb-4 shadow-sm">
+              {athlete.birth_date && (
+                <View className="flex-row justify-between items-center py-3 border-b border-gray-50">
+                  <Text className="text-gray-500 text-sm">Doğum Tarihi</Text>
+                  <Text className="text-gray-900 text-sm font-medium">
+                    {formatYmdTr(athlete.birth_date, { style: "numeric" })}
+                  </Text>
+                </View>
+              )}
+              {athlete.height_cm && (
+                <View className="flex-row justify-between items-center py-3 border-b border-gray-50">
+                  <Text className="text-gray-500 text-sm">Boy</Text>
+                  <Text className="text-gray-900 text-sm font-medium">
+                    {athlete.height_cm} cm
+                  </Text>
+                </View>
+              )}
+              {athlete.weight_kg && (
+                <View className="flex-row justify-between items-center py-3">
+                  <Text className="text-gray-500 text-sm">Kilo</Text>
+                  <Text className="text-gray-900 text-sm font-medium">
+                    {athlete.weight_kg} kg
+                  </Text>
+                </View>
+              )}
+            </View>
           )}
-        </TouchableOpacity>
 
-        <HelpLinksSection />
+          {/* Wearable bağlantıları */}
+          <Text className="text-gray-900 font-semibold text-base mb-2">
+            Cihaz Bağlantıları
+          </Text>
+          <View className="bg-white rounded-2xl px-4 py-1 mb-2 shadow-sm">
+            <WhoopRow
+              connection={whoopConn}
+              onConnect={() => router.push("/(tabs)/profile/connect-whoop" as never)}
+              onDisconnect={handleDisconnect}
+            />
+          </View>
+          {WEARABLES_ENABLED ? (
+            <Text className="text-gray-400 text-xs mb-4 px-1">
+              Polar ve Fitbit bağlantıları web panelinden yapılır.
+            </Text>
+          ) : (
+            <View className="mb-4" />
+          )}
 
-        <AccountDeletionSection isStaff={false} />
+          {/* Çıkış */}
+          <TouchableOpacity
+            className="bg-white rounded-2xl p-4 items-center shadow-sm"
+            onPress={handleSignOut}
+            disabled={signingOut}
+          >
+            {signingOut ? (
+              <ActivityIndicator color="#ef4444" />
+            ) : (
+              <Text className="text-red-500 font-medium">Çıkış Yap</Text>
+            )}
+          </TouchableOpacity>
 
-        <View className="h-8" />
-      </View>
-    </ScrollView>
+          <HelpLinksSection />
+
+          <AccountDeletionSection isStaff={false} />
+
+          <View className="h-8" />
+        </View>
+      </ScrollView>
+    </View>
   );
 }

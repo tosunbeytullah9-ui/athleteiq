@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { resolveLoginIdentifier } from "@athleteiq/validators";
-import { PRODUCT_NAME } from "@athleteiq/validators/brand";
+import { BRAND_COLOR, PRODUCT_NAME } from "@athleteiq/validators/brand";
 import { BrandMark } from "@/components/BrandMark";
 
 export default function LoginScreen() {
@@ -92,7 +92,7 @@ export default function LoginScreen() {
         />
         <TouchableOpacity
           className="rounded-xl py-4 items-center"
-          style={{ backgroundColor: "#534AB7" }}
+          style={{ backgroundColor: BRAND_COLOR }}
           onPress={handlePasswordLogin}
           disabled={loading}
         >

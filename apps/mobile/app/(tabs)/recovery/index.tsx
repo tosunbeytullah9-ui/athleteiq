@@ -9,6 +9,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { WEARABLES_ENABLED } from "@/lib/features";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Database } from "@athleteiq/db/types";
 import { addDaysYmd, formatYmdTr, todayInIstanbul, todayLocal } from "@athleteiq/validators/date";
 
@@ -140,153 +141,153 @@ export default function RecoveryScreen() {
   const latest = metrics[0] ?? null;
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
-      }
-    >
+    <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-blue-700 px-5 pt-14 pb-6">
-        <Text className="text-white text-2xl font-bold">Recovery</Text>
-        <Text className="text-blue-200 text-sm mt-1">
-          {latest ? formatDate(latest.metric_date) : "Bugün"}
-        </Text>
-      </View>
+      <ScreenHeader
+        title="Recovery"
+        subtitle={latest ? formatDate(latest.metric_date) : "Bugün"}
+      />
 
-      <View className="p-4">
-        {!connected ? (
-          /* Wearable bağlı değil */
-          <View className="bg-white rounded-2xl p-6 items-center mt-2">
-            <Text className="text-4xl mb-3">⌚</Text>
-            <Text className="text-gray-900 font-semibold text-lg text-center">
-              {WEARABLES_ENABLED ? "Wearable Bağlı Değil" : "Recovery verileri yakında"}
-            </Text>
-            <Text className="text-gray-500 text-sm text-center mt-2">
-              {WEARABLES_ENABLED
-                ? "Recovery verilerini görmek için Profil ekranından WHOOP cihazınızı bağlayın. Polar ve Fitbit bağlantıları web panelinden yapılır."
-                : "Giyilebilir cihaz entegrasyonu yakında eklenecek."}
-            </Text>
-          </View>
-        ) : metrics.length === 0 ? (
-          <View className="bg-white rounded-2xl p-6 items-center mt-2">
-            <Text className="text-4xl mb-3">📡</Text>
-            <Text className="text-gray-900 font-semibold text-lg text-center">
-              Veri Bekleniyor
-            </Text>
-            <Text className="text-gray-500 text-sm text-center mt-2">
-              Cihazınız bağlı. İlk veriler yakında senkronize edilecek.
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* Recovery skoru */}
-            <View className="bg-white rounded-2xl p-5 items-center mb-4 shadow-sm">
-              <RecoveryRing score={latest?.recovery_score ?? null} />
-              <Text className="text-gray-900 font-bold text-lg mt-3">
-                Recovery Skoru
+      <ScrollView
+        className="flex-1 bg-gray-50"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
+        }
+      >
+        <View className="p-4">
+          {!connected ? (
+            /* Wearable bağlı değil */
+            <View className="bg-white rounded-2xl p-6 items-center mt-2">
+              <Text className="text-4xl mb-3">⌚</Text>
+              <Text className="text-gray-900 font-semibold text-lg text-center">
+                {WEARABLES_ENABLED ? "Wearable Bağlı Değil" : "Recovery verileri yakında"}
               </Text>
-              <Text className="text-gray-400 text-sm">
-                {latest
-                  ? latest.provider === "whoop"
-                    ? "WHOOP"
-                    : "Polar"
-                  : ""}{" "}
-                · {latest ? formatDate(latest.metric_date) : ""}
+              <Text className="text-gray-500 text-sm text-center mt-2">
+                {WEARABLES_ENABLED
+                  ? "Recovery verilerini görmek için Profil ekranından WHOOP cihazınızı bağlayın. Polar ve Fitbit bağlantıları web panelinden yapılır."
+                  : "Giyilebilir cihaz entegrasyonu yakında eklenecek."}
               </Text>
             </View>
-
-            {/* Metrik detayları */}
-            {latest && (
-              <View className="bg-white rounded-2xl px-4 py-1 mb-4 shadow-sm">
-                <MetricRow
-                  label="HRV (RMSSD)"
-                  value={latest.hrv_rmssd}
-                  unit="ms"
-                />
-                <MetricRow
-                  label="İstirahat Kalp Hızı"
-                  value={latest.resting_hr}
-                  unit="bpm"
-                />
-                <MetricRow
-                  label="SpO₂"
-                  value={latest.spo2}
-                  unit="%"
-                />
-                <MetricRow
-                  label="Uyku Skoru"
-                  value={latest.sleep_score}
-                  unit="/ 100"
-                />
-                <MetricRow
-                  label="Toplam Uyku"
-                  value={
-                    latest.total_sleep_min
-                      ? Math.round(latest.total_sleep_min / 60 * 10) / 10
-                      : null
-                  }
-                  unit="saat"
-                />
-                <MetricRow
-                  label="Strain"
-                  value={latest.strain_score}
-                  unit="/ 21"
-                />
-              </View>
-            )}
-
-            {/* 7 günlük trend */}
-            {metrics.length > 1 && (
-              <>
-                <Text className="text-gray-900 font-semibold text-base mb-3">
-                  Son 7 Gün
+          ) : metrics.length === 0 ? (
+            <View className="bg-white rounded-2xl p-6 items-center mt-2">
+              <Text className="text-4xl mb-3">📡</Text>
+              <Text className="text-gray-900 font-semibold text-lg text-center">
+                Veri Bekleniyor
+              </Text>
+              <Text className="text-gray-500 text-sm text-center mt-2">
+                Cihazınız bağlı. İlk veriler yakında senkronize edilecek.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Recovery skoru */}
+              <View className="bg-white rounded-2xl p-5 items-center mb-4 shadow-sm">
+                <RecoveryRing score={latest?.recovery_score ?? null} />
+                <Text className="text-gray-900 font-bold text-lg mt-3">
+                  Recovery Skoru
                 </Text>
-                {metrics.map((m) => (
-                  <View
-                    key={m.id}
-                    className="bg-white rounded-xl px-4 py-3 mb-2 flex-row items-center justify-between"
-                  >
-                    <Text className="text-gray-500 text-sm">
-                      {formatDate(m.metric_date)}
-                    </Text>
-                    <View className="flex-row items-center gap-3">
-                      {m.recovery_score != null && (
-                        <View
-                          className={`px-2.5 py-1 rounded-full ${
-                            m.recovery_score >= 67
-                              ? "bg-green-100"
-                              : m.recovery_score >= 34
-                              ? "bg-yellow-100"
-                              : "bg-red-100"
-                          }`}
-                        >
-                          <Text
-                            className={`text-sm font-semibold ${
+                <Text className="text-gray-400 text-sm">
+                  {latest
+                    ? latest.provider === "whoop"
+                      ? "WHOOP"
+                      : "Polar"
+                    : ""}{" "}
+                  · {latest ? formatDate(latest.metric_date) : ""}
+                </Text>
+              </View>
+
+              {/* Metrik detayları */}
+              {latest && (
+                <View className="bg-white rounded-2xl px-4 py-1 mb-4 shadow-sm">
+                  <MetricRow
+                    label="HRV (RMSSD)"
+                    value={latest.hrv_rmssd}
+                    unit="ms"
+                  />
+                  <MetricRow
+                    label="İstirahat Kalp Hızı"
+                    value={latest.resting_hr}
+                    unit="bpm"
+                  />
+                  <MetricRow
+                    label="SpO₂"
+                    value={latest.spo2}
+                    unit="%"
+                  />
+                  <MetricRow
+                    label="Uyku Skoru"
+                    value={latest.sleep_score}
+                    unit="/ 100"
+                  />
+                  <MetricRow
+                    label="Toplam Uyku"
+                    value={
+                      latest.total_sleep_min
+                        ? Math.round(latest.total_sleep_min / 60 * 10) / 10
+                        : null
+                    }
+                    unit="saat"
+                  />
+                  <MetricRow
+                    label="Strain"
+                    value={latest.strain_score}
+                    unit="/ 21"
+                  />
+                </View>
+              )}
+
+              {/* 7 günlük trend */}
+              {metrics.length > 1 && (
+                <>
+                  <Text className="text-gray-900 font-semibold text-base mb-3">
+                    Son 7 Gün
+                  </Text>
+                  {metrics.map((m) => (
+                    <View
+                      key={m.id}
+                      className="bg-white rounded-xl px-4 py-3 mb-2 flex-row items-center justify-between"
+                    >
+                      <Text className="text-gray-500 text-sm">
+                        {formatDate(m.metric_date)}
+                      </Text>
+                      <View className="flex-row items-center gap-3">
+                        {m.recovery_score != null && (
+                          <View
+                            className={`px-2.5 py-1 rounded-full ${
                               m.recovery_score >= 67
-                                ? "text-green-700"
+                                ? "bg-green-100"
                                 : m.recovery_score >= 34
-                                ? "text-yellow-700"
-                                : "text-red-700"
+                                ? "bg-yellow-100"
+                                : "bg-red-100"
                             }`}
                           >
-                            {Math.round(m.recovery_score)}%
+                            <Text
+                              className={`text-sm font-semibold ${
+                                m.recovery_score >= 67
+                                  ? "text-green-700"
+                                  : m.recovery_score >= 34
+                                  ? "text-yellow-700"
+                                  : "text-red-700"
+                              }`}
+                            >
+                              {Math.round(m.recovery_score)}%
+                            </Text>
+                          </View>
+                        )}
+                        {m.resting_hr && (
+                          <Text className="text-gray-400 text-sm">
+                            {m.resting_hr} bpm
                           </Text>
-                        </View>
-                      )}
-                      {m.resting_hr && (
-                        <Text className="text-gray-400 text-sm">
-                          {m.resting_hr} bpm
-                        </Text>
-                      )}
+                        )}
+                      </View>
                     </View>
-                  </View>
-                ))}
-              </>
-            )}
-          </>
-        )}
-      </View>
-    </ScrollView>
+                  ))}
+                </>
+              )}
+            </>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }

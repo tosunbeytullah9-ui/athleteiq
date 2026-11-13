@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { BRAND_COLOR } from "@athleteiq/validators/brand";
 
 export default function ProfileLayout() {
   return (
@@ -10,7 +11,7 @@ export default function ProfileLayout() {
           headerShown: true,
           headerTitle: "WHOOP Bağlantısı",
           headerBackTitle: "Geri",
-          headerTintColor: "#534AB7",
+          headerTintColor: BRAND_COLOR,
         }}
       />
     </Stack>

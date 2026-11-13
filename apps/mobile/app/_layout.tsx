@@ -23,7 +23,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <StatusBar style="auto" />
+      {/* Varsayılan koyu simge: açık zeminli ekranlar (giriş, yükleniyor, yerel başlıklı
+          ekranlar). Mavi başlıklı ekranlarda odaktaki ScreenHeader "light" ile ezer. */}
+      <StatusBar style="dark" />
       <RootLayoutNav />
     </AuthProvider>
   );

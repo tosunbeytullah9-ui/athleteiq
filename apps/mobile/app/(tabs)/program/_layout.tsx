@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { BRAND_COLOR } from "@athleteiq/validators/brand";
 
 export default function ProgramLayout() {
   return (
@@ -10,7 +11,7 @@ export default function ProgramLayout() {
           headerShown: true,
           headerTitle: "Günlük Program",
           headerBackTitle: "Geri",
-          headerTintColor: "#534AB7",
+          headerTintColor: BRAND_COLOR,
         }}
       />
       <Stack.Screen
@@ -19,7 +20,7 @@ export default function ProgramLayout() {
           headerShown: true,
           headerTitle: "Sabah Değerlendirmesi",
           headerBackTitle: "Geri",
-          headerTintColor: "#534AB7",
+          headerTintColor: BRAND_COLOR,
         }}
       />
     </Stack>

@@ -20,6 +20,7 @@ import { getTimeGreeting } from "@athleteiq/validators/greeting";
 import { dayOfWeekLocal, todayLocal } from "@athleteiq/validators/date";
 import { ProgramTabStrip } from "@/components/ProgramTabStrip";
 import { LoadErrorState } from "@/components/LoadErrorState";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Tables } from "@athleteiq/db/types";
 
 type TrainingProgram = Tables<"training_programs">;
@@ -175,14 +176,9 @@ export default function ProgramScreen() {
   const activeProgram = activePrograms[activeTabIndex] ?? null;
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
-      }
-    >
+    <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-blue-700 px-5 pt-14 pb-6">
+      <ScreenHeader>
         <View className="flex-row items-center justify-between">
           <View>
             <Text className="text-blue-200 text-sm">{getTimeGreeting()},</Text>
@@ -201,184 +197,191 @@ export default function ProgramScreen() {
             </Text>
           </View>
         </View>
-      </View>
+      </ScreenHeader>
 
-      {activePrograms.length > 1 && (
-        <ProgramTabStrip
-          tabs={activePrograms.map((p) => ({
-            id: p.id,
-            label: p.discipline?.trim() || p.title,
-          }))}
-          activeIndex={activeTabIndex}
-          onSelect={setActiveTabIndex}
-        />
-      )}
+      <ScrollView
+        className="flex-1 bg-gray-50"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
+        }
+      >
+        {activePrograms.length > 1 && (
+          <ProgramTabStrip
+            tabs={activePrograms.map((p) => ({
+              id: p.id,
+              label: p.discipline?.trim() || p.title,
+            }))}
+            activeIndex={activeTabIndex}
+            onSelect={setActiveTabIndex}
+          />
+        )}
 
-      <View className="p-4">
-        <TouchableOpacity
-          className="bg-white rounded-2xl p-4 mb-4 shadow-sm flex-row items-center justify-between"
-          onPress={() => router.push("/(tabs)/program/checkin")}
-          activeOpacity={0.75}
-        >
-          <View>
-            <Text className="text-xs text-blue-700 font-semibold uppercase tracking-wider mb-1">
-              Sabah Değerlendirmesi
-            </Text>
-            <Text className="text-gray-900 font-bold text-base">
-              {todayWellness ? `${todayWellness.wellness_total ?? "—"}/25` : "Bugün doldurulmadı"}
-            </Text>
-          </View>
-          <View className="bg-blue-50 px-3 py-1.5 rounded-lg">
-            <Text className="text-blue-700 text-sm font-medium">
-              {todayWellness ? "Düzenle" : "Doldur"}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        <View className="p-4">
+          <TouchableOpacity
+            className="bg-white rounded-2xl p-4 mb-4 shadow-sm flex-row items-center justify-between"
+            onPress={() => router.push("/(tabs)/program/checkin")}
+            activeOpacity={0.75}
+          >
+            <View>
+              <Text className="text-xs text-blue-700 font-semibold uppercase tracking-wider mb-1">
+                Sabah Değerlendirmesi
+              </Text>
+              <Text className="text-gray-900 font-bold text-base">
+                {todayWellness ? `${todayWellness.wellness_total ?? "—"}/25` : "Bugün doldurulmadı"}
+              </Text>
+            </View>
+            <View className="bg-blue-50 px-3 py-1.5 rounded-lg">
+              <Text className="text-blue-700 text-sm font-medium">
+                {todayWellness ? "Düzenle" : "Doldur"}
+              </Text>
+            </View>
+          </TouchableOpacity>
 
-        {loadError ? (
-          <LoadErrorState onRetry={onRefresh} />
-        ) : activePrograms.length === 0 ? (
-          <View className="bg-white rounded-2xl p-8 items-center mt-4">
-            <Text className="text-4xl mb-3">📋</Text>
-            <Text className="text-gray-900 font-semibold text-lg text-center">
-              Henüz program yok
-            </Text>
-            <Text className="text-gray-500 text-sm text-center mt-1">
-              Antrenörünüz program yayınladığında burada görünecek.
-            </Text>
-          </View>
-        ) : (
-          <>
-            {/* Aktif program başlığı */}
-            {activeProgram && (
-              <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
-                <View className="flex-row items-center justify-between mb-1">
-                  <Text className="text-xs text-blue-700 font-semibold uppercase tracking-wider">
-                    Aktif Program
+          {loadError ? (
+            <LoadErrorState onRetry={onRefresh} />
+          ) : activePrograms.length === 0 ? (
+            <View className="bg-white rounded-2xl p-8 items-center mt-4">
+              <Text className="text-4xl mb-3">📋</Text>
+              <Text className="text-gray-900 font-semibold text-lg text-center">
+                Henüz program yok
+              </Text>
+              <Text className="text-gray-500 text-sm text-center mt-1">
+                Antrenörünüz program yayınladığında burada görünecek.
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* Aktif program başlığı */}
+              {activeProgram && (
+                <View className="bg-white rounded-2xl p-4 mb-4 shadow-sm">
+                  <View className="flex-row items-center justify-between mb-1">
+                    <Text className="text-xs text-blue-700 font-semibold uppercase tracking-wider">
+                      Aktif Program
+                    </Text>
+                    {activeProgram.phase && (
+                      <View className="bg-blue-50 px-2 py-0.5 rounded-full">
+                        <Text className="text-blue-700 text-xs capitalize">
+                          {activeProgram.phase}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  <Text className="text-gray-900 text-lg font-bold">
+                    {activeProgram.title}
                   </Text>
-                  {activeProgram.phase && (
-                    <View className="bg-blue-50 px-2 py-0.5 rounded-full">
-                      <Text className="text-blue-700 text-xs capitalize">
-                        {activeProgram.phase}
-                      </Text>
-                    </View>
+                  {activeProgram.week_number && (
+                    <Text className="text-gray-400 text-sm mt-0.5">
+                      Hafta {activeProgram.week_number}
+                    </Text>
                   )}
                 </View>
-                <Text className="text-gray-900 text-lg font-bold">
-                  {activeProgram.title}
-                </Text>
-                {activeProgram.week_number && (
-                  <Text className="text-gray-400 text-sm mt-0.5">
-                    Hafta {activeProgram.week_number}
-                  </Text>
-                )}
-              </View>
-            )}
+              )}
 
-            {/* Haftalık görünüm */}
-            <Text className="text-gray-900 font-semibold text-base mb-3">
-              Haftalık Program
-            </Text>
-            {Array.from({ length: 7 }, (_, i) => i + 1).map((dayNum) => {
-              const sessions = tabSessions
-                .filter((s) => s.day_of_week === dayNum)
-                .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+              {/* Haftalık görünüm */}
+              <Text className="text-gray-900 font-semibold text-base mb-3">
+                Haftalık Program
+              </Text>
+              {Array.from({ length: 7 }, (_, i) => i + 1).map((dayNum) => {
+                const sessions = tabSessions
+                  .filter((s) => s.day_of_week === dayNum)
+                  .sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
 
-              const isToday = dayOfWeekLocal() === dayNum;
+                const isToday = dayOfWeekLocal() === dayNum;
 
-              return (
-                <TouchableOpacity
-                  key={dayNum}
-                  className={`mb-2 rounded-2xl overflow-hidden ${
-                    sessions.length === 0 ? "opacity-50" : ""
-                  }`}
-                  disabled={sessions.length === 0}
-                  onPress={() =>
-                    router.push({
-                      pathname: "/(tabs)/program/[day]",
-                      params: { day: String(dayNum), programId: activeProgram!.id },
-                    })
-                  }
-                  activeOpacity={0.75}
-                >
-                  <View
-                    className={`flex-row items-center px-4 py-3 ${
-                      isToday ? "bg-blue-700" : "bg-white"
+                return (
+                  <TouchableOpacity
+                    key={dayNum}
+                    className={`mb-2 rounded-2xl overflow-hidden ${
+                      sessions.length === 0 ? "opacity-50" : ""
                     }`}
+                    disabled={sessions.length === 0}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/(tabs)/program/[day]",
+                        params: { day: String(dayNum), programId: activeProgram!.id },
+                      })
+                    }
+                    activeOpacity={0.75}
                   >
-                    <View className="w-14">
-                      <Text
-                        className={`font-semibold text-sm ${
-                          isToday ? "text-white" : "text-gray-900"
-                        }`}
-                      >
-                        {DAY_LABELS[dayNum]}
-                      </Text>
-                      {isToday && (
-                        <Text className="text-blue-200 text-xs">Bugün</Text>
-                      )}
-                    </View>
-
-                    <View className="flex-1 ml-3">
-                      {sessions.length === 0 ? (
+                    <View
+                      className={`flex-row items-center px-4 py-3 ${
+                        isToday ? "bg-blue-700" : "bg-white"
+                      }`}
+                    >
+                      <View className="w-14">
                         <Text
-                          className={`text-sm ${
+                          className={`font-semibold text-sm ${
+                            isToday ? "text-white" : "text-gray-900"
+                          }`}
+                        >
+                          {DAY_LABELS[dayNum]}
+                        </Text>
+                        {isToday && (
+                          <Text className="text-blue-200 text-xs">Bugün</Text>
+                        )}
+                      </View>
+
+                      <View className="flex-1 ml-3">
+                        {sessions.length === 0 ? (
+                          <Text
+                            className={`text-sm ${
+                              isToday ? "text-blue-200" : "text-gray-400"
+                            }`}
+                          >
+                            Dinlenme
+                          </Text>
+                        ) : (
+                          <View className="flex-row flex-wrap gap-1">
+                            {sessions.map((s) => {
+                              const colorClass =
+                                SESSION_TYPE_COLORS[s.session_type ?? ""] ??
+                                "bg-gray-100 text-gray-600";
+                              return (
+                                <View
+                                  key={s.id}
+                                  className={`px-2 py-0.5 rounded-full ${
+                                    isToday
+                                      ? "bg-blue-500"
+                                      : colorClass.split(" ")[0]
+                                  }`}
+                                >
+                                  <Text
+                                    className={`text-xs font-medium ${
+                                      isToday
+                                        ? "text-white"
+                                        : colorClass.split(" ")[1]
+                                    }`}
+                                  >
+                                    {s.title ?? s.session_type}
+                                  </Text>
+                                </View>
+                              );
+                            })}
+                          </View>
+                        )}
+                      </View>
+
+                      {sessions.length > 0 && (
+                        <Text
+                          className={`text-xs ${
                             isToday ? "text-blue-200" : "text-gray-400"
                           }`}
                         >
-                          Dinlenme
+                          {sessions.reduce(
+                            (sum, s) => sum + (s.duration_min ?? 0),
+                            0
+                          )}{" "}
+                          dk
                         </Text>
-                      ) : (
-                        <View className="flex-row flex-wrap gap-1">
-                          {sessions.map((s) => {
-                            const colorClass =
-                              SESSION_TYPE_COLORS[s.session_type ?? ""] ??
-                              "bg-gray-100 text-gray-600";
-                            return (
-                              <View
-                                key={s.id}
-                                className={`px-2 py-0.5 rounded-full ${
-                                  isToday
-                                    ? "bg-blue-500"
-                                    : colorClass.split(" ")[0]
-                                }`}
-                              >
-                                <Text
-                                  className={`text-xs font-medium ${
-                                    isToday
-                                      ? "text-white"
-                                      : colorClass.split(" ")[1]
-                                  }`}
-                                >
-                                  {s.title ?? s.session_type}
-                                </Text>
-                              </View>
-                            );
-                          })}
-                        </View>
                       )}
                     </View>
-
-                    {sessions.length > 0 && (
-                      <Text
-                        className={`text-xs ${
-                          isToday ? "text-blue-200" : "text-gray-400"
-                        }`}
-                      >
-                        {sessions.reduce(
-                          (sum, s) => sum + (s.duration_min ?? 0),
-                          0
-                        )}{" "}
-                        dk
-                      </Text>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </>
-        )}
-      </View>
-    </ScrollView>
+                  </TouchableOpacity>
+                );
+              })}
+            </>
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }

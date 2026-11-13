@@ -12,6 +12,7 @@ import { getAthletes } from "@athleteiq/db/queries/athletes";
 import { getTeams } from "@athleteiq/db/queries/teams";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Database } from "@athleteiq/db/types";
 
 type Athlete = Database["public"]["Tables"]["athletes"]["Row"];
@@ -60,50 +61,49 @@ export default function MyAthletesScreen() {
   }
 
   return (
-    <ScrollView
-      className="flex-1 bg-gray-50"
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
-      }
-    >
-      <View className="bg-blue-700 px-5 pt-14 pb-6">
-        <Text className="text-white text-2xl font-bold">Sporcularım</Text>
-        <Text className="text-blue-200 text-sm mt-1">{athletes.length} sporcu</Text>
-      </View>
+    <View className="flex-1 bg-gray-50">
+      <ScreenHeader title="Sporcularım" subtitle={`${athletes.length} sporcu`} />
 
-      <View className="p-4">
-        {athletes.length === 0 ? (
-          <View className="items-center py-12">
-            <Text className="text-4xl mb-3">🏃</Text>
-            <Text className="text-gray-900 font-semibold text-lg text-center">
-              Henüz sporcu yok
-            </Text>
-            <Text className="text-gray-500 text-sm text-center mt-2">
-              Organizasyonunuzda/takımınızda kayıtlı sporcu bulunmuyor.
-            </Text>
-          </View>
-        ) : (
-          athletes.map((athlete) => (
-            <TouchableOpacity
-              key={athlete.id}
-              className="bg-white rounded-2xl p-4 mb-3 shadow-sm flex-row items-center justify-between"
-              onPress={() => router.push(`/(tabs)/my-athletes/${athlete.id}` as never)}
-            >
-              <View className="flex-1">
-                <Text className="text-gray-900 font-semibold text-base">
-                  {athlete.full_name}
-                </Text>
-                {athlete.team_id && teamMap[athlete.team_id] && (
-                  <Text className="text-gray-500 text-sm mt-0.5">
-                    {teamMap[athlete.team_id]}
+      <ScrollView
+        className="flex-1 bg-gray-50"
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#1d4ed8" />
+        }
+      >
+        <View className="p-4">
+          {athletes.length === 0 ? (
+            <View className="items-center py-12">
+              <Text className="text-4xl mb-3">🏃</Text>
+              <Text className="text-gray-900 font-semibold text-lg text-center">
+                Henüz sporcu yok
+              </Text>
+              <Text className="text-gray-500 text-sm text-center mt-2">
+                Organizasyonunuzda/takımınızda kayıtlı sporcu bulunmuyor.
+              </Text>
+            </View>
+          ) : (
+            athletes.map((athlete) => (
+              <TouchableOpacity
+                key={athlete.id}
+                className="bg-white rounded-2xl p-4 mb-3 shadow-sm flex-row items-center justify-between"
+                onPress={() => router.push(`/(tabs)/my-athletes/${athlete.id}` as never)}
+              >
+                <View className="flex-1">
+                  <Text className="text-gray-900 font-semibold text-base">
+                    {athlete.full_name}
                   </Text>
-                )}
-              </View>
-              <Text className="text-gray-300 text-xl">›</Text>
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-    </ScrollView>
+                  {athlete.team_id && teamMap[athlete.team_id] && (
+                    <Text className="text-gray-500 text-sm mt-0.5">
+                      {teamMap[athlete.team_id]}
+                    </Text>
+                  )}
+                </View>
+                <Text className="text-gray-300 text-xl">›</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+      </ScrollView>
+    </View>
   );
 }

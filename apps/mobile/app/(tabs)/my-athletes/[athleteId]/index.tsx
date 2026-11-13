@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { View, Text, ActivityIndicator, TouchableOpacity } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { getAthleteById } from "@athleteiq/db/queries/athletes";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Database } from "@athleteiq/db/types";
 
 type Athlete = Database["public"]["Tables"]["athletes"]["Row"];
@@ -62,15 +62,7 @@ export default function AthleteHubScreen() {
   if (notFound || !athlete) {
     return (
       <View className="flex-1 bg-gray-50">
-        <View className="bg-blue-700 px-5 pt-14 pb-6">
-          <TouchableOpacity
-            className="flex-row items-center mb-3"
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={20} color="#93c5fd" />
-            <Text className="text-blue-300 ml-1 text-sm">Sporcularım</Text>
-          </TouchableOpacity>
-        </View>
+        <ScreenHeader back={{ label: "Sporcularım", onPress: () => router.back() }} />
         <View className="flex-1 items-center justify-center p-8">
           <Text className="text-4xl mb-3">🔍</Text>
           <Text className="text-gray-900 font-semibold text-lg text-center">
@@ -86,16 +78,10 @@ export default function AthleteHubScreen() {
 
   return (
     <View className="flex-1 bg-gray-50">
-      <View className="bg-blue-700 px-5 pt-14 pb-6">
-        <TouchableOpacity
-          className="flex-row items-center mb-3"
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={20} color="#93c5fd" />
-          <Text className="text-blue-300 ml-1 text-sm">Sporcularım</Text>
-        </TouchableOpacity>
-        <Text className="text-white text-2xl font-bold">{athlete.full_name}</Text>
-      </View>
+      <ScreenHeader
+        title={athlete.full_name}
+        back={{ label: "Sporcularım", onPress: () => router.back() }}
+      />
 
       <View className="p-4">
         {CARDS.map((card) => (

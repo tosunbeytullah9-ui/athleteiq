@@ -1,4 +1,5 @@
 import { Stack } from "expo-router";
+import { BRAND_COLOR } from "@athleteiq/validators/brand";
 
 export default function CoachProgramLayout() {
   return (
@@ -10,7 +11,7 @@ export default function CoachProgramLayout() {
           headerShown: true,
           headerTitle: "Günlük Program",
           headerBackTitle: "Geri",
-          headerTintColor: "#534AB7",
+          headerTintColor: BRAND_COLOR,
         }}
       />
     </Stack>
