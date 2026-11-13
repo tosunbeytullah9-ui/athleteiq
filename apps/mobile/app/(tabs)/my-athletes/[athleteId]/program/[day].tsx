@@ -3,13 +3,12 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { supabase } from "@/lib/supabase";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import { ExerciseCard } from "@/components/ExerciseCard";
 import { WodSessionCard } from "@/components/WodSessionCard";
 import { EnduranceSessionCard } from "@/components/EnduranceSessionCard";
@@ -127,14 +126,17 @@ export default function CoachProgramDayScreen() {
 
   if (notFound || !athlete) {
     return (
-      <View className="flex-1 items-center justify-center bg-gray-50 p-8">
-        <Text className="text-4xl mb-3">🔍</Text>
-        <Text className="text-gray-900 font-semibold text-lg text-center">
-          Sporcu bulunamadı
-        </Text>
-        <Text className="text-gray-500 text-sm text-center mt-2">
-          Bu sporcuya erişim yetkiniz yok veya kayıt bulunamadı.
-        </Text>
+      <View className="flex-1 bg-gray-50">
+        <ScreenHeader back={{ label: "Program", onPress: () => router.back() }} />
+        <View className="flex-1 items-center justify-center p-8">
+          <Text className="text-4xl mb-3">🔍</Text>
+          <Text className="text-gray-900 font-semibold text-lg text-center">
+            Sporcu bulunamadı
+          </Text>
+          <Text className="text-gray-500 text-sm text-center mt-2">
+            Bu sporcuya erişim yetkiniz yok veya kayıt bulunamadı.
+          </Text>
+        </View>
       </View>
     );
   }
@@ -152,14 +154,10 @@ export default function CoachProgramDayScreen() {
   return (
     <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-blue-700 px-5 pt-14 pb-5">
-        <TouchableOpacity
-          className="flex-row items-center mb-3"
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={20} color="#93c5fd" />
-          <Text className="text-blue-300 ml-1 text-sm">Program</Text>
-        </TouchableOpacity>
+      <ScreenHeader
+        className="pb-5"
+        back={{ label: "Program", onPress: () => router.back() }}
+      >
         <Text className="text-white text-2xl font-bold">
           {DAY_LABELS[dayNum] ?? `Gün ${dayNum}`}
         </Text>
@@ -180,7 +178,7 @@ export default function CoachProgramDayScreen() {
             )}
           </View>
         )}
-      </View>
+      </ScreenHeader>
 
       {loading ? (
         <View className="flex-1 items-center justify-center">

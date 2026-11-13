@@ -5,15 +5,8 @@ export default function ProgramLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="index" />
-      <Stack.Screen
-        name="[day]"
-        options={{
-          headerShown: true,
-          headerTitle: "Günlük Program",
-          headerBackTitle: "Geri",
-          headerTintColor: BRAND_COLOR,
-        }}
-      />
+      {/* [day] kendi ScreenHeader'ını çizer — yerel başlık screenOptions'tan kapalı. */}
+      <Stack.Screen name="[day]" />
       <Stack.Screen
         name="checkin"
         options={{

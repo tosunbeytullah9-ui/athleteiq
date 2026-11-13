@@ -31,6 +31,7 @@ import {
 import { todayInIstanbul } from "@athleteiq/validators/date";
 import { SessionFeedbackSheet } from "@/components/SessionFeedbackSheet";
 import { LoadErrorState } from "@/components/LoadErrorState";
+import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Tables } from "@athleteiq/db/types";
 
 type ExerciseWithSets = Tables<"exercises"> & { exercise_sets: Tables<"exercise_sets">[] };
@@ -153,14 +154,10 @@ export default function ProgramDayScreen() {
   return (
     <View className="flex-1 bg-gray-50">
       {/* Header */}
-      <View className="bg-blue-700 px-5 pt-14 pb-5">
-        <TouchableOpacity
-          className="flex-row items-center mb-3"
-          onPress={() => router.back()}
-        >
-          <Ionicons name="chevron-back" size={20} color="#93c5fd" />
-          <Text className="text-blue-300 ml-1 text-sm">Program</Text>
-        </TouchableOpacity>
+      <ScreenHeader
+        className="pb-5"
+        back={{ label: "Program", onPress: () => router.back() }}
+      >
         <Text className="text-white text-2xl font-bold">
           {DAY_LABELS[dayNum] ?? `Gün ${dayNum}`}
         </Text>
@@ -181,7 +178,7 @@ export default function ProgramDayScreen() {
             )}
           </View>
         )}
-      </View>
+      </ScreenHeader>
 
       {loading ? (
         <View className="flex-1 items-center justify-center">
