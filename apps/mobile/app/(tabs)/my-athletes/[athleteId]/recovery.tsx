@@ -119,7 +119,14 @@ export default function CoachRecoveryScreen() {
     setRefreshing(false);
   }
 
+  // Bayrak kapalıyken Recovery kartı gizli (Parti 18K); derin link ile açılırsa
+  // sporcu merkezine döner.
   useEffect(() => {
+    if (!WEARABLES_ENABLED) router.replace(`/(tabs)/my-athletes/${athleteId}` as never);
+  }, [router, athleteId]);
+
+  useEffect(() => {
+    if (!WEARABLES_ENABLED) return;
     if (!athlete) {
       setLoading(false);
       return;
@@ -132,6 +139,8 @@ export default function CoachRecoveryScreen() {
     setRefreshing(true);
     fetchData(athlete.id);
   };
+
+  if (!WEARABLES_ENABLED) return null;
 
   if (athleteLoading || loading) {
     return (
@@ -181,12 +190,10 @@ export default function CoachRecoveryScreen() {
             <View className="bg-white rounded-2xl p-6 items-center mt-2">
               <Text className="text-4xl mb-3">⌚</Text>
               <Text className="text-gray-900 font-semibold text-lg text-center">
-                {WEARABLES_ENABLED ? "Wearable Bağlı Değil" : "Recovery verileri yakında"}
+                Wearable Bağlı Değil
               </Text>
               <Text className="text-gray-500 text-sm text-center mt-2">
-                {WEARABLES_ENABLED
-                  ? "Bu sporcunun WHOOP veya Polar cihazı henüz bağlı değil."
-                  : "Giyilebilir cihaz entegrasyonu yakında eklenecek."}
+                Bu sporcunun WHOOP veya Polar cihazı henüz bağlı değil.
               </Text>
             </View>
           ) : metrics.length === 0 ? (

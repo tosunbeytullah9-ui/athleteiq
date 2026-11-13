@@ -145,10 +145,38 @@ const weekStart = (w) => mondayOffset + (w - THIS_WEEK) * 7;
 const block = await insert("program_blocks", {
   org_id: org.id, team_id: teams[0].id, title: "Hazırlık Bloğu", phase: "Özel Hazırlık", total_weeks: TOTAL_WEEKS, created_by: coachUser.id,
 });
+// Egzersiz: [ad, tekrar, %1RM (set başına) | null, süperset?]. Süperset
+// { group, order } → exercises.superset_group / superset_order; mobil gün
+// ekranları (sporcu + koç) aynı gruptaki ≥2 egzersizi tek kartta gösterir
+// (App Review ve mağaza görselleri için Pazartesi + Çarşamba'da birer grup).
+// Süperset vermeyen egzersiz superset_group null kalır; sıra order_index'tir.
+const superset = (group, order) => ({ group, order });
 const SESSIONS = [
-  { dow: 1, title: "Kuvvet — Alt Ekstremite", type: "strength", dur: 70, ex: [["Back Squat", 5, [75, 80, 80]], ["Romanian Deadlift", 8, [65, 65, 70]], ["Bulgarian Split Squat", 8, null], ["Nordic Hamstring Curl", 5, null]] },
-  { dow: 3, title: "Kuvvet — Üst / Halka", type: "strength", dur: 80, ex: [["Weighted Pull-up", 5, null], ["Ring Dip", 8, null], ["Bench Press", 5, null]] },
-  { dow: 5, title: "Pliometrik + Hız", type: "conditioning", dur: 55, ex: [["Box Jump", 5, null], ["Depth Jump", 4, null], ["10 m Sprint", 1, null]] },
+  {
+    dow: 1, title: "Kuvvet — Alt Ekstremite", type: "strength", dur: 70,
+    ex: [
+      ["Back Squat", 5, [75, 80, 80]],
+      ["Romanian Deadlift", 8, [65, 65, 70]],
+      ["Bulgarian Split Squat", 8, null, superset("A", 1)],
+      ["Nordic Hamstring Curl", 5, null, superset("A", 2)],
+    ],
+  },
+  {
+    dow: 3, title: "Kuvvet — Üst / Halka", type: "strength", dur: 80,
+    ex: [
+      ["Weighted Pull-up", 5, null, superset("A", 1)],
+      ["Ring Dip", 8, null, superset("A", 2)],
+      ["Bench Press", 5, null],
+    ],
+  },
+  {
+    dow: 5, title: "Pliometrik + Hız", type: "conditioning", dur: 55,
+    ex: [
+      ["Box Jump", 5, null],
+      ["Depth Jump", 4, null],
+      ["10 m Sprint", 1, null],
+    ],
+  },
 ];
 // Hafta içeriği tekrar eder; %1RM'ler 3 haftalık dalgayla +2,5 artar
 // (+0 / +2,5 / +5 → başa döner) — 10 hafta doğrusal artış %100'ü aşardı.
@@ -164,8 +192,11 @@ for (let w = 1; w <= TOTAL_WEEKS; w++) {
   for (const [si, s] of SESSIONS.entries()) {
     const session = await insert("training_sessions", { program_id: p.id, day_of_week: s.dow, title: s.title, session_type: s.type, duration_min: s.dur, order_index: si });
     allSessions.push({ week: w, offset: start + s.dow - 1, id: session.id, dow: s.dow, dur: s.dur });
-    for (const [ei, [name, reps, pcts]] of s.ex.entries()) {
-      const ex = await insert("exercises", { session_id: session.id, name, order_index: ei, sets: 3, reps });
+    for (const [ei, [name, reps, pcts, ss]] of s.ex.entries()) {
+      const ex = await insert("exercises", {
+        session_id: session.id, name, order_index: ei, sets: 3, reps,
+        superset_group: ss?.group ?? null, superset_order: ss?.order ?? null,
+      });
       await insert("exercise_sets", [0, 1, 2].map((i) => ({
         exercise_id: ex.id, set_number: i + 1, reps, percent_1rm: pcts ? pcts[i] + bump : null, rpe: 7 + (i > 0 ? 1 : 0),
       })));
@@ -272,9 +303,9 @@ for (const fb of defneFeedback) {
 await coachDb.auth.signOut();
 
 // Demo sporcunun WHOOP metrikleri — bağlantı satırı YOK (Parti 18G): mobilde
-// wearable akışı "Yakında" (WEARABLES_ENABLED=false, Parti 18F); App Review
-// incelemecisi Profil'de "Bağlantıyı Kes" yerine "Yakında" ve Recovery'de
-// "Recovery verileri yakında" görür. Metrikler web panelindeki koç görünümleri
+// WEARABLES_ENABLED=false iken Recovery sekmesi ve Profil'deki Cihaz Bağlantıları
+// bölümü gizli (Parti 18K); bağlantı satırı olsaydı incelemeci Profil'de WHOOP
+// satırını ("Bağlantıyı Kes") görürdü. Metrikler web panelindeki koç görünümleri
 // için korunur. reset() demo org'u sildiği için (athletes → wearable_connections
 // CASCADE) eski bir seed'in bağlantı satırı yeniden seed'de kendiliğinden gider.
 // Son 28 gün + bugün. İleri tarihli satır YAZILMAZ: mobil Recovery sorgusunun
@@ -291,9 +322,9 @@ await insert("wearable_daily_metrics", Array.from({ length: 29 }, (_, k) => ({
 // ekranı org'un tüm yarışmalarını yaklaşan/geçmiş diye listeler; kayıt (roster)
 // ve sonuçlar web'de görünür.
 const COMPETITIONS = [
-  { name: "İstanbul Kupası (demo)", offset: -30, location: "İstanbul", entrants: [0, 1, 2, 3] },
-  { name: "Türkiye Şampiyonası (demo)", offset: 20, location: "Ankara", entrants: [0, 1, 2, 3] },
-  { name: "Balkan Şampiyonası (demo)", offset: 60, location: "İzmir", entrants: [0, 2] },
+  { name: "İstanbul Kupası", offset: -30, location: "İstanbul", entrants: [0, 1, 2, 3] },
+  { name: "Türkiye Şampiyonası", offset: 20, location: "Ankara", entrants: [0, 1, 2, 3] },
+  { name: "Balkan Şampiyonası", offset: 60, location: "İzmir", entrants: [0, 2] },
 ];
 for (const c of COMPETITIONS) {
   const comp = await insert("competitions", { org_id: org.id, team_id: teams[0].id, name: c.name, competition_date: day(c.offset), location: c.location });
@@ -315,7 +346,7 @@ console.log(`\nDemo Kulübü hazır (seed: ${day(0)}).
   Program: ${TOTAL_WEEKS} hafta, ${day(weekStart(1))} – ${day(weekStart(TOTAL_WEEKS) + 6)}
   Geri bildirim: Defne ${defneFeedback.length} seans, koç yanıtı ${replyCount}
 
-⚠ Bu veri ${freshUntil} tarihine kadar taze (mobil Recovery "Yakında" — wearable bağlantısı yok).
+⚠ Bu veri ${freshUntil} tarihine kadar taze (mobilde Recovery sekmesi gizli — wearable bağlantısı yok).
   App Review gönderiminden hemen önce yeniden seed edin
   (docs/app-store/submission-checklist.md).
 Yıllık plan ızgarası bu scriptle doldurulmaz; capture.mjs plan yoksa o kareyi atlar.`);

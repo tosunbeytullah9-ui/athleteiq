@@ -9,9 +9,9 @@ TestFlight'a yükleme: [`eas-build-runbook.md`](eas-build-runbook.md).
 
 Tüm demo tarihleri seed anına göredir. Seed'den sonra **30 gün** boyunca her
 iki rolün mobil ekranları doludur; script çıktısının sonunda "bu veri şu
-tarihe kadar taze" tarihi yazar. Recovery ekranı bu sürümde "Yakında"
-gösterir (wearable akışı kapalı, demo sporcunun WHOOP bağlantısı yok —
-Parti 18F/18G). Yine de seed'i gönderimden en fazla birkaç gün önce çalıştırın.
+tarihe kadar taze" tarihi yazar. Bu sürümde Recovery sekmesi yok (wearable
+akışı kapalı, demo sporcunun WHOOP bağlantısı yok — Parti 18F/18G/18K). Yine de
+seed'i gönderimden en fazla birkaç gün önce çalıştırın.
 
 ```bash
 # kök dizinde — şifre koda/dokümana yazılmaz, yalnızca ortam değişkeni
@@ -29,7 +29,7 @@ $env:LANDING_DEMO_PASSWORD = '...'; pnpm landing:seed
       yanıtını mobilde yalnızca _içinde bulunulan haftanın_ seanslarında görür
       (geçmiş haftalara gidilemiyor). Pazartesi seed'lenirse o hafta yalnızca
       bir seans geçmiş olur. İnceleme bir sonraki pazartesiye taşarsa yanıt
-      mobilde görünmez; program, recovery ve yarışmalar etkilenmez.
+      mobilde görünmez; program ve yarışmalar etkilenmez.
 
 > Seed çalıştırmak demo org'u tamamen siler ve yeniden kurar (incelemeci
 > tarafından açılmış hesap silme talepleri de temizlenir). Yalnızca
@@ -40,19 +40,28 @@ $env:LANDING_DEMO_PASSWORD = '...'; pnpm landing:seed
 Mağazaya gidecek build ile (TestFlight), **gerçek cihazda**:
 
 - [ ] `defne.arslan@demo` + şifre → Program sekmesinde bu haftanın seansları,
-      bugünün kartı vurgulu.
+      bugünün kartı vurgulu; gün adları ("Pazartesi", "Çarşamba", "Perşembe",
+      "Cumartesi") tek satırda, bölünmüyor.
+- [ ] Pazartesi ve Çarşamba gün ekranlarında süper set grubu (mor çerçeve,
+      "A Grubu — Süperset (2 egzersiz)") görünüyor.
 - [ ] Bir geçmiş seansın altında sporcunun geri bildirimi ve koçun yanıtı
       görünüyor.
 - [ ] "Sabah Değerlendirmesi" kartı **"Bugün doldurulmadı"** gösteriyor
       (incelemeci kendisi doldurabilmeli).
-- [ ] Recovery sekmesi "Recovery verileri yakında" gösteriyor; Profil'deki
-      WHOOP satırında "Yakında" rozeti var ("Bağla" / "Bağlantıyı Kes" yok).
-- [ ] Yarışmalar sekmesinde yaklaşan ve geçmiş yarışmalar listeleniyor.
+- [ ] Sekme çubuğunda yalnızca Program / Yarışmalar / Profil var — Recovery
+      sekmesi yok. Profil'de "Cihaz Bağlantıları" bölümü yok. Uygulamanın
+      hiçbir yerinde "Yakında" yazmıyor.
+- [ ] Yarışmalar sekmesinde yaklaşan ve geçmiş yarışmalar listeleniyor
+      (İstanbul Kupası, Türkiye Şampiyonası, Balkan Şampiyonası — adlarda
+      "(demo)" eki yok).
 - [ ] Profil → "Yardım" altında "Gizlilik Politikası" ve "Destek"
       `https://loadwell.app/privacy` ve `/support` sayfalarını açıyor.
 - [ ] Profil → "Hesabımı Sil" bölümü görünüyor.
 - [ ] Çıkış → `koc.demo@demo` + şifre → Sporcularım listesi dolu → Defne
-      Arslan → Program / Yarışmalar dolu, Recovery "Recovery verileri yakında".
+      Arslan → yalnızca Program ve Yarışmalar kartları var (Recovery kartı
+      yok), ikisi de dolu.
+- [ ] Koç → Defne Arslan → Program → Pazartesi ve Çarşamba: süper set grubu
+      sporcu ekranındakiyle aynı biçimde görünüyor.
 - [ ] Test sırasında "Hesabımı Sil"e basıldıysa
       **1. adımı tekrarla.**
 

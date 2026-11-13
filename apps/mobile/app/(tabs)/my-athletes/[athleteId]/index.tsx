@@ -4,16 +4,20 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { getAthleteById } from "@athleteiq/db/queries/athletes";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { WEARABLES_ENABLED } from "@/lib/features";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import type { Database } from "@athleteiq/db/types";
 
 type Athlete = Database["public"]["Tables"]["athletes"]["Row"];
 
-const CARDS = [
+const ALL_CARDS = [
   { key: "program", label: "Program", emoji: "📋" },
   { key: "recovery", label: "Recovery", emoji: "💪" },
   { key: "competitions", label: "Yarışmalar", emoji: "🏆" },
 ] as const;
+
+// Wearable kapalıyken Recovery kartı yok (Parti 18K, App Store 2.1).
+const CARDS = ALL_CARDS.filter((card) => WEARABLES_ENABLED || card.key !== "recovery");
 
 export default function AthleteHubScreen() {
   const { athleteId } = useLocalSearchParams<{ athleteId: string }>();

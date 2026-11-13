@@ -233,11 +233,15 @@ export default function CoachProgramScreen() {
                         isToday ? "bg-blue-700" : "bg-white"
                       }`}
                     >
-                      <View className="w-14">
+                      {/* Sabit genişlik: en uzun gün adı ("Cumartesi") tek satıra sığar. */}
+                      <View className="w-[88px] shrink-0">
                         <Text
                           className={`font-semibold text-sm ${
                             isToday ? "text-white" : "text-gray-900"
                           }`}
+                          numberOfLines={1}
+                          adjustsFontSizeToFit
+                          minimumFontScale={0.85}
                         >
                           {DAY_LABELS[dayNum]}
                         </Text>
@@ -264,7 +268,7 @@ export default function CoachProgramScreen() {
                               return (
                                 <View
                                   key={s.id}
-                                  className={`px-2 py-0.5 rounded-full ${
+                                  className={`px-2 py-0.5 rounded-full shrink max-w-full ${
                                     isToday
                                       ? "bg-blue-500"
                                       : colorClass.split(" ")[0]
@@ -276,6 +280,7 @@ export default function CoachProgramScreen() {
                                         ? "text-white"
                                         : colorClass.split(" ")[1]
                                     }`}
+                                    numberOfLines={1}
                                   >
                                     {s.title ?? s.session_type}
                                   </Text>

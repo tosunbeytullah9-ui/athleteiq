@@ -31,10 +31,11 @@
   Web Vercel'de; dahili sentetik e-posta alan adı `.athleteiq.app` bilinçli olarak korunuyor (§4.3).
 - **Supabase:** proje ref `nlmwcygmbbxmfpsubvmh` (`https://nlmwcygmbbxmfpsubvmh.supabase.co`).
 - **Mobil:** Expo SDK 54, bundle ID / paket `app.loadwell`, şema `loadwell`; EAS projesi bağlı
-  (`extra.eas.projectId`, `ascAppId 6828987401`), iOS TestFlight build 1 (`buildNumber "1"`).
-  `WEARABLES_ENABLED = false` (`apps/mobile/lib/features.ts`) — mobilde WHOOP bağlama "Yakında";
-  Polar ve Fitbit yalnızca web. Expo push altyapısı kurulu değil. EAS adımları:
-  `docs/app-store/eas-build-runbook.md`.
+  (`extra.eas.projectId`, `ascAppId 6828987401`), iOS TestFlight build 2; build numarası EAS
+  remote autoIncrement ile yönetilir (app.json `buildNumber` dikkate alınmaz).
+  `WEARABLES_ENABLED = false` (`apps/mobile/lib/features.ts`) — mobilde Recovery sekmesi ve WHOOP
+  satırı gizli (bağlı kullanıcı bağlantıyı kesebilir); Polar ve Fitbit yalnızca web. Expo push
+  altyapısı kurulu değil. EAS adımları: `docs/app-store/eas-build-runbook.md`.
 - **Aktif kilitli kararlar** (değiştirmeden önce sorun):
   - Giriş yalnızca `kullanici@slug` + şifre; e-posta ile giriş/sıfırlama kapalı; bir hesap = bir org (§4.3).
   - Yetki yalnızca `app_metadata` / DB tablolarından — `user_metadata` asla (§4.1).

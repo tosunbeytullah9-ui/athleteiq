@@ -1,11 +1,12 @@
 // Mobil özellik bayrakları (Parti 18F).
 
 /**
- * Giyilebilir cihaz (WHOOP) bağlantı akışı. false iken mobilde yeni bağlantı
- * başlatılamaz: profil satırı ve Recovery boş durumu "Yakında" gösterir,
- * connect-whoop ekranı profile döner. Zaten bağlı olan kullanıcı bağlantısını
- * kesebilir ve mevcut veri gösterimi değişmez. Arka uç ve web paneli bu bayraktan
- * etkilenmez.
+ * Giyilebilir cihaz (WHOOP) yüzeyleri. false iken mobilde hiçbir "yakında" yüzeyi
+ * yoktur (Parti 18K, App Store 2.1): sporcunun Recovery sekmesi ve koçun sporcu
+ * merkezindeki Recovery kartı gizlenir, iki Recovery ekranı ve connect-whoop derin
+ * link ile açılırsa geri yönlenir, Profil'deki "Cihaz Bağlantıları" bölümü yalnızca
+ * zaten bağlı kullanıcıya ("Bağlantıyı Kes" — KVKK) görünür. Arka uç ve web paneli
+ * bu bayraktan etkilenmez.
  *
  * Yeniden açmak için true yapın — ÖNCE WHOOP callback'i (loadwell:// şeması) ve
  * WHOOP / Polar geliştirici portallarındaki redirect URI'leri güncellenmeli.

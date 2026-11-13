@@ -4,6 +4,7 @@ import { Calendar, Activity, Trophy, User, Users } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BRAND_COLOR } from "@athleteiq/validators/brand";
 import { useAuth } from "@/lib/auth";
+import { WEARABLES_ENABLED } from "@/lib/features";
 
 // Simge + etiket alanı (eski height 64 − paddingBottom 8). Alt boşluk ev göstergesi
 // (home indicator) kadar, en az eski 8 — göstergesiz cihazlarda görünüm birebir aynı.
@@ -76,12 +77,17 @@ export default function TabsLayout() {
           tabBarIcon: ({ color }) => <Calendar size={22} color={color} />,
         }}
       />
+      {/* Wearable kapalıyken Recovery sekmesi yok (Parti 18K, App Store 2.1). */}
       <Tabs.Screen
         name="recovery"
-        options={{
-          title: "Recovery",
-          tabBarIcon: ({ color }) => <Activity size={22} color={color} />,
-        }}
+        options={
+          WEARABLES_ENABLED
+            ? {
+                title: "Recovery",
+                tabBarIcon: ({ color }) => <Activity size={22} color={color} />,
+              }
+            : { href: null }
+        }
       />
       <Tabs.Screen
         name="competitions"

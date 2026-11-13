@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
 import { revokeWhoopAccess } from "@/lib/wearables";
-import { WEARABLES_ENABLED, whoopRowMode } from "@/lib/features";
+import { WEARABLES_ENABLED, whoopRowMode, type WhoopRowMode } from "@/lib/features";
 import { AccountDeletionSection } from "@/components/AccountDeletionSection";
 import { HelpLinksSection } from "@/components/HelpLinksSection";
 import { ScreenHeader } from "@/components/ScreenHeader";
@@ -37,18 +37,19 @@ function InitialAvatar({ name }: { name: string }) {
 }
 
 // Mobilde yalnızca WHOOP bağlanır — Polar ve Fitbit web-only (Parti 18A).
+// "soon" (bayrak kapalı + bağlı değil) modunda satır hiç render edilmez (Parti 18K).
 function WhoopRow({
   connection,
+  mode,
   onConnect,
   onDisconnect,
 }: {
   connection: WearableConnection | null;
+  mode: Exclude<WhoopRowMode, "soon">;
   onConnect: () => void;
   onDisconnect: () => void;
 }) {
-  const isConnected = connection?.is_active ?? false;
-  // Bayrak kapalıyken yeni bağlantı yok ("Yakında"); bağlıysa kesme hep açık (Parti 18F).
-  const mode = whoopRowMode(isConnected);
+  const isConnected = mode === "disconnect";
 
   return (
     <View className="flex-row items-center justify-between py-4 border-b border-gray-50">
@@ -74,17 +75,13 @@ function WhoopRow({
         >
           <Text className="text-red-600 text-sm font-medium">Bağlantıyı Kes</Text>
         </TouchableOpacity>
-      ) : mode === "connect" ? (
+      ) : (
         <TouchableOpacity
           className="bg-blue-700 px-3 py-1.5 rounded-lg"
           onPress={onConnect}
         >
           <Text className="text-white text-sm font-medium">Bağla</Text>
         </TouchableOpacity>
-      ) : (
-        <View className="bg-gray-100 px-3 py-1.5 rounded-lg">
-          <Text className="text-gray-500 text-sm font-medium">Yakında</Text>
-        </View>
       )}
     </View>
   );
@@ -163,6 +160,9 @@ export default function ProfileScreen() {
 
   const whoopConn =
     connections.find((c) => c.provider === "whoop") ?? null;
+  // Bayrak kapalı + bağlı değil → bölüm hiç yok (App Store 2.1: "yakında" yüzeyi yok);
+  // bağlıysa "Bağlantıyı Kes" her zaman görünür (KVKK: yetki geri alınabilmeli).
+  const whoopMode = whoopRowMode(whoopConn?.is_active ?? false);
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -216,22 +216,27 @@ export default function ProfileScreen() {
           )}
 
           {/* Wearable bağlantıları */}
-          <Text className="text-gray-900 font-semibold text-base mb-2">
-            Cihaz Bağlantıları
-          </Text>
-          <View className="bg-white rounded-2xl px-4 py-1 mb-2 shadow-sm">
-            <WhoopRow
-              connection={whoopConn}
-              onConnect={() => router.push("/(tabs)/profile/connect-whoop" as never)}
-              onDisconnect={handleDisconnect}
-            />
-          </View>
-          {WEARABLES_ENABLED ? (
-            <Text className="text-gray-400 text-xs mb-4 px-1">
-              Polar ve Fitbit bağlantıları web panelinden yapılır.
-            </Text>
-          ) : (
-            <View className="mb-4" />
+          {whoopMode !== "soon" && (
+            <>
+              <Text className="text-gray-900 font-semibold text-base mb-2">
+                Cihaz Bağlantıları
+              </Text>
+              <View className="bg-white rounded-2xl px-4 py-1 mb-2 shadow-sm">
+                <WhoopRow
+                  connection={whoopConn}
+                  mode={whoopMode}
+                  onConnect={() => router.push("/(tabs)/profile/connect-whoop" as never)}
+                  onDisconnect={handleDisconnect}
+                />
+              </View>
+              {WEARABLES_ENABLED ? (
+                <Text className="text-gray-400 text-xs mb-4 px-1">
+                  Polar ve Fitbit bağlantıları web panelinden yapılır.
+                </Text>
+              ) : (
+                <View className="mb-4" />
+              )}
+            </>
           )}
 
           {/* Çıkış */}

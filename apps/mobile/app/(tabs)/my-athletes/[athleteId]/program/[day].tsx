@@ -10,9 +10,11 @@ import { supabase } from "@/lib/supabase";
 import { useCoachAthlete } from "@/lib/hooks/useCoachAthlete";
 import { ScreenHeader } from "@/components/ScreenHeader";
 import { ExerciseCard } from "@/components/ExerciseCard";
+import { SupersetGroup } from "@/components/SupersetGroup";
 import { WodSessionCard } from "@/components/WodSessionCard";
 import { EnduranceSessionCard } from "@/components/EnduranceSessionCard";
 import { DrillDiagramToggle } from "@/components/DrillDiagram";
+import { groupExercisesForRender } from "@/lib/supersetGroups";
 import {
   buildDrillLookup,
   findDrill,
@@ -151,6 +153,11 @@ export default function CoachProgramDayScreen() {
     0
   );
 
+  const renderDrill = (exerciseName: string) => {
+    const drill = findDrill(drills, exerciseName);
+    return drill ? <DrillDiagramToggle record={drill} /> : null;
+  };
+
   return (
     <View className="flex-1 bg-gray-50">
       {/* Header */}
@@ -254,15 +261,33 @@ export default function CoachProgramDayScreen() {
                   Egzersiz eklenmemiş.
                 </Text>
               ) : (
-                session.exercises.map((exercise, idx) => {
-                  const drill = findDrill(drills, exercise.name);
-                  return (
-                    <View key={exercise.id}>
-                      <ExerciseCard exercise={exercise} index={idx} maxLookup={maxLookup} />
-                      {drill && <DrillDiagramToggle record={drill} />}
+                // Sporcu ekranıyla (program/[day].tsx) aynı süperset gruplaması (Parti 18K);
+                // drill diyagramı her egzersizin kartının hemen altında, grup içinde de.
+                groupExercisesForRender(session.exercises).map((unit) =>
+                  unit.kind === "single" ? (
+                    <View key={unit.exercise.id}>
+                      <ExerciseCard
+                        exercise={unit.exercise}
+                        index={unit.index}
+                        maxLookup={maxLookup}
+                      />
+                      {renderDrill(unit.exercise.name)}
                     </View>
-                  );
-                })
+                  ) : (
+                    <SupersetGroup key={unit.groupKey} label={unit.label}>
+                      {unit.members.map((m) => (
+                        <View key={m.exercise.id}>
+                          <ExerciseCard
+                            exercise={m.exercise}
+                            index={m.index}
+                            maxLookup={maxLookup}
+                          />
+                          {renderDrill(m.exercise.name)}
+                        </View>
+                      ))}
+                    </SupersetGroup>
+                  )
+                )
               )}
             </View>
           ))}

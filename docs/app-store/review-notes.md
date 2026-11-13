@@ -13,6 +13,10 @@ Loadwell is an athlete monitoring and training management app. Sports
 organizations (federations, clubs and universities) use it to plan training
 for their athletes and to track readiness, training load and competitions.
 
+The athlete app has three tabs: **Program**, **Yarışmalar** (Competitions)
+and **Profil** (Profile). The coach app has two: **Sporcularım** (My Athletes)
+and **Profil** (Profile).
+
 Accounts are created by the organization for its own athletes and coaches.
 There is no in-app sign-up, which is why we are providing demo accounts. Both
 accounts belong to a fictional "Demo Kulübü" (Demo Club) organization and
@@ -39,8 +43,8 @@ The login field takes **username@organization**, not an email address.
 3. On the Program tab, tap the **Sabah Değerlendirmesi** (Morning check-in)
    card to fill in today's 5-question wellness survey. Recent days are listed
    below the form.
-4. **Recovery** tab: shows "Recovery verileri yakında" (Recovery data coming
-   soon) — see "Wearables" below.
+4. On the Monday and Wednesday sessions, two exercises are grouped as a
+   **superset** (performed back to back) and shown inside one shared frame.
 5. **Yarışmalar** (Competitions) tab: upcoming and past competitions.
 6. **Profil** (Profile) tab: personal details, privacy policy and support
    links (**Yardım** / Help) and account deletion.
@@ -48,9 +52,9 @@ The login field takes **username@organization**, not an email address.
 **Coach account (`koc.demo@demo`)**
 
 1. **Sporcularım** (My Athletes) tab: the coach's team roster.
-2. Tap an athlete (for example _Defne Arslan_) to open their program and
-   competitions. Their **Recovery** screen shows "Recovery verileri yakında"
-   (coming soon) — see "Wearables" below.
+2. Tap an athlete (for example _Defne Arslan_) to open their **Program** and
+   **Yarışmalar** (Competitions). Tapping a day shows the same exercises,
+   supersets and loads the athlete sees.
 3. **Profil** (Profile) tab: organization info, sign out, privacy policy and
    support links (**Yardım** / Help) and account deletion.
 
@@ -72,10 +76,27 @@ https://loadwell.app/support, on both the athlete and the coach account.
 
 ## Wearables
 
-Wearable integration (WHOOP) is disabled in this version. The related screens
-show **Yakında** ("Coming soon"): the Recovery tab, the athlete's Recovery
-screen on the coach account and the WHOOP row on the Profile tab. No wearable
-device or third-party account is needed to review the app.
+Wearable integration (WHOOP) is turned off in this version and has no visible
+screens: there is no Recovery tab, no Recovery screen on the coach account and
+no device connection section on the Profile tab. No wearable device or
+third-party account is needed to review the app.
+
+## No messaging or user-generated content between strangers
+
+Accounts are created by the organization (club or federation) for its own
+athletes and coaches; nobody can sign up or find other users in the app. There
+is no chat, public feed or profile browsing. The only free text exchanged is
+session feedback: an athlete can leave a short note on their own training
+session, and only that athlete's own coach (or their organization's
+administrator) can read it and reply. Users never communicate with anyone
+outside their own organization.
+
+## Competitions
+
+The **Yarışmalar** (Competitions) tab shows the athlete's real-world
+competition calendar and results (for example national championships), as
+entered by their organization. There are no in-app contests, rankings between
+app users, prizes or rewards.
 
 ## Purchases
 

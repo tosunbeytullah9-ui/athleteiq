@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { supabase } from "@/lib/supabase";
 import { WEARABLES_ENABLED } from "@/lib/features";
 import { useAthleteProfile } from "@/lib/hooks/useAthleteProfile";
@@ -76,6 +77,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function RecoveryScreen() {
+  const router = useRouter();
   const { athlete, loading: athleteLoading } = useAthleteProfile();
   const [metrics, setMetrics] = useState<WearableMetric[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,7 +118,13 @@ export default function RecoveryScreen() {
     setRefreshing(false);
   }
 
+  // Bayrak kapalıyken sekme gizli (Parti 18K); derin link ile açılırsa programa döner.
   useEffect(() => {
+    if (!WEARABLES_ENABLED) router.replace("/(tabs)/program");
+  }, [router]);
+
+  useEffect(() => {
+    if (!WEARABLES_ENABLED) return;
     if (!athlete) {
       setLoading(false);
       return;
@@ -129,6 +137,8 @@ export default function RecoveryScreen() {
     setRefreshing(true);
     fetchData(athlete.id);
   };
+
+  if (!WEARABLES_ENABLED) return null;
 
   if (athleteLoading || loading) {
     return (
@@ -160,12 +170,11 @@ export default function RecoveryScreen() {
             <View className="bg-white rounded-2xl p-6 items-center mt-2">
               <Text className="text-4xl mb-3">⌚</Text>
               <Text className="text-gray-900 font-semibold text-lg text-center">
-                {WEARABLES_ENABLED ? "Wearable Bağlı Değil" : "Recovery verileri yakında"}
+                Wearable Bağlı Değil
               </Text>
               <Text className="text-gray-500 text-sm text-center mt-2">
-                {WEARABLES_ENABLED
-                  ? "Recovery verilerini görmek için Profil ekranından WHOOP cihazınızı bağlayın. Polar ve Fitbit bağlantıları web panelinden yapılır."
-                  : "Giyilebilir cihaz entegrasyonu yakında eklenecek."}
+                Recovery verilerini görmek için Profil ekranından WHOOP cihazınızı bağlayın.
+                Polar ve Fitbit bağlantıları web panelinden yapılır.
               </Text>
             </View>
           ) : metrics.length === 0 ? (
