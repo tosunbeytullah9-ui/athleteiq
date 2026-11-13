@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Dokümantasyon senkron script'i — CLAUDE.md'nin AUTO-GENERATED bloklarını
-// canlı Supabase şeması + supabase/migrations/ + repo klasör ağacından üretir.
+// Dokümantasyon senkron script'i — CLAUDE.md ve docs/claude/*.md'deki AUTO-GENERATED
+// bloklarını canlı Supabase şeması + supabase/migrations/ + repo klasör ağacından üretir.
 // Kullanım: pnpm docs:sync
 
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
@@ -10,7 +10,14 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
 
-const CLAUDE_MD_PATH = path.join(ROOT, "CLAUDE.md");
+// Blok → dosya eşlemesinin TEK kaynağı (Parti 18J: CLAUDE.md docs/claude/ altına bölündü).
+// Bir blok başka dosyaya taşınırsa yalnızca burası değişir.
+const BLOCK_FILES = {
+  TREE: "docs/claude/structure.md",
+  SCHEMA: "docs/claude/database.md",
+  MIGRATIONS: "docs/claude/status.md",
+  SYNC_TIMESTAMP: "CLAUDE.md",
+};
 const TABLE_DESC_PATH = path.join(__dirname, "table-descriptions.json");
 const MIGRATIONS_DIR = path.join(ROOT, "supabase", "migrations");
 
@@ -194,14 +201,14 @@ function renderMigrationsBlock(files) {
   return files.map((f) => `- ${f}`).join("\n");
 }
 
-function replaceMarkerBlock(content, name, body) {
+function replaceMarkerBlock(content, name, body, fileLabel) {
   const startTag = `<!-- AUTO-GENERATED:${name}:START -->`;
   const endTag = `<!-- AUTO-GENERATED:${name}:END -->`;
   const startIdx = content.indexOf(startTag);
   const endIdx = content.indexOf(endTag);
   if (startIdx === -1 || endIdx === -1 || endIdx < startIdx) {
     throw new Error(
-      `CLAUDE.md içinde "${name}" marker'ı bulunamadı (${startTag} ... ${endTag}). ` +
+      `${fileLabel} içinde "${name}" marker'ı bulunamadı (${startTag} ... ${endTag}). ` +
         `Marker'lar önce elle eklenmeli — script sessizce atlamaz.`
     );
   }
@@ -220,20 +227,33 @@ async function main() {
 
   const descriptions = loadOrInitTableDescriptions(realTables);
 
-  let claudeMd = readFileSync(CLAUDE_MD_PATH, "utf8");
-  claudeMd = replaceMarkerBlock(claudeMd, "TREE", renderTreeBlock(ROOT));
-  claudeMd = replaceMarkerBlock(claudeMd, "SCHEMA", renderSchemaBlock(realTables, descriptions));
-  claudeMd = replaceMarkerBlock(claudeMd, "MIGRATIONS", renderMigrationsBlock(migrationFiles));
-  claudeMd = replaceMarkerBlock(
-    claudeMd,
-    "SYNC_TIMESTAMP",
-    `Son otomatik senkron: ${new Date().toISOString().slice(0, 10)}`
-  );
+  const bodies = {
+    TREE: renderTreeBlock(ROOT),
+    SCHEMA: renderSchemaBlock(realTables, descriptions),
+    MIGRATIONS: renderMigrationsBlock(migrationFiles),
+    SYNC_TIMESTAMP: `Son otomatik senkron: ${new Date().toISOString().slice(0, 10)}`,
+  };
 
-  writeFileSync(CLAUDE_MD_PATH, claudeMd);
+  // Önce tüm dosyalarda tüm marker'lar değiştirilir, sonra yazılır — bir marker eksikse
+  // hiçbir dosyaya yarım güncelleme yazılmaz.
+  const contents = new Map();
+  for (const [name, rel] of Object.entries(BLOCK_FILES)) {
+    const filePath = path.join(ROOT, rel);
+    if (!contents.has(rel)) {
+      if (!existsSync(filePath)) {
+        throw new Error(`"${name}" bloğunun dosyası bulunamadı: ${rel} (BLOCK_FILES'ı kontrol edin).`);
+      }
+      contents.set(rel, readFileSync(filePath, "utf8"));
+    }
+    contents.set(rel, replaceMarkerBlock(contents.get(rel), name, bodies[name], rel));
+  }
+  for (const [rel, content] of contents) {
+    writeFileSync(path.join(ROOT, rel), content);
+  }
 
   console.log(
-    `[docs-sync] Tamamlandı: ${realTables.length} tablo, ${migrationFiles.length} migration, CLAUDE.md güncellendi.`
+    `[docs-sync] Tamamlandı: ${realTables.length} tablo, ${migrationFiles.length} migration, ` +
+      `güncellenen dosyalar: ${[...contents.keys()].join(", ")}.`
   );
 }
 

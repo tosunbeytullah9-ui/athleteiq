@@ -4404,3 +4404,22 @@ pnpm --filter="@athleteiq/web" exec eslint .   # yalnızca web (0 error, 21 warn
 ✅ Test sonucu eklenebilir
 ❌ RLS testleri (henüz yazılmadı)
 ```
+
+---
+
+### Parti 18J — CLAUDE.md Bölündü: Çekirdek + docs/claude Başvuru Dosyaları ✅ (2026-11-13)
+
+Claude Code CLAUDE.md'nin 150k karakter sınırını aştığını uyarıyordu (164.878 karakter, her
+oturumda tamamı bağlama yükleniyordu). CLAUDE.md artık yalnızca her oturumda gereken kuralları
+taşıyor (§0, §1, §4.1–§4.3, §9, §9.1, "Her Yeni Session Başında") + yeni "Başvuru dokümanları"
+haritası ve "Güncel durum özeti" — **28.204 karakter**. Başvuru içeriği `docs/claude/`
+altına BİREBİR taşındı (§ numaraları ve başlıklar aynı): `structure.md` (§2), `database.md`
+(§3, §4 giriş, §4.0, §4.4), `wearables.md` (§5), `agents.md` (§6), `env-and-commands.md`
+(§7, §8), `status.md` (§10, §11). `@` import kullanılmadı — dosyalar otomatik yüklenmez,
+harita "ne zaman oku" der. `scripts/docs-sync.mjs` blokları `BLOCK_FILES` sabitindeki
+dosyalara yazıyor (TREE → structure.md, SCHEMA → database.md, MIGRATIONS → status.md,
+SYNC_TIMESTAMP → CLAUDE.md); marker eksikse hâlâ hata verip hiçbir dosyaya yazmıyor.
+Doğrulama: eski 57 başlığın tamamı ve eski dolu satırların tamamı yeni dosyalarda (fark
+yalnızca §9.1'in yeniden yazılan 3 satırı + docs:sync'in güncellediği ağaç/tarih satırları);
+`pnpm docs:sync` ikinci çalıştırmada boş diff. Repo genelindeki "CLAUDE.md §X" atıflarına
+ve migration'lara dokunulmadı — hepsi haritayla çözülüyor. Uygulama koduna dokunulmadı.
